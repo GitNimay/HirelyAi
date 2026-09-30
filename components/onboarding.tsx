@@ -1,20 +1,21 @@
 "use client";
 
-import { SignOutButton } from "@clerk/nextjs";
+import { SignOutButton, useSession } from "@clerk/nextjs";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { extractFromPdf, saveMyResume } from "@/app/onboarding/actions";
+import { createMyProfile, extractFromPdf } from "@/app/onboarding/actions";
 import { emptyResume, MAX_RESUME_PDF_BYTES, mergeResume, missingFields, validPhone, type Resume } from "@/lib/resume-fields";
-import { Logo } from "./auth";
+import { errorText, Logo } from "./auth";
 import { F, input, ResumeEditor, StatusPicker } from "./resume-editor";
 import { btnGhost, Icon, icons } from "./ui";
 
-type Step = "details" | "method" | "reading" | "review" | "done";
+type Step = "details" | "method" | "reading" | "review" | "verify" | "done";
 const STEPS: { id: Step; label: string }[] = [
   { id: "details", label: "Your details" },
   { id: "method", label: "Choose a method" },
   { id: "review", label: "Review profile" },
+  { id: "verify", label: "Verify email" },
   { id: "done", label: "All set" },
 ];
 const order = (s: Step) => (s === "reading" ? 1 : STEPS.findIndex((x) => x.id === s));
@@ -25,10 +26,11 @@ const chevron = "m9 18 6-6-6-6";
 
 /**
  * First sign-in: contact details → resume upload (AI fills the form) or manual entry → review, with anything
- * missing highlighted → saved, then the dashboard. Layout follows the reference: title left, card centre, steps right.
+ * missing highlighted → email code from Clerk (even after Google/GitHub/X sign-in) → saved, then the dashboard. Layout follows the reference: title left, card centre, steps right.
  */
 export function Onboarding({ initial }: { initial: { name: string; email: string; phone: string } }) {
   const router = useRouter();
+  const { session } = useSession();
   const reduce = useReducedMotion();
   const [step, setStep] = useState<Step>("details");
   const [r, setR] = useState<Resume>({ ...emptyResume(), ...initial });
@@ -37,6 +39,7 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
+  const [code, setCode] = useState("");
   const file = useRef<HTMLInputElement>(null);
   const missing = missingFields(r);
   const go = (s: Step) => (setError(""), setStep(s), window.scrollTo({ top: 0 }));
@@ -82,12 +85,45 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
       document.querySelector(".border-danger, .text-danger")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    go("verify");
+    sendCode();
+  }
+
+  // Clerk session verification: Clerk emails the code and checks it; a pass refreshes the session's first-factor age,
+  // which createMyProfile requires.
+  async function sendCode() {
+    if (!session) return;
     setBusy(true);
     setError("");
-    const res = await saveMyResume(r).catch(() => ({ error: "Couldn't save. Try again." }));
+    setCode("");
+    try {
+      const v = await session.startVerification({ level: "first_factor" });
+      const emails = v.supportedFirstFactors?.filter((x) => x.strategy === "email_code") ?? [];
+      const f = emails.find((x) => x.primary) ?? emails[0];
+      if (!f || f.strategy !== "email_code") throw new Error("Your account has no email address to verify.");
+      await session.prepareFirstFactorVerification({ strategy: "email_code", emailAddressId: f.emailAddressId });
+    } catch (e) {
+      setError(errorText(e));
+    }
     setBusy(false);
-    if ("error" in res) return setError(res.error);
-    go("done");
+  }
+
+  async function verify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!session) return;
+    setBusy(true);
+    setError("");
+    try {
+      const v = await session.attemptFirstFactorVerification({ strategy: "email_code", code });
+      if (v.status !== "complete") throw new Error("That code didn't work. Try again.");
+      await session.getToken({ skipCache: true }); // the server reads the new verification age from the token
+      const res = await createMyProfile(r).catch(() => ({ error: "Couldn't save. Try again." }));
+      if ("error" in res) throw new Error(res.error);
+      go("done");
+    } catch (e) {
+      setError(errorText(e));
+    }
+    setBusy(false);
   }
 
   const current = order(step);
@@ -173,9 +209,33 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="sticky bottom-0 -mx-6 flex items-center justify-between gap-3 border-t border-border bg-surface px-6 py-4 sm:-mx-8 sm:px-8">
           <button type="button" onClick={() => go("method")} className={btnGhost} disabled={busy}><Icon d={icons.back} size={14} />Back</button>
-          <button type="button" onClick={save} className={primary} disabled={busy}>{busy ? "Creating…" : "Create profile"}</button>
+          <button type="button" onClick={save} className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
         </div>
       </div>
+    ),
+    verify: (
+      <form onSubmit={verify} className="space-y-5">
+        <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email || "your email"}. Enter it to create your profile.`} />
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          placeholder="000000"
+          aria-label="Verification code"
+          autoFocus
+          className={`${input} h-10 border-border text-center font-mono tracking-[0.5em]`}
+        />
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        <div className="flex items-center justify-between gap-3">
+          <button type="button" onClick={() => go("review")} className={btnGhost} disabled={busy}><Icon d={icons.back} size={14} />Back</button>
+          <span className="flex items-center gap-4">
+            <button type="button" onClick={sendCode} className="text-sm text-link hover:underline disabled:opacity-60" disabled={busy}>Resend code</button>
+            <button type="submit" className={primary} disabled={busy || code.length !== 6}>{busy ? "Verifying…" : "Verify & create profile"}</button>
+          </span>
+        </div>
+      </form>
     ),
     done: (
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
