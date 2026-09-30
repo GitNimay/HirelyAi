@@ -11,6 +11,7 @@ import { isVideo } from "@/lib/media";
 import type { Connection, Profile, Reply } from "@/lib/profile";
 import { AVATAR_PX, COVER_PX, LIMITS, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl } from "@/lib/profile-fields";
 import { field, Field } from "./jobs";
+import { MediaTilesSkeleton, RepliesSkeleton } from "./skeleton";
 import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
@@ -394,10 +395,14 @@ export function MediaGrid({ userId, initial, own }: { userId: string; initial: P
           </li>
         ))}
       </ul>
-      {page.next && (
-        <button type="button" onClick={more} disabled={loading} className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-60">
-          {loading ? "Loading…" : "Load more"}
-        </button>
+      {loading ? (
+        <div className="-mt-0.5"><MediaTilesSkeleton n={3} /></div>
+      ) : (
+        page.next && (
+          <button type="button" onClick={more} className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+            Load more
+          </button>
+        )
       )}
     </>
   );
@@ -444,10 +449,14 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
           </li>
         ))}
       </ul>
-      {page.next && (
-        <button type="button" onClick={more} disabled={loading} className={`${btn} h-12 w-full rounded-none text-muted hover:bg-surface hover:text-foreground`}>
-          {loading ? "Loading…" : "Load more"}
-        </button>
+      {loading ? (
+        <RepliesSkeleton n={2} />
+      ) : (
+        page.next && (
+          <button type="button" onClick={more} className={`${btn} h-12 w-full rounded-none text-muted hover:bg-surface hover:text-foreground`}>
+            Load more
+          </button>
+        )
       )}
     </>
   );

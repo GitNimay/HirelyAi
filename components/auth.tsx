@@ -1,10 +1,11 @@
 "use client";
 
-import { useSignIn, useSignUp } from "@clerk/nextjs";
+import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
 import type { OAuthStrategy, SetActiveNavigate } from "@clerk/nextjs/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { Loading, Skeleton, times } from "./skeleton";
 
 type Result = Promise<{ error: unknown }>;
 
@@ -41,7 +42,9 @@ export function Logo({ size = 48 }: { size?: number }) {
   );
 }
 
-function Shell({ title, subtitle, children, footer }: { title: string; subtitle: ReactNode; children: ReactNode; footer: ReactNode }) {
+/** The auth card. Until Clerk has loaded in the browser the form is placeholders; with `busy` (a status label) it stays so, above `children`. */
+export function Shell({ title, subtitle, children, footer, busy }: { title: string; subtitle: ReactNode; children?: ReactNode; footer?: ReactNode; busy?: string }) {
+  const { isLoaded } = useAuth();
   return (
     <main className="flex min-h-screen flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-[360px]">
@@ -50,8 +53,21 @@ function Shell({ title, subtitle, children, footer }: { title: string; subtitle:
           <h1 className="mt-6 text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
         </div>
-        {children}
-        <p className="mt-8 text-center text-sm text-muted">{footer}</p>
+        {isLoaded && !busy ? (
+          children
+        ) : (
+          <Loading label={busy}>
+            <div className="space-y-3">{times(3, (i) => <Skeleton key={i} className="h-10" />)}</div>
+            <div className="my-6 flex items-center gap-3 text-xs uppercase text-muted">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <div className="space-y-3"><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
+          </Loading>
+        )}
+        {busy && children}
+        {footer && <p className="mt-8 text-center text-sm text-muted">{footer}</p>}
       </div>
     </main>
   );

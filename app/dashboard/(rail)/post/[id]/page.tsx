@@ -10,7 +10,7 @@ import { viewerOf } from "@/lib/profile";
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
-  const post = await getPost(user.id, (await params).id);
+  const [post, viewer] = await Promise.all([getPost(user.id, (await params).id), viewerOf(user)]);
   if (!post || post.repostedBy) notFound();
 
   return (
@@ -21,7 +21,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         </Link>
         <h1 className="text-sm font-semibold">Post</h1>
       </header>
-      <Feed single viewer={await viewerOf(user)} initial={{ posts: [post], next: null }} followingIds={[]} />
+      <Feed single viewer={viewer} initial={{ posts: [post], next: null }} followingIds={[]} />
     </>
   );
 }

@@ -93,3 +93,24 @@ select option {
   background-color: var(--surface);
   color: var(--foreground);
 }
+
+/* Skeletons (components/skeleton.tsx): a calm pulse on the surface tokens, so both themes match.
+   Regions fade in after 150ms, so fast loads never flash a placeholder. */
+.skeleton {
+  display: block;
+  border-radius: 0.375rem;
+  background-color: var(--surface-hover);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+.skeleton-in {
+  animation: skeleton-in 150ms ease-out 150ms both;
+}
+@keyframes skeleton-pulse {
+  50% { opacity: 0.55; }
+}
+@keyframes skeleton-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}

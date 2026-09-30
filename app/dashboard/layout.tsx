@@ -11,12 +11,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   await auth.protect();
   const user = await currentUser();
   // Name and photo come from D1 (editable on the profile), not Clerk
-  const me = user ? await viewerOf(user) : null;
+  const [me, unseen] = user ? await Promise.all([viewerOf(user), unseenCount(user.id)]) : [null, 0];
   // New members set up their profile first
   if (me && !me.onboarded) redirect("/onboarding");
   const name = me?.name ?? "You";
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
-  const unseen = user ? await unseenCount(user.id) : 0;
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-1 justify-center">

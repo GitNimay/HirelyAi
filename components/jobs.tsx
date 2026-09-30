@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
 import type { Applicant, Job, JobPage } from "@/lib/jobs";
+import { JobRowsSkeleton, Line, Loading, Skeleton, times } from "./skeleton";
 import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
@@ -220,7 +221,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
           </button>
         )}
         {ids.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-muted">{loading ? "Loading…" : tab === "search" && hasFilters ? "No jobs match these filters." : EMPTY[tab]}</p>
+          loading ? <JobRowsSkeleton /> : <p className="px-4 py-10 text-center text-sm text-muted">{tab === "search" && hasFilters ? "No jobs match these filters." : EMPTY[tab]}</p>
         ) : (
           <ul className="divide-y divide-border border-b border-border">
             {ids.map((id) => (
@@ -229,7 +230,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
           </ul>
         )}
         <div ref={sentinel} className="h-px" />
-        {loading && ids.length > 0 && <p className="py-4 text-center text-sm text-muted">Loading…</p>}
+        {loading && ids.length > 0 && <JobRowsSkeleton n={2} />}
       </div>
 
       {applying && shown && (
@@ -460,7 +461,24 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
 }
 
 function Applicants({ list, onStatus }: { list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
-  if (!list) return <p className="p-4 text-sm text-muted">Loading applicants…</p>;
+  if (!list)
+    return (
+      <Loading label="Loading applicants…" className="divide-y divide-border">
+        {times(3, (i) => (
+          <div key={i} className="flex gap-3 p-4">
+            <Skeleton className="size-10 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1"><Line className="text-sm" w={["40%", "32%", "46%"][i]} /><Line className="text-xs" w={["60%", "48%", "55%"][i]} /></div>
+                <Skeleton className="h-8 w-28" />
+              </div>
+              <Line className="text-xs" w="50%" />
+              <Line className="text-xs" w="24%" />
+            </div>
+          </div>
+        ))}
+      </Loading>
+    );
   if (list.length === 0) return <p className="p-4 text-sm text-muted">No applicants yet. New ones show up here as they apply.</p>;
   return (
     <ul className="divide-y divide-border">

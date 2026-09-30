@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { deleteAccount } from "@/app/settings/actions";
 import { errorText, providerIcons, providers } from "./auth";
 import { field, Field, Modal } from "./jobs";
+import { Line, Loading, Skeleton, times } from "./skeleton";
 import { ago, btn, btnGhost, btnOutline, btnPrimary } from "./ui";
 
 type NeedsReverification = { level?: "first_factor" | "second_factor" | "multi_factor"; complete: () => void; cancel: () => void };
@@ -30,12 +31,8 @@ export function AccountSettings() {
 
   return (
     <div className="pb-16">
-      <header className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-5 backdrop-blur">
-        <h1 className="text-sm font-semibold">Account settings</h1>
-      </header>
-      {!user ? (
-        <p className="p-5 text-sm text-muted">Loading…</p>
-      ) : (
+      <AccountHeader loading={!user} />
+      {user && (
         <>
           <Emails run={run} />
           <Phones run={run} />
@@ -48,6 +45,35 @@ export function AccountSettings() {
     </div>
   );
 }
+
+/** The page header, plus placeholder sections while `loading` (Clerk loads the user in the browser). */
+export function AccountHeader({ loading }: { loading?: boolean }) {
+  return (
+    <>
+      <header className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-5 backdrop-blur">
+        <h1 className="text-sm font-semibold">Account settings</h1>
+      </header>
+      {loading && (
+        <Loading label="Loading account…">
+          {times(4, (i) => (
+            <section key={i} className="border-b border-border px-5 py-6">
+              <Line className="text-sm" w={["28%", "24%", "34%", "38%"][i]} />
+              <Line className="mt-1 text-sm" w={["80%", "70%", "50%", "45%"][i]} />
+              <div className="mt-4">{times(i === 1 ? 1 : 2, (j) => <SessionRowSkeleton key={j} />)}</div>
+            </section>
+          ))}
+        </Loading>
+      )}
+    </>
+  );
+}
+
+const SessionRowSkeleton = () => (
+  <div className="flex min-h-12 items-center gap-3 border-t border-border py-2 first:border-t-0">
+    <div className="min-w-0 flex-1"><Line className="text-sm" w="40%" /><Line className="text-xs" w="55%" /></div>
+    <Skeleton className="h-8 w-20" />
+  </div>
+);
 
 type Run = (fn: () => Promise<unknown>) => Promise<unknown>;
 
@@ -316,7 +342,7 @@ function Sessions({ run }: { run: Run }) {
   return (
     <Section title="Where you're signed in" desc="Sign out of any device you don't recognize.">
       {!list ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <Loading label="Loading devices…">{times(2, (i) => <SessionRowSkeleton key={i} />)}</Loading>
       ) : (
         <ul>
           {list.map((s) => {
