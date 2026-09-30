@@ -1,6 +1,8 @@
 import { createClerkClient } from "@clerk/backend";
 import { DurableObject } from "cloudflare:workers";
 import app from "vinext/server/app-router-entry";
+import { acceptTranscript, closeExpired, evaluate } from "../lib/interview";
+import { cleanTranscript } from "../lib/interview-fields";
 import { hubFor } from "../lib/realtime";
 
 /** Holds feed WebSockets (hibernatable, so idle sockets cost nothing) and fans out FeedEvents. */
@@ -49,6 +51,17 @@ export default {
       forward.headers.set("X-User-Id", userId);
       return env.FEED_HUB.getByName(hubFor(userId)).fetch(forward);
     }
+    // The interview agent (LiveKit Cloud) posts the transcript here when a call ends; grading runs after we answer
+    if (url.pathname === "/api/interview/complete" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { sessionId?: unknown; transcript?: unknown };
+      const id = await acceptTranscript(request.headers.get("Authorization"), String(body.sessionId), cleanTranscript(body.transcript));
+      if (id) ctx.waitUntil(evaluate(id));
+      return new Response(null, { status: id ? 204 : 409 });
+    }
     return app.fetch(request, env, ctx);
+  },
+  // Every 15 minutes: close jobs whose interview deadline has passed
+  async scheduled() {
+    await closeExpired();
   },
 } satisfies ExportedHandler<Env>;

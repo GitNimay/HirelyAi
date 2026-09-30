@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { bedrockJson } from "./bedrock";
 import { Fail } from "./guard";
 import { broadcast } from "./realtime";
 import { autoHeadline, cleanResume, missingFields, type Resume } from "./resume-fields";
@@ -46,7 +47,7 @@ Rules: never invent facts; use "" or [] when something isn't in the resume. Inte
 "student" if still studying, otherwise "fresher". Use a year-only date as "YYYY-01".`;
 
 /**
- * PDF → text (unpdf, pure JS so it runs on Workers) → Bedrock (OpenAI-compatible chat completions) → cleaned Resume.
+ * PDF → text (unpdf, pure JS so it runs on Workers) → Bedrock → cleaned Resume.
  * Throws Fail with a message the onboarding screen shows before falling back to the manual form.
  */
 export async function extractResume(pdf: ArrayBuffer): Promise<Resume> {
@@ -60,33 +61,12 @@ export async function extractResume(pdf: ArrayBuffer): Promise<Resume> {
   }
   if (text.length < 80) throw new Fail("That PDF has no readable text (it may be a scanned image). Fill in your details manually.");
 
-  // Bedrock's OpenAI-compatible endpoint (a Bedrock long-term API key works as the bearer token)
-  const res = await fetch(`${env.BEDROCK_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.BEDROCK_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: env.BEDROCK_MODEL,
-      // ponytail: first 20k chars (~5 pages) only; plenty for resumes.
-      // No response_format: this endpoint's JSON mode emits a stray "{", plain output is clean.
-      messages: [{ role: "system", content: PROMPT }, { role: "user", content: `Resume:
+  // ponytail: first 20k chars (~5 pages) only; plenty for resumes.
+  const r = await bedrockJson(PROMPT, `Resume:
 """
 ${text.slice(0, 20_000)}
-"""` }],
-      max_tokens: 6000,
-      temperature: 0,
-    }),
-  }).catch(() => null);
-  if (!res?.ok) {
-    console.error("bedrock", res?.status, await res?.text().catch(() => ""));
-    throw new Fail("Our resume reader is busy right now. Fill in your details manually, or try again in a minute.");
-  }
-  const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  // Reasoning comes in a separate field; the content is the JSON, maybe wrapped in a code fence
-  const out = body.choices?.[0]?.message?.content ?? "";
-  try {
-    return cleanResume(JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)));
-  } catch {
-    console.error("bedrock: unparseable output", out.slice(0, 500));
-    throw new Fail("We couldn't read that resume. Fill in your details manually.");
-  }
+"""`, 6000);
+  if (!r.ok && r.reason === "busy") throw new Fail("Our resume reader is busy right now. Fill in your details manually, or try again in a minute.");
+  if (!r.ok) throw new Fail("We couldn't read that resume. Fill in your details manually.");
+  return cleanResume(r.value);
 }

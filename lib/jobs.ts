@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import type { SessionStatus } from "./interview";
+import type { Fit } from "./interview-fields";
 import type { AppStatus, JobFilters, JobType, Level, MyJobsTab, Workplace } from "./job-fields";
 
 /** A job as one viewer sees it: whether they saved it, applied (and where that stands), or posted it. */
@@ -18,6 +20,8 @@ export type Job = {
   poster: { id: string; name: string; imageUrl: string | null; headline: string | null };
   saved: boolean;
   application: { status: AppStatus; at: number } | null;
+  /** Voice interview. Link and password only for the poster and applicants; `status` is the viewer's own attempt. */
+  interview: { deadline: number; questions: number; slug: string | null; password: string | null; status: SessionStatus | null } | null;
 };
 export type JobPage = { jobs: Job[]; next: string | null };
 
@@ -32,12 +36,14 @@ export type Applicant = {
   note: string | null;
   status: AppStatus;
   at: number;
+  interview: { status: SessionStatus; score: number | null; fit: Fit | null } | null;
 };
 
 type Row = {
   id: string; poster_id: string; title: string; company: string; location: string; workplace: Workplace; type: JobType; level: Level;
   salary: string | null; description: string; applicant_count: number; closed_at: number | null; created_at: number;
   name: string; image_url: string | null; headline: string | null; saved: number; app_status: AppStatus | null; applied_at: number | null;
+  iv_deadline: number | null; iv_questions: number | null; iv_slug: string | null; iv_password: string | null; iv_status: SessionStatus | null;
 };
 
 const PAGE = 20;
@@ -47,10 +53,15 @@ const POSTED_DAYS = { day: 1, week: 7, month: 30 };
 // ?1 is always the viewer
 const SELECT = `
   SELECT j.*, u.name, u.image_url, u.headline, a.status AS app_status, a.created_at AS applied_at,
-         EXISTS (SELECT 1 FROM saved_jobs s WHERE s.user_id = ?1 AND s.job_id = j.id) AS saved
+         EXISTS (SELECT 1 FROM saved_jobs s WHERE s.user_id = ?1 AND s.job_id = j.id) AS saved,
+         i.deadline AS iv_deadline, json_array_length(i.questions) AS iv_questions, ivs.status AS iv_status,
+         CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.slug END AS iv_slug,
+         CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.password END AS iv_password
   FROM jobs j
   JOIN users u ON u.id = j.poster_id
-  LEFT JOIN applications a ON a.job_id = j.id AND a.applicant_id = ?1`;
+  LEFT JOIN applications a ON a.job_id = j.id AND a.applicant_id = ?1
+  LEFT JOIN interviews i ON i.job_id = j.id
+  LEFT JOIN interview_sessions ivs ON ivs.job_id = j.id AND ivs.applicant_id = ?1`;
 
 const toJob = (r: Row): Job => ({
   id: r.id, title: r.title, company: r.company, location: r.location, workplace: r.workplace, type: r.type, level: r.level,
@@ -58,6 +69,7 @@ const toJob = (r: Row): Job => ({
   poster: { id: r.poster_id, name: r.name, imageUrl: r.image_url, headline: r.headline },
   saved: !!r.saved,
   application: r.app_status ? { status: r.app_status, at: r.applied_at! } : null,
+  interview: r.iv_deadline === null ? null : { deadline: r.iv_deadline, questions: r.iv_questions ?? 0, slug: r.iv_slug, password: r.iv_password, status: r.iv_status },
 });
 
 const like = (s: string) => `%${s.replace(/[!%_]/g, "!$&")}%`;
@@ -108,17 +120,21 @@ export async function getJob(viewerId: string, id: string) {
 /** Only the poster sees applicants. */
 export async function getApplicants(posterId: string, jobId: string): Promise<Applicant[]> {
   const { results } = await env.DB.prepare(
-    `SELECT a.*, u.name, u.image_url, u.headline FROM applications a
+    `SELECT a.*, u.name, u.image_url, u.headline, s.status AS iv_status, s.score AS iv_score, s.report ->> '$.fit' AS iv_fit
+     FROM applications a
      JOIN jobs j ON j.id = a.job_id AND j.poster_id = ?1
      JOIN users u ON u.id = a.applicant_id
+     LEFT JOIN interview_sessions s ON s.job_id = a.job_id AND s.applicant_id = a.applicant_id
      WHERE a.job_id = ?2 ORDER BY a.created_at DESC LIMIT 500`,
   ).bind(posterId, jobId).all<{
     applicant_id: string; name: string; image_url: string | null; headline: string | null; email: string; phone: string | null;
     resume_key: string; note: string | null; status: AppStatus; created_at: number;
+    iv_status: SessionStatus | null; iv_score: number | null; iv_fit: Fit | null;
   }>();
   return results.map((r) => ({
     id: r.applicant_id, name: r.name, imageUrl: r.image_url, headline: r.headline, email: r.email, phone: r.phone,
     resumeKey: r.resume_key, note: r.note, status: r.status, at: r.created_at,
+    interview: r.iv_status ? { status: r.iv_status, score: r.iv_score, fit: r.iv_fit } : null,
   }));
 }
 
