@@ -6,6 +6,7 @@ import * as actions from "@/app/dashboard/actions";
 import type { Network as Net, Person } from "@/lib/network";
 import { profileHref } from "@/lib/profile-fields";
 import type { NetEvent } from "@/lib/realtime";
+import { Loading, PersonRowSkeleton, times } from "./skeleton";
 import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
@@ -198,7 +199,7 @@ export function Network({ initial }: { initial: Net }) {
       {tab === "grow" && find.trim() && (
         <Section title="People" count={found?.length} last>
           {found === null ? (
-            <Empty>Searching…</Empty>
+            <Loading label="Searching…" className="divide-y divide-border">{times(3, (i) => <PersonRowSkeleton key={i} i={i} />)}</Loading>
           ) : found.length === 0 ? (
             <Empty>No one matches “{find.trim()}”.</Empty>
           ) : (

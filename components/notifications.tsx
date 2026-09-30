@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { categoryOf, hasPreview, verb, who, type Category, type NotificationType } from "@/lib/notification-format";
 import type { Notification } from "@/lib/notifications";
+import { NotificationRowsSkeleton } from "./skeleton";
 import { ago, Avatar, btnGhost, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
@@ -133,10 +134,14 @@ export function Notifications({ initial }: { initial: Page }) {
         </ul>
       )}
 
-      {page.next && (
-        <button type="button" onClick={more} disabled={loading} className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50">
-          {loading ? "Loading…" : "Show earlier notifications"}
-        </button>
+      {loading ? (
+        <NotificationRowsSkeleton n={3} />
+      ) : (
+        page.next && (
+          <button type="button" onClick={more} className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+            Show earlier notifications
+          </button>
+        )
       )}
     </>
   );

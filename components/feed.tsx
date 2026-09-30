@@ -8,6 +8,7 @@ import type { Comment } from "@/app/dashboard/actions";
 import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
 import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
 import { profileHref } from "@/lib/profile-fields";
+import { CommentsSkeleton, PostsSkeleton } from "./skeleton";
 import { ago, Avatar, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
@@ -122,6 +123,7 @@ export function Feed({ viewer, initial, followingIds, single, list }: { viewer: 
                 aria-pressed={tab === t}
                 onClick={() => {
                   setTab(t);
+                  setPage({ posts: [], next: null }); // placeholders, not the other tab's posts, until it loads
                   load(t);
                 }}
                 className={`relative flex-1 text-sm transition-colors hover:bg-surface ${tab === t ? "font-medium text-foreground" : "text-muted"}`}
@@ -155,8 +157,14 @@ export function Feed({ viewer, initial, followingIds, single, list }: { viewer: 
       ))}
 
       {!single && (
-        <div ref={sentinel} className="py-8 text-center text-sm text-muted">
-          {loading ? "Loading…" : page.posts.length === 0 ? (list ? list.empty : tab === "following" ? "Follow people to see their posts here." : "No posts yet. Be the first to share something.") : page.next ? "" : "You're all caught up."}
+        <div ref={sentinel}>
+          {loading ? (
+            <PostsSkeleton n={page.posts.length ? 2 : 3} />
+          ) : (
+            <p className="py-8 text-center text-sm text-muted">
+              {page.posts.length === 0 ? (list ? list.empty : tab === "following" ? "Follow people to see their posts here." : "No posts yet. Be the first to share something.") : page.next ? "" : "You're all caught up."}
+            </p>
+          )}
         </div>
       )}
     </>
@@ -571,7 +579,7 @@ function Comments({ postId, count }: { postId: string; count: number }) {
       </form>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {items === null ? (
-        <p className="text-sm text-muted">Loading comments…</p>
+        <CommentsSkeleton />
       ) : (
         <ul className="space-y-3">
           {items.map((c) => (

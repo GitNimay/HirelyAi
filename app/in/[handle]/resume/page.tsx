@@ -13,10 +13,8 @@ const download = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3
 /** Your resume as recruiters get it: private to you (they receive a PDF snapshot when you apply). */
 export default async function ResumeTab({ params }: { params: Promise<{ handle: string }> }) {
   const { userId } = await auth.protect();
-  const profile = await profileFor(userId, await refOf(params));
-  if (!profile || profile.id !== userId) notFound();
-  const r = await getResume(userId);
-  if (!r) notFound();
+  const [profile, r] = await Promise.all([profileFor(userId, await refOf(params)), getResume(userId)]);
+  if (!profile || profile.id !== userId || !r) notFound();
 
   return (
     <div className="space-y-6 px-4 py-5">
