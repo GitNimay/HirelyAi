@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
+import { loadUserPosts } from "@/app/in/actions";
 import type { Comment } from "@/app/dashboard/actions";
-import type { FeedPost, FeedTab } from "@/lib/feed";
+import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
 import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
+import { profileHref } from "@/lib/profile-fields";
 import { ago, Avatar, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
@@ -15,8 +17,11 @@ type Page = { posts: FeedPost[]; next: string | null };
 const iconBtn = "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
-/** Home timeline, or a single post when `single` (share links). Live via /api/realtime. */
-export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer; initial: Page; followingIds: string[]; single?: boolean }) {
+/**
+ * Home timeline, a single post when `single` (share links), or one member's posts / likes when `list` (profile tabs:
+ * no header or composer, same cards and live updates). Live via /api/realtime.
+ */
+export function Feed({ viewer, initial, followingIds, single, list }: { viewer: Viewer; initial: Page; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string } }) {
   const [tab, setTab] = useState<FeedTab>("for-you");
   const [page, setPage] = useState(initial);
   const [fresh, setFresh] = useState(0);
@@ -30,7 +35,8 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
   async function load(t: FeedTab, append = false) {
     setLoading(true);
     try {
-      const res = await actions.loadFeed(t, append ? (page.next ?? undefined) : undefined);
+      const cursor = append ? (page.next ?? undefined) : undefined;
+      const res = list ? await loadUserPosts(list.userId, list.tab, cursor) : await actions.loadFeed(t, cursor);
       setPage((pg) => (append ? { posts: [...pg.posts, ...res.posts.filter((p) => !pg.posts.some((q) => q.entryId === p.entryId))], next: res.next } : res));
       if (!append) setFresh(0);
     } finally {
@@ -42,7 +48,16 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
     if (e.t === "stats") patch(e.id, () => ({ likes: e.likes, comments: e.comments, reposts: e.reposts }));
     else if (e.t === "edit") patch(e.id, () => ({ body: e.body, media: e.media, editedAt: e.editedAt }));
     else if (e.t === "delete") setPage((pg) => ({ ...pg, posts: pg.posts.filter((p) => p.entryId !== e.id && p.id !== e.id) }));
-    else if (e.t === "post" && !single && e.authorId !== viewer.id && (tab === "for-you" || following.has(e.authorId))) setFresh((n) => n + 1);
+    else if (e.t === "profile")
+      setPage((pg) => ({
+        ...pg,
+        posts: pg.posts.map((p) => ({
+          ...p,
+          author: p.author.id === e.id ? { ...p.author, name: e.name, handle: e.handle, headline: e.headline, imageUrl: e.imageUrl } : p.author,
+          repostedBy: p.repostedBy?.id === e.id ? { id: e.id, name: e.name } : p.repostedBy,
+        })),
+      }));
+    else if (e.t === "post" && !single && !list && e.authorId !== viewer.id && (tab === "for-you" || following.has(e.authorId))) setFresh((n) => n + 1);
   });
 
   const loadMore = useEffectEvent(() => {
@@ -97,7 +112,7 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
 
   return (
     <>
-      {!single && (
+      {!single && !list && (
         <>
           <header className="sticky top-0 z-10 flex h-14 border-b border-border bg-background/80 backdrop-blur">
             {(["for-you", "following"] as const).map((t) => (
@@ -141,7 +156,7 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
 
       {!single && (
         <div ref={sentinel} className="py-8 text-center text-sm text-muted">
-          {loading ? "Loading…" : page.posts.length === 0 ? (tab === "following" ? "Follow people to see their posts here." : "No posts yet. Be the first to share something.") : page.next ? "" : "You're all caught up."}
+          {loading ? "Loading…" : page.posts.length === 0 ? (list ? list.empty : tab === "following" ? "Follow people to see their posts here." : "No posts yet. Be the first to share something.") : page.next ? "" : "You're all caught up."}
         </div>
       )}
     </>
@@ -389,16 +404,18 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
       {p.repostedBy && (
         <p className="mb-2 ml-[52px] flex items-center gap-1.5 text-xs text-muted">
           <Icon d={icons.repost} size={12} />
-          {p.repostedBy.id === viewerId ? "You" : p.repostedBy.name} reposted
+          {p.repostedBy.id === viewerId ? "You" : <Link href={`/in/${p.repostedBy.id}`} className="hover:underline">{p.repostedBy.name}</Link>} reposted
         </p>
       )}
       <div className="flex gap-3">
-        <Avatar name={p.author.name} src={p.author.imageUrl ?? undefined} />
+        <Link href={profileHref(p.author)} aria-label={p.author.name} className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Avatar name={p.author.name} src={p.author.imageUrl ?? undefined} />
+        </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="flex items-center gap-1 truncate text-sm">
-                <span className="truncate font-medium">{p.author.name}</span>
+                <Link href={profileHref(p.author)} className="truncate font-medium hover:underline">{p.author.name}</Link>
                 <Link href={`/dashboard/post/${p.id}`} className="shrink-0 text-muted hover:underline" suppressHydrationWarning>
                   · {ago(p.createdAt)}
                 </Link>
@@ -559,10 +576,12 @@ function Comments({ postId, count }: { postId: string; count: number }) {
         <ul className="space-y-3">
           {items.map((c) => (
             <li key={c.id} className="flex gap-2">
-              <Avatar name={c.author.name} src={c.author.imageUrl ?? undefined} size={28} />
+              <Link href={profileHref(c.author)} aria-label={c.author.name} className="shrink-0 self-start rounded-full">
+                <Avatar name={c.author.name} src={c.author.imageUrl ?? undefined} size={28} />
+              </Link>
               <div className="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2">
                 <p className="text-xs">
-                  <span className="font-medium">{c.author.name}</span>{" "}
+                  <Link href={profileHref(c.author)} className="font-medium hover:underline">{c.author.name}</Link>{" "}
                   <span className="text-muted" suppressHydrationWarning>· {ago(c.createdAt)}</span>
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">{c.body}</p>

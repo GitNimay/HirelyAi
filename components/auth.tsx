@@ -31,12 +31,9 @@ const btnPrimary = `${btn} bg-foreground text-background hover:bg-white`;
 const input =
   "h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring";
 
+// App is dark-only, so the dark-mode (white) mark is used in-app.
 export function Logo({ size = 48 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden className="text-[#3a3a3a]">
-      <path fill="currentColor" d="M18 4l10 5.8v11.5L18 27 8 21.3V9.8zM34 14l10 5.8v11.5L34 37l-10-5.7V19.8zM18 24l10 5.8v11.5L18 47 8 41.3V29.8z" />
-    </svg>
-  );
+  return <img src="/logo-dark.png" width={size} height={size} alt="" aria-hidden className="opacity-25" />;
 }
 
 function Shell({ title, subtitle, children, footer }: { title: string; subtitle: ReactNode; children: ReactNode; footer: ReactNode }) {

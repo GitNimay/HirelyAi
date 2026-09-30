@@ -4,15 +4,17 @@ import Link from "next/link";
 import { Logo } from "@/components/auth";
 import { Nav } from "@/components/nav";
 import { Avatar, Icon, icons } from "@/components/ui";
-import { profileOf, saveUser } from "@/lib/network";
+import { viewerOf } from "@/lib/profile";
+import { unseenCount } from "@/lib/notifications";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   await auth.protect();
   const user = await currentUser();
-  const name = user?.fullName || user?.username || "You";
+  // Name and photo come from D1 (editable on the profile), not Clerk
+  const me = user ? await viewerOf(user) : null;
+  const name = me?.name ?? "You";
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
-  // Everyone who signs in shows up in People you may know, not only people who have posted
-  if (user) await saveUser(profileOf(user));
+  const unseen = user ? await unseenCount(user.id) : 0;
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-1 justify-center">
@@ -22,9 +24,9 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <Logo size={28} />
           <span className="hidden text-sm font-semibold tracking-tight xl:inline">Hire Excellence</span>
         </Link>
-        <Nav />
+        <Nav unseen={unseen} me={me?.handle ?? ""} />
         <div className="mt-auto flex items-center justify-center gap-3 xl:justify-start xl:px-2">
-          <Avatar name={name} src={user?.imageUrl} size={32} />
+          <Avatar name={name} src={me?.imageUrl} size={32} />
           <div className="hidden min-w-0 flex-1 xl:block">
             <p className="truncate text-sm font-medium">{name}</p>
             <p className="truncate text-xs text-muted">{email}</p>
@@ -37,7 +39,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
         </div>
       </aside>
       {/* Phone: bottom tab bar (the aside is hidden) */}
-      <div className="sm:hidden"><Nav /></div>
+      <div className="sm:hidden"><Nav unseen={unseen} me={me?.handle ?? ""} /></div>
 
       {children}
     </div>

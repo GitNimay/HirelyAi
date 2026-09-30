@@ -16,6 +16,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Hire Excellence",
   description: "Connect, hire and grow",
+  icons: {
+    icon: [
+      { url: "/logo-light.png", media: "(prefers-color-scheme: light)" },
+      { url: "/logo-dark.png", media: "(prefers-color-scheme: dark)" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
