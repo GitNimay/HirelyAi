@@ -53,7 +53,8 @@ export async function getProfile(viewerId: string, ref: string): Promise<Profile
   };
 }
 
-export type Viewer = { id: string; name: string; imageUrl?: string; handle: string };
+/** `onboarded`: they finished onboarding (have a resume). */
+export type Viewer = { id: string; name: string; imageUrl?: string; handle: string; onboarded: boolean };
 
 /**
  * The signed-in member as the app shows them (sidebar, composer): from D1, so an edited name or photo wins over Clerk's.
@@ -61,12 +62,12 @@ export type Viewer = { id: string; name: string; imageUrl?: string; handle: stri
  */
 export async function viewerOf(u: User): Promise<Viewer> {
   const p = profileOf(u);
-  const [, , row] = await env.DB.batch<{ name: string; image_url: string | null; handle: string | null }>([
+  const [, , row] = await env.DB.batch<{ name: string; image_url: string | null; handle: string | null; onboarded: number }>([
     ...syncStatements(p),
-    env.DB.prepare("SELECT name, image_url, handle FROM users WHERE id = ?").bind(p.id),
+    env.DB.prepare("SELECT name, image_url, handle, EXISTS (SELECT 1 FROM resumes WHERE user_id = users.id) AS onboarded FROM users WHERE id = ?").bind(p.id),
   ]);
   const r = row.results[0];
-  return { id: u.id, name: r?.name ?? p.name, imageUrl: r?.image_url ?? p.imageUrl ?? undefined, handle: r?.handle ?? u.id };
+  return { id: u.id, name: r?.name ?? p.name, imageUrl: r?.image_url ?? p.imageUrl ?? undefined, handle: r?.handle ?? u.id, onboarded: !!r?.onboarded };
 }
 
 /** One comment with the post it answers, for the Replies tab. */

@@ -37,7 +37,7 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background sm:static sm:flex-col sm:justify-start sm:gap-1 sm:border-0">
       {navItems.map(({ slug, label, icon }) => {
         const href = slug === "me" ? `/in/${me}` : slug ? `/dashboard/${slug}` : "/dashboard";
-        const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && pathname === "/settings/profile");
+        const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && (pathname === "/settings/profile" || pathname === "/settings/resume"));
         const badge = slug === "notifications" && !active ? count : 0;
         return (
           <Fragment key={slug}>
