@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { Jobs } from "@/components/jobs";
 import { cleanFilters, type MyJobsTab } from "@/lib/job-fields";
 import { getJob, lastApplication, myJobs, searchJobs } from "@/lib/jobs";
+import { getResume } from "@/lib/resume";
 
 const MY_TABS: string[] = ["saved", "applied", "posted"] satisfies MyJobsTab[];
 
@@ -12,11 +13,12 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
   const filters = cleanFilters(params);
   const tab = typeof params.tab === "string" && MY_TABS.includes(params.tab) ? (params.tab as MyJobsTab) : "search";
   const id = typeof params.id === "string" ? params.id : undefined;
-  const [page, selected, last, user] = await Promise.all([
+  const [page, selected, last, user, resume] = await Promise.all([
     tab === "search" ? searchJobs(userId, filters) : myJobs(userId, tab).then((jobs) => ({ jobs, next: null })),
     id ? getJob(userId, id) : null,
     lastApplication(userId),
     currentUser(),
+    getResume(userId),
   ]);
 
   return (
@@ -26,7 +28,11 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
       initial={page}
       initialFilters={filters}
       initialSelected={selected ?? null}
-      contact={{ email: last?.email ?? user?.primaryEmailAddress?.emailAddress ?? "", phone: last?.phone ?? user?.primaryPhoneNumber?.phoneNumber ?? "", resumeKey: last?.resumeKey ?? "" }}
+      contact={{
+        email: last?.email || resume?.email || user?.primaryEmailAddress?.emailAddress || "",
+        phone: last?.phone || resume?.phone || user?.primaryPhoneNumber?.phoneNumber || "",
+        resumeKey: "", // empty = attach the profile resume; uploading a PDF is optional
+      }}
     />
   );
 }

@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AccountMenu } from "@/components/account-menu";
 import { Logo } from "@/components/auth";
 import { Nav } from "@/components/nav";
@@ -11,6 +12,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   const user = await currentUser();
   // Name and photo come from D1 (editable on the profile), not Clerk
   const me = user ? await viewerOf(user) : null;
+  // New members set up their profile first
+  if (me && !me.onboarded) redirect("/onboarding");
   const name = me?.name ?? "You";
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
   const unseen = user ? await unseenCount(user.id) : 0;

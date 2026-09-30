@@ -37,7 +37,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
     { href: base, label: "Posts" },
     { href: `${base}/replies`, label: "Replies" },
     { href: `${base}/media`, label: "Media" },
-    ...(own ? [{ href: `${base}/likes`, label: "Likes" }] : []),
+    ...(own ? [{ href: `${base}/likes`, label: "Likes" }, { href: `${base}/resume`, label: "Resume" }] : []),
   ];
   const followers = profile.counts.followers + Number(rel.following) - Number(profile.rel.following);
   const first = profile.name.split(" ")[0];

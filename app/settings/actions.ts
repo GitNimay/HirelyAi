@@ -30,6 +30,7 @@ export async function deleteAccount() {
     "DELETE FROM saved_jobs WHERE user_id = ?1",
     "DELETE FROM applications WHERE applicant_id = ?1",
     "DELETE FROM jobs WHERE poster_id = ?1",
+    "DELETE FROM resumes WHERE user_id = ?1",
     "DELETE FROM users WHERE id = ?1",
   ];
   await env.DB.batch(sql.map((s) => env.DB.prepare(s).bind(userId)));

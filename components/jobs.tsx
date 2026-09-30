@@ -544,7 +544,7 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
     setBusy(true);
     setError("");
     try {
-      let resumeKey = contact.resumeKey;
+      let resumeKey = ""; // the server attaches your profile resume
       if (file) {
         const res = await fetch("/api/uploads", { method: "PUT", headers: { "Content-Type": RESUME_TYPE }, body: file });
         const data = (await res.json()) as { key?: string; error?: string };
@@ -579,14 +579,31 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
         <Field label="Phone" hint="optional">
           <input name="phone" type="tel" maxLength={LIMITS.phone} defaultValue={contact.phone} autoComplete="tel" className={field} />
         </Field>
-        <Field label="Resume" hint="PDF, up to 5 MB">
-          <div className="flex items-center gap-3 rounded-md border border-dashed border-border px-3 py-2.5">
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium">Resume</span>
+          <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
             <Icon d={icons.file} size={18} className="text-muted" />
-            <span className="min-w-0 flex-1 truncate text-sm">{file ? file.name : contact.resumeKey ? "Resume from your last application" : <span className="text-muted">No file chosen</span>}</span>
-            <span className={btnOutline}>{file || contact.resumeKey ? "Replace" : "Upload"}</span>
-            <input type="file" accept={RESUME_TYPE} className="sr-only" required={!contact.resumeKey} onChange={(e) => pick(e.target.files?.[0])} />
+            <span className="min-w-0 flex-1">
+              {file ? (
+                <span className="block truncate text-sm">{file.name}</span>
+              ) : (
+                <>
+                  <span className="block text-sm">Your profile resume</span>
+                  <a href="/api/resume" download className="text-xs text-link hover:underline">Preview PDF</a>
+                </>
+              )}
+            </span>
+            {file ? (
+              <button type="button" className={btnGhost} onClick={() => setFile(null)}>Use profile resume</button>
+            ) : (
+              <label className={btnOutline}>
+                Upload PDF
+                <input type="file" accept={RESUME_TYPE} className="sr-only" onChange={(e) => (pick(e.target.files?.[0]), (e.target.value = ""))} />
+              </label>
+            )}
           </div>
-        </Field>
+          <p className="text-xs text-muted">Uploading a different PDF (up to 5 MB) is optional.</p>
+        </div>
         <Field label="Why you're a fit" hint="optional">
           <textarea name="note" rows={4} maxLength={LIMITS.note} className={`${field} h-auto resize-none py-2`} />
         </Field>

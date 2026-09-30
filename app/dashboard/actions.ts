@@ -5,10 +5,12 @@ import { env } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
-import { inFolder, isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
+import { inFolder, isVideo, newKey, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
 import { getNetwork, getPersonAndCounts, profileOf, saveUser, searchPeople, syncDirectory } from "@/lib/network";
 import { followersOf, listNotifications, notifyUsers, unseenCount } from "@/lib/notifications";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
+import { getResume } from "@/lib/resume";
+import { resumePdf } from "@/lib/resume-pdf";
 
 /** A message safe to show the user. Other errors get redacted by the framework in production. */
 class Fail extends Error {}
@@ -386,7 +388,7 @@ export async function toggleSaveJob(jobId: string) {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Easy Apply: contact details plus a PDF resume this user uploaded. */
+/** Easy Apply: contact details plus a PDF resume this user uploaded, or (no `resumeKey`) their profile resume. */
 export async function applyToJob(jobId: string, input: Record<string, unknown>) {
   return apply(String(jobId), input ?? {}).then((job) => ({ job: job! }), failed);
 }
@@ -396,12 +398,21 @@ async function apply(jobId: string, input: Record<string, unknown>) {
   const email = text(input.email, LIMITS.email);
   const phone = text(input.phone, LIMITS.phone) || null;
   const note = text(input.note, LIMITS.note) || null;
-  const resumeKey = text(input.resumeKey, 200);
+  let resumeKey = text(input.resumeKey, 200);
   if (!EMAIL.test(email)) throw new Fail("Enter a valid email");
   if (phone && !/^[+\d\s().-]{6,}$/.test(phone)) throw new Fail("Enter a valid phone number");
-  if (!inFolder(resumeKey, "resumes", me)) throw new Fail("Upload your resume");
-  const obj = await env.MEDIA.head(resumeKey);
-  if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume");
+  // No upload: attach a PDF snapshot of their profile resume, so the poster sees it as it was when they applied
+  const generated = !resumeKey;
+  if (generated) {
+    const r = await getResume(me);
+    if (!r) throw new Fail("Upload your resume");
+    resumeKey = newKey("resumes", me, "pdf");
+    await env.MEDIA.put(resumeKey, await resumePdf(r), { httpMetadata: { contentType: RESUME_TYPE }, customMetadata: { owner: me } });
+  } else {
+    if (!inFolder(resumeKey, "resumes", me)) throw new Fail("Upload your resume");
+    const obj = await env.MEDIA.head(resumeKey);
+    if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume");
+  }
 
   await syncUser(me);
   const now = Date.now();
@@ -410,6 +421,7 @@ async function apply(jobId: string, input: Record<string, unknown>) {
      SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2`,
   ).bind(jobId, me, email, phone, resumeKey, note, now).run();
   if (!ins.meta.changes) {
+    if (generated) await env.MEDIA.delete(resumeKey);
     const job = await getJob(me, jobId);
     if (job?.application) throw new Fail("You already applied to this job");
     throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");

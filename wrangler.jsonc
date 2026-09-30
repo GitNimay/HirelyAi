@@ -7,6 +7,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "not_found_handling": "none", "binding": "ASSETS" },
   "observability": { "enabled": true },
+  // Cloudflare creates the DNS record and certificate for this on deploy
+  "routes": [{ "pattern": "hire-excellence.n1m35h.in", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",
