@@ -30,7 +30,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
       initialSelected={selected ?? null}
       contact={{
         email: last?.email || resume?.email || user?.primaryEmailAddress?.emailAddress || "",
-        phone: last?.phone || resume?.phone || user?.primaryPhoneNumber?.phoneNumber || "",
+        phone: last?.phone || resume?.phone || (user?.unsafeMetadata.phone as string | undefined) || user?.primaryPhoneNumber?.phoneNumber || "",
         resumeKey: "", // empty = attach the profile resume; uploading a PDF is optional
       }}
     />
