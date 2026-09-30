@@ -9,7 +9,7 @@ export default function NetworkLoading() {
     <>
       <PageHeader title="My Network" tabs={["Grow", "Connections", "Sent"]} action={<Skeleton className="h-3 w-56 max-w-[50%]" />} />
       <div className="border-b border-border px-4 py-3">
-        <div className="flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm text-muted">
+        <div className="flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm text-muted">
           <Icon d={icons.search} size={16} />
           Search people by name or headline
         </div>

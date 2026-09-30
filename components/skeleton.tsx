@@ -56,7 +56,7 @@ export function PostSkeleton({ i = 0, children }: { i?: number; children?: React
         <div className="min-w-0 flex-1">
           <Line className="text-sm" w={pick(["38%", "30%", "46%"], i)} />
           <Line className="text-xs" w={pick(["58%", "44%", "66%"], i)} />
-          <div className="mt-2 text-[15px] leading-relaxed">{body.map((w, j) => <Line key={j} w={w} />)}</div>
+          <div className="mt-2 text-sm leading-relaxed">{body.map((w, j) => <Line key={j} w={w} />)}</div>
           {i % 3 === 1 && <Skeleton className="mt-3 aspect-video rounded-xl" />}
         </div>
       </div>
@@ -140,7 +140,7 @@ export const RepliesSkeleton = ({ n = 3 }: { n?: number }) => (
           <Skeleton className="size-10 shrink-0 rounded-full" />
           <div className="min-w-0 flex-1">
             <Line className="text-sm" w={pick(["35%", "28%"], i)} />
-            <div className="mt-1 text-[15px] leading-relaxed"><Line w={pick(["90%", "70%", "84%"], i)} /></div>
+            <div className="mt-1 text-sm leading-relaxed"><Line w={pick(["90%", "70%", "84%"], i)} /></div>
             <Skeleton className="mt-3 h-[66px] rounded-lg" />
           </div>
         </div>
@@ -189,7 +189,7 @@ export const ProfileHeaderSkeleton = () => (
 );
 
 /** A labelled form control (jobs.tsx Field / resume-editor F): label line, then a 36px input. */
-export const FieldSkeleton = ({ w = "25%", label = "text-sm", h = "h-9", className = "" }: { w?: string; label?: string; h?: string; className?: string }) => (
+export const FieldSkeleton = ({ w = "25%", label = "text-sm", h = "h-10", className = "" }: { w?: string; label?: string; h?: string; className?: string }) => (
   <div className={`space-y-1.5 ${className}`}>
     <Line className={label} w={w} />
     <Skeleton className={`${h} rounded-md`} />
@@ -217,7 +217,7 @@ export const ResumeEditorSkeleton = () => {
       {["20%", "18%"].map((w) => section(w, (
         <div className="grid gap-3 rounded-lg border border-border p-4 sm:grid-cols-2">{f("30%")}{f("35%")}{f("25%")}{f("25%")}</div>
       )))}
-      {section("10%", <Skeleton className="h-9 rounded-md" />)}
+      {section("10%", <Skeleton className="h-10 rounded-md" />)}
     </Loading>
   );
 };

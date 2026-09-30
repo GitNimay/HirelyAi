@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { useRef, useState } from "react";
 import { Logo } from "./auth";
+import { btnOutline } from "./ui";
 
 type Turnstile = {
   render: (el: HTMLElement, o: Record<string, unknown>) => string;
@@ -65,8 +66,8 @@ export function HumanCheck({ sitekey, action, next }: { sitekey: string; action:
         <h1 className="mt-6 text-2xl font-semibold tracking-tight">Verify you are human</h1>
         <p className="mt-1.5 text-sm text-muted">A quick check before you sign in. This keeps bots away from member accounts.</p>
         <div ref={box} className="mt-8 flex min-h-[65px] justify-center" />
-        <p role="alert" className="mt-3 min-h-5 text-sm text-red-500">{error}</p>
-        {error && <button type="button" onClick={retry} className="mt-2 rounded-md border border-border px-4 py-2 text-sm hover:bg-surface-hover">Try again</button>}
+        <p role="alert" className="mt-3 min-h-5 text-sm text-danger">{error}</p>
+        {error && <button type="button" onClick={retry} className={`${btnOutline} mt-2`}>Try again</button>}
       </div>
     </main>
   );

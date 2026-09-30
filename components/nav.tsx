@@ -14,12 +14,23 @@ const subNav: Record<string, { label: string; href: string }[]> = {
     { label: "Find jobs", href: "/dashboard/jobs" },
     { label: "Post a job", href: "/dashboard/jobs/post" },
   ],
+  me: [
+    { label: "Edit profile", href: "/settings/profile" },
+    { label: "Resume", href: "/settings/resume" },
+    { label: "Account", href: "/settings/account" },
+  ],
 };
 
 /** Vertical rail on sm+, bottom tab bar on phones. Labels show from xl. `me` is your profile handle. `unseen` is the server-rendered notification badge, kept live after that. */
 export function Nav({ unseen, me }: { unseen: number; me: string }) {
   const pathname = usePathname();
   const [count, setCount] = useState(unseen);
+
+  // Unread count in the tab title, like X and LinkedIn: "(3) Jobs | Hire Excellence"
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\+?\) /, "");
+    document.title = count > 0 ? `(${count > 99 ? "99+" : count}) ${base}` : base;
+  }, [count, pathname]);
 
   useRealtime((e) => {
     if (e.t === "notif") setCount(e.unseen);
@@ -34,10 +45,10 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
   }, []);
 
   return (
-    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background sm:static sm:flex-col sm:justify-start sm:gap-1 sm:border-0">
+    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background pb-[env(safe-area-inset-bottom)] sm:static sm:flex-col sm:justify-start sm:gap-1 sm:border-0 sm:pb-0">
       {navItems.map(({ slug, label, icon }) => {
         const href = slug === "me" ? `/in/${me}` : slug ? `/dashboard/${slug}` : "/dashboard";
-        const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && (pathname === "/settings/profile" || pathname === "/settings/resume"));
+        const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && pathname.startsWith("/settings/"));
         const badge = slug === "notifications" && !active ? count : 0;
         return (
           <Fragment key={slug}>
@@ -45,20 +56,20 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
               href={href}
               aria-current={pathname === href ? "page" : undefined}
               title={label}
-              className={`flex h-12 flex-1 items-center justify-center gap-3 rounded-md text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:px-3 xl:justify-start ${
+              className={`flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
                 active ? "font-medium text-foreground sm:bg-surface" : "text-muted hover:bg-surface hover:text-foreground"
               }`}
             >
               <span className="relative">
                 <Icon d={icon} />
                 {badge > 0 && (
-                  <span className="absolute -right-2 -top-1.5 h-4 min-w-4 rounded-full bg-danger px-1 text-center text-[10px] font-semibold leading-4 text-background">
+                  <span className="absolute -right-2.5 -top-2 h-[18px] min-w-[18px] rounded-full bg-danger px-1 text-center text-xs font-semibold leading-[18px] text-background">
                     {badge > 99 ? "99+" : badge}
                     <span className="sr-only"> unread</span>
                   </span>
                 )}
               </span>
-              <span className="hidden xl:inline">{label}</span>
+              <span className="sm:hidden xl:inline">{label}</span>
             </Link>
             {active && subNav[slug] && <HookSidebar items={subNav[slug]} aria-label={label} color="var(--link)" className="ml-[21px] hidden xl:flex" />}
           </Fragment>

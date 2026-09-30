@@ -5,6 +5,7 @@ import type { OAuthStrategy, SetActiveNavigate } from "@clerk/nextjs/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { useClientValue } from "./kit";
 import { Loading, Skeleton, times } from "./skeleton";
 
 type Result = Promise<{ error: unknown }>;
@@ -33,11 +34,13 @@ const input =
   "h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring";
 
 // White mark on dark, black mark on light
-export function Logo({ size = 48 }: { size?: number }) {
+// `faint` is the quiet watermark look of the auth screens; the app shell shows the mark at full strength
+export function Logo({ size = 48, faint = true }: { size?: number; faint?: boolean }) {
+  const o = faint ? "opacity-25" : "";
   return (
     <>
-      <img src="/logo-dark.png" width={size} height={size} alt="" aria-hidden className="opacity-25 light:hidden" />
-      <img src="/logo-light.png" width={size} height={size} alt="" aria-hidden className="hidden opacity-25 light:block" />
+      <img src="/logo-dark.png" width={size} height={size} alt="" aria-hidden className={`${o} light:hidden`} />
+      <img src="/logo-light.png" width={size} height={size} alt="" aria-hidden className={`hidden ${o} light:block`} />
     </>
   );
 }
@@ -119,6 +122,19 @@ function AuthBody({
   const [step, setStep] = useState<"email" | "code">("email");
   const [error, setError] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  // "Last used" hint on the method this browser signed in with before (storage can throw: no hint then)
+  const last = useClientValue(() => {
+    try {
+      return localStorage.getItem("last-auth");
+    } catch {
+      return null;
+    }
+  }, null);
+  const remember = (method: string) => {
+    try {
+      localStorage.setItem("last-auth", method);
+    } catch {}
+  };
 
   const run = async (key: string, fn: () => Promise<void | { error: unknown }>) => {
     setError("");
@@ -134,6 +150,7 @@ function AuthBody({
 
   const onEmail = async (e: FormEvent) => {
     e.preventDefault();
+    remember("email");
     if (await run("email", () => sendCode(email.trim()))) setStep("code");
   };
   const onCode = (e: FormEvent) => {
@@ -180,9 +197,10 @@ function AuthBody({
     <>
       <div className="space-y-3">
         {providers.map(({ strategy, label }) => (
-          <button key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => run(strategy, () => sso(strategy))}>
+          <button key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => (remember(strategy), run(strategy, () => sso(strategy)))}>
             <span className="absolute left-4">{providerIcons[strategy]}</span>
             {pending === strategy ? "Redirecting…" : `Continue with ${label}`}
+            {last === strategy && <LastUsed />}
           </button>
         ))}
       </div>
@@ -206,13 +224,16 @@ function AuthBody({
           required
         />
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        <button type="submit" className={btnPrimary} disabled={disabled}>
+        <button type="submit" className={`${btnPrimary} relative`} disabled={disabled}>
           {pending === "email" ? "Sending code…" : cta}
+          {last === "email" && <LastUsed />}
         </button>
       </form>
     </>
   );
 }
+
+const LastUsed = () => <span className="absolute right-3 rounded-full border border-current/20 px-2 py-0.5 text-xs font-normal opacity-70">Last used</span>;
 
 /* ---------- Flows ---------- */
 
