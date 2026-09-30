@@ -30,7 +30,7 @@ export const icons = {
 };
 
 export const btn = "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-export const btnPrimary = `${btn} bg-foreground text-background hover:bg-white`;
+export const btnPrimary = `${btn} bg-foreground text-background hover:bg-primary-hover`;
 export const btnOutline = `${btn} border border-border text-foreground hover:bg-surface-hover`;
 export const btnGhost = `${btn} text-muted hover:bg-surface-hover hover:text-foreground`;
 

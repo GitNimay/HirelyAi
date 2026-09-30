@@ -511,7 +511,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       aria-label={title}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-black/60"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-black/60 light:backdrop:bg-black/30"
     >
       <div className="flex h-14 items-center justify-between border-b border-border px-5">
         <h2 className="text-sm font-semibold">{title}</h2>

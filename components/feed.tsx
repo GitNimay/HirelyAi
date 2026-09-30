@@ -488,7 +488,7 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
           disabled={mine}
           title={mine ? "You can't repost your own post" : undefined}
           onClick={() => repost(p)}
-          className={`${iconBtn} ${p.reposted ? "text-emerald-400 hover:text-emerald-400" : ""}`}
+          className={`${iconBtn} ${p.reposted ? "text-success hover:text-success" : ""}`}
         >
           <Icon d={icons.repost} size={16} />
           <span className="tabular-nums">{p.reposts}</span>

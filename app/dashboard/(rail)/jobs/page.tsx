@@ -26,7 +26,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
       initial={page}
       initialFilters={filters}
       initialSelected={selected ?? null}
-      contact={{ email: last?.email ?? user?.primaryEmailAddress?.emailAddress ?? "", phone: last?.phone ?? "", resumeKey: last?.resumeKey ?? "" }}
+      contact={{ email: last?.email ?? user?.primaryEmailAddress?.emailAddress ?? "", phone: last?.phone ?? user?.primaryPhoneNumber?.phoneNumber ?? "", resumeKey: last?.resumeKey ?? "" }}
     />
   );
 }
