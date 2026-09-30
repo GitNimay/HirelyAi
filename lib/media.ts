@@ -12,6 +12,7 @@ export const MAX_VIDEO_BYTES = 95 * 1024 * 1024; // Workers request bodies cap a
 export const MAX_IMAGES = 4;
 export const MAX_POST_CHARS = 3000;
 export const MAX_COMMENT_CHARS = 1250;
+export const MAX_ALT_CHARS = 1000; // image descriptions for screen readers, same cap as X
 
 export const isVideo = (type: string) => type.startsWith("video/");
 export const maxBytes = (type: string) => (isVideo(type) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES);

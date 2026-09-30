@@ -1,8 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { notFound } from "next/navigation";
 import { Feed } from "@/components/feed";
-import { MediaGrid, ReplyList } from "@/components/profile";
+import { FollowList, MediaGrid, ReplyList } from "@/components/profile";
 import { getFollowingIds, getUserPosts, type ProfileTab } from "@/lib/feed";
+import { listFollows, type FollowDir } from "@/lib/network";
 import { getReplies } from "@/lib/profile";
 import { profileFor, refOf } from "./data";
 
@@ -28,4 +29,13 @@ export async function TimelineTab({ params, tab }: Props & { tab: ProfileTab }) 
 export async function RepliesTab({ params }: Props) {
   const { profile, own } = await context(params, "replies");
   return <ReplyList author={{ id: profile.id, name: profile.name, handle: profile.handle, imageUrl: profile.imageUrl }} initial={await getReplies(profile.id)} own={own} />;
+}
+
+export async function FollowsTab({ params, dir }: Props & { dir: FollowDir }) {
+  const { userId, profile, own } = await context(params, "posts");
+  const first = profile.name.split(" ")[0];
+  const empty =
+    dir === "followers" ? (own ? "No one follows you yet." : `No one follows ${first} yet.`)
+    : own ? "You don't follow anyone yet." : `${first} doesn't follow anyone yet.`;
+  return <FollowList userId={profile.id} viewerId={userId} dir={dir} initial={await listFollows(userId, profile.id, dir)} empty={empty} />;
 }

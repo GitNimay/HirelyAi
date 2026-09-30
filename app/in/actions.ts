@@ -4,6 +4,7 @@ import { env } from "cloudflare:workers";
 import { getUserPosts, type ProfileTab } from "@/lib/feed";
 import { failed, Fail, text, viewer, writer } from "@/lib/guard";
 import { inFolder } from "@/lib/media";
+import { listFollows, type FollowDir } from "@/lib/network";
 import { getReplies } from "@/lib/profile";
 import { cleanHandle, LIMITS, normalizeWebsite, PROFILE_IMAGE_TYPES, validHandle } from "@/lib/profile-fields";
 import { broadcast } from "@/lib/realtime";
@@ -19,6 +20,18 @@ export async function loadUserPosts(userId: string, tab: ProfileTab, cursor?: st
 export async function loadReplies(userId: string, cursor?: string) {
   await viewer();
   return getReplies(String(userId), cursor ? String(cursor) : undefined);
+}
+
+export async function loadFollows(userId: string, dir: FollowDir, cursor?: string) {
+  const me = await viewer();
+  return listFollows(me, String(userId), dir === "following" ? "following" : "followers", cursor ? String(cursor) : undefined);
+}
+
+/** Who can see what on your own profile: the resume sections, and the "Open to work" badge. */
+export async function setProfileVisibility(input: { resumePublic: boolean; openToWork: boolean }) {
+  const me = await writer();
+  await env.DB.prepare("UPDATE users SET resume_public = ?2, open_to_work = ?3, updated_at = ?4 WHERE id = ?1")
+    .bind(me, input?.resumePublic === true ? 1 : 0, input?.openToWork === true ? 1 : 0, Date.now()).run();
 }
 
 export type ProfileInput = {

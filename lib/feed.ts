@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
 import { rank } from "./rank";
 
-export type Media = { key: string; type: string };
+/** `alt`: the author's description of an image, read by screen readers. */
+export type Media = { key: string; type: string; alt?: string };
 export type FeedTab = "for-you" | "following";
 
 /** One timeline entry, already shaped for the client. */
@@ -140,4 +141,10 @@ export async function getPost(viewerId: string, id: string) {
 export async function getFollowingIds(viewerId: string) {
   const { results } = await env.DB.prepare("SELECT followee_id FROM follows WHERE follower_id = ?").bind(viewerId).all<{ followee_id: string }>();
   return results.map((r) => r.followee_id);
+}
+
+/** A post for the signed-out share page (/post/<id>): originals only, no viewer state. */
+export async function getPublicPost(id: string) {
+  const post = await getPost("", id);
+  return post && !post.repostedBy ? post : null;
 }

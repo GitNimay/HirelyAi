@@ -377,7 +377,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
   }, [canApply]);
 
   async function share() {
-    const url = `${location.origin}/dashboard/jobs?id=${j.id}`;
+    const url = `${location.origin}/job/${j.id}`; // public page; members are sent on to the app
     if (navigator.share) await navigator.share({ url, title: `${j.title} at ${j.company}` }).catch(() => {});
     else {
       await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link"));
@@ -490,7 +490,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
 const BULLET = /^\s*[-*•]\s+/;
 
 /** Plain-text job description as paragraphs, with "- " / "• " lines rendered as real lists. */
-function Prose({ text }: { text: string }) {
+export function Prose({ text }: { text: string }) {
   return text
     .trim()
     .split(/\n\s*\n/)

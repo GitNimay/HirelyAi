@@ -17,13 +17,16 @@ export type Profile = {
   imageUrl: string | null;
   coverUrl: string | null;
   joinedAt: number | null;
+  /** Opt-in: their resume's summary, experience, education, projects and skills show on the profile (never contact details). */
+  resumePublic: boolean;
+  openToWork: boolean;
   counts: { posts: number; connections: number; following: number; followers: number };
   rel: { following: boolean; followsYou: boolean; connection: Connection; mutual: number };
 };
 
 type Row = {
   id: string; handle: string | null; name: string; headline: string | null; bio: string | null; location: string | null; website: string | null;
-  image_url: string | null; cover_key: string | null; joined_at: number | null;
+  image_url: string | null; cover_key: string | null; joined_at: number | null; resume_public: number; open_to_work: number;
   posts: number; connections: number; following: number; followers: number;
   i_follow: number; follows_me: number; conn: Connection; mutual: number;
 };
@@ -31,7 +34,7 @@ type Row = {
 /** `ref` is a handle, or a user id (older links, fallback URLs). ?1 = viewer, ?2 = ref. */
 export async function getProfile(viewerId: string, ref: string): Promise<Profile | null> {
   const r = await env.DB.prepare(
-    `SELECT u.id, u.handle, u.name, u.headline, u.bio, u.location, u.website, u.image_url, u.cover_key, u.joined_at,
+    `SELECT u.id, u.handle, u.name, u.headline, u.bio, u.location, u.website, u.image_url, u.cover_key, u.joined_at, u.resume_public, u.open_to_work,
        (SELECT COUNT(*) FROM posts WHERE author_id = u.id) AS posts,
        (SELECT COUNT(*) FROM connections WHERE user_id = u.id) AS connections,
        (SELECT COUNT(*) FROM follows WHERE follower_id = u.id) AS following,
@@ -49,6 +52,7 @@ export async function getProfile(viewerId: string, ref: string): Promise<Profile
   return {
     id: r.id, handle: r.handle, name: r.name, headline: r.headline, bio: r.bio, location: r.location, website: r.website,
     imageUrl: r.image_url, coverUrl: r.cover_key ? `/api/media/${r.cover_key}` : null, joinedAt: r.joined_at,
+    resumePublic: !!r.resume_public, openToWork: !!r.open_to_work,
     counts: { posts: r.posts, connections: r.connections, following: r.following, followers: r.followers },
     rel: { following: !!r.i_follow, followsYou: !!r.follows_me, connection: r.conn, mutual: r.mutual },
   };

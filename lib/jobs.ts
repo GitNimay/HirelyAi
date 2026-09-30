@@ -143,3 +143,15 @@ export async function lastApplication(viewerId: string) {
   return env.DB.prepare("SELECT email, phone, resume_key AS resumeKey FROM applications WHERE applicant_id = ? ORDER BY created_at DESC LIMIT 1")
     .bind(viewerId).first<{ email: string; phone: string | null; resumeKey: string }>();
 }
+
+/** What the signed-out share page (/job/<id>) may show: the listing and who posted it, never interview credentials or applicant data. */
+export type PublicJob = Pick<Job, "id" | "title" | "company" | "location" | "workplace" | "type" | "level" | "salary" | "description" | "createdAt" | "closedAt"> & {
+  poster: { name: string; headline: string | null };
+};
+
+export async function getPublicJob(id: string): Promise<PublicJob | null> {
+  const j = await getJob("", id);
+  if (!j) return null;
+  const { title, company, location, workplace, type, level, salary, description, createdAt, closedAt } = j;
+  return { id: j.id, title, company, location, workplace, type, level, salary, description, createdAt, closedAt, poster: { name: j.poster.name, headline: j.poster.headline } };
+}

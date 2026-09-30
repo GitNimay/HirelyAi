@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { loadUserPosts } from "@/app/in/actions";
-import type { Comment } from "@/app/dashboard/actions";
+import type { Comment, MediaInput } from "@/app/dashboard/actions";
 import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
-import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
+import { isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
 import { profileHref } from "@/lib/profile-fields";
 import { ask, Clamp, Menu, Modal, scrollToTop, setParam, Tabs, toast } from "./kit";
 import { CommentsSkeleton, PostsSkeleton } from "./skeleton";
@@ -103,7 +103,7 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
       });
       setPage((pg) => ({ ...pg, posts: pg.posts.map((p) => (p.author.id === authorId ? { ...p, following: now } : p)) }));
     },
-    async edit(p: FeedPost, body: string, media: string[]) {
+    async edit(p: FeedPost, body: string, media: MediaInput[]) {
       const res = await actions.editPost(p.id, { body, media });
       if ("error" in res) return res.error;
       patch(p.id, () => ({ body: res.body, media: res.media, editedAt: res.editedAt }));
@@ -180,11 +180,11 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
 
 const mediaUrl = (key: string) => `/api/media/${key}`;
 
-/** A post's media while composing or editing: already-stored files (key) plus new local files (file). */
-type DraftItem = { key?: string; file?: File; type: string; url: string };
+/** A post's media while composing or editing: already-stored files (key) plus new local files (file), each with alt text. */
+type DraftItem = { key?: string; file?: File; type: string; url: string; alt: string };
 
 function useMediaDraft(initial: FeedPost["media"] = []) {
-  const [items, setItems] = useState<DraftItem[]>(() => initial.map((m) => ({ ...m, url: mediaUrl(m.key) })));
+  const [items, setItems] = useState<DraftItem[]>(() => initial.map((m) => ({ ...m, alt: m.alt ?? "", url: mediaUrl(m.key) })));
   const [error, setError] = useState("");
 
   function add(list: FileList | null) {
@@ -198,7 +198,7 @@ function useMediaDraft(initial: FeedPost["media"] = []) {
     else if (videos > 1 || (videos && types.length > 1) || types.length > MAX_IMAGES) setError(`Add up to ${MAX_IMAGES} images or 1 video`);
     else {
       setError("");
-      setItems((xs) => [...xs, ...picked.map((file) => ({ file, type: file.type, url: URL.createObjectURL(file) }))]);
+      setItems((xs) => [...xs, ...picked.map((file) => ({ file, type: file.type, url: URL.createObjectURL(file), alt: "" }))]);
     }
   }
 
@@ -207,20 +207,22 @@ function useMediaDraft(initial: FeedPost["media"] = []) {
     setItems((xs) => xs.filter((_, j) => j !== i));
   }
 
-  /** Upload new files (in order) and return the full key list for the post. */
-  async function upload() {
-    const keys: string[] = [];
+  const setAlt = (i: number, alt: string) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, alt } : x)));
+
+  /** Upload new files (in order) and return the post's media: keys plus descriptions. */
+  async function upload(): Promise<MediaInput[]> {
+    const out: MediaInput[] = [];
     for (const it of items) {
       if (it.key) {
-        keys.push(it.key);
+        out.push({ key: it.key, alt: it.alt });
         continue;
       }
       const res = await fetch("/api/uploads", { method: "PUT", headers: { "Content-Type": it.type }, body: it.file });
       const json = (await res.json()) as { key?: string; error?: string };
       if (!res.ok || !json.key) throw new Error(json.error || "Upload failed");
-      keys.push(json.key);
+      out.push({ key: json.key, alt: it.alt });
     }
-    return keys;
+    return out;
   }
 
   function clear() {
@@ -228,13 +230,14 @@ function useMediaDraft(initial: FeedPost["media"] = []) {
     setItems([]);
   }
 
-  return { items, error, setError, add, remove, upload, clear, hasNew: items.some((i) => i.file) };
+  return { items, error, setError, add, remove, setAlt, upload, clear, hasNew: items.some((i) => i.file) };
 }
 
 type MediaDraft = ReturnType<typeof useMediaDraft>;
 
 function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boolean }) {
   const { items } = draft;
+  const [describing, setDescribing] = useState<number | null>(null);
   if (items.length === 0) return null;
   return (
     <div className={`mt-2 grid gap-2 ${items.length > 1 ? "grid-cols-2" : ""}`}>
@@ -244,14 +247,68 @@ function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boole
             <video src={it.url} controls preload="metadata" className="max-h-[360px] w-full bg-black" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media
-            <img src={it.url} alt="" className={`w-full object-cover ${items.length > 1 ? "aspect-square" : "max-h-[360px]"}`} />
+            <img src={it.url} alt={it.alt} className={`w-full object-cover ${items.length > 1 ? "aspect-square" : "max-h-[360px]"}`} />
           )}
           <button type="button" aria-label="Remove" onClick={() => draft.remove(i)} disabled={disabled} className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white hover:bg-black">
             <Icon d={icons.close} size={14} />
           </button>
+          {!isVideo(it.type) && (
+            // X-style "ALT" chip: describes the image for people using screen readers
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setDescribing(i)}
+              aria-label={it.alt ? `Edit image description: ${it.alt}` : "Add image description"}
+              className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-md bg-black/70 px-2 text-xs font-semibold text-white hover:bg-black"
+            >
+              {it.alt && <Icon d={icons.check} size={12} />}
+              ALT
+            </button>
+          )}
         </div>
       ))}
+      {describing !== null && items[describing] && (
+        <AltDialog url={items[describing].url} initial={items[describing].alt} onSave={(alt) => draft.setAlt(describing, alt)} onClose={() => setDescribing(null)} />
+      )}
     </div>
+  );
+}
+
+function AltDialog({ url, initial, onSave, onClose }: { url: string; initial: string; onSave: (alt: string) => void; onClose: () => void }) {
+  const [alt, setAlt] = useState(initial);
+  return (
+    <Modal title="Image description" onClose={onClose}>
+      <form
+        className="space-y-4 p-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(alt.trim());
+          onClose();
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media */}
+        <img src={url} alt="" className="max-h-56 w-full rounded-lg border border-border bg-surface object-contain" />
+        <label className="block space-y-1.5">
+          <span className="flex items-baseline justify-between text-sm font-medium">
+            Description
+            <span className="text-xs font-normal tabular-nums text-muted">{alt.length}/{MAX_ALT_CHARS}</span>
+          </span>
+          <textarea
+            data-autofocus
+            value={alt}
+            onChange={(e) => setAlt(e.target.value)}
+            maxLength={MAX_ALT_CHARS}
+            rows={3}
+            placeholder="What's in this image? For people using screen readers."
+            className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-muted focus:border-ring"
+          />
+        </label>
+        <div className="flex justify-end gap-2">
+          <button type="button" className={btnGhost} onClick={onClose}>Cancel</button>
+          <button type="submit" className={btnPrimary}>Save</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -339,7 +396,8 @@ function PostEditor({ post, save, onDone }: { post: FeedPost; save: Handlers["ed
   const [body, setBody] = useState(post.body);
   const [busy, setBusy] = useState(false);
   const media = useMediaDraft(post.media);
-  const changed = body.trim() !== post.body || media.hasNew || media.items.map((i) => i.key).join() !== post.media.map((m) => m.key).join();
+  const sig = (m: { key?: string; alt?: string }[]) => JSON.stringify(m.map((x) => [x.key, x.alt ?? ""]));
+  const changed = body.trim() !== post.body || media.hasNew || sig(media.items) !== sig(post.media);
   const canSave = !busy && changed && (body.trim().length > 0 || media.items.length > 0);
 
   function close() {
@@ -396,7 +454,7 @@ type Handlers = {
   like: (p: FeedPost) => void;
   repost: (p: FeedPost) => void;
   follow: (authorId: string) => void;
-  edit: (p: FeedPost, body: string, media: string[]) => Promise<string | null>;
+  edit: (p: FeedPost, body: string, media: MediaInput[]) => Promise<string | null>;
   remove: (p: FeedPost) => void;
 };
 
@@ -407,7 +465,7 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
   const ownEntry = p.repostedBy ? p.repostedBy.id === viewerId : mine;
 
   async function share() {
-    const url = `${location.origin}/dashboard/post/${p.id}`;
+    const url = `${location.origin}/post/${p.id}`; // public page; members are sent on to the app
     if (navigator.share) {
       await navigator.share({ url, title: `Post by ${p.author.name}` }).catch(() => {});
     } else {
@@ -562,7 +620,7 @@ function MediaGrid({ media }: { media: FeedPost["media"] }) {
               href={src(m.key)}
               target="_blank"
               rel="noreferrer"
-              aria-label={n > 1 ? `Open image ${i + 1} of ${n}` : "Open image"}
+              aria-label={`Open image${n > 1 ? ` ${i + 1} of ${n}` : ""}${m.alt ? `: ${m.alt}` : ""}`}
               className={`block ${tall ? "row-span-2" : ""}`}
               onClick={(e) => {
                 if (e.metaKey || e.ctrlKey || e.shiftKey) return;
@@ -571,7 +629,7 @@ function MediaGrid({ media }: { media: FeedPost["media"] }) {
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
-              <img src={src(m.key)} alt="" loading="lazy" decoding="async" className={`w-full bg-surface object-cover ${tall ? "h-full" : n > 1 ? "aspect-square" : "max-h-[520px]"}`} />
+              <img src={src(m.key)} alt={m.alt ?? ""} loading="lazy" decoding="async" className={`w-full bg-surface object-cover ${tall ? "h-full" : n > 1 ? "aspect-square" : "max-h-[520px]"}`} />
             </a>
           );
         })}
@@ -585,7 +643,7 @@ function MediaGrid({ media }: { media: FeedPost["media"] }) {
               </button>
             )}
             {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
-            <img src={src(media[open].key)} alt="" className="max-h-[75vh] min-w-0 flex-1 object-contain" />
+            <img src={src(media[open].key)} alt={media[open].alt ?? ""} className="max-h-[75vh] min-w-0 flex-1 object-contain" />
             {n > 1 && (
               <button type="button" aria-label="Next image" onClick={() => setOpen((open + 1) % n)} className={`${btnGhost} px-2`}>
                 <Icon d={icons.back} size={18} className="rotate-180" />

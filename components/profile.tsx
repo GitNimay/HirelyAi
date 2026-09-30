@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
-import { loadReplies, loadUserPosts, saveProfile } from "@/app/in/actions";
+import { loadFollows, loadReplies, loadUserPosts, saveProfile, setProfileVisibility } from "@/app/in/actions";
 import { cropImage } from "@/lib/crop-image";
 import type { FeedPost } from "@/lib/feed";
+import type { FollowDir, FollowPerson } from "@/lib/network";
 import { isVideo } from "@/lib/media";
 import type { Connection, Profile, Reply } from "@/lib/profile";
 import { AVATAR_PX, COVER_PX, LIMITS, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl } from "@/lib/profile-fields";
@@ -39,6 +40,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
   const base = profileHref(profile);
   const tabs = [
     { href: base, label: "Posts" },
+    ...(!own && profile.resumePublic ? [{ href: `${base}/about`, label: "About" }] : []),
     { href: `${base}/replies`, label: "Replies" },
     { href: `${base}/media`, label: "Media" },
     ...(own ? [{ href: `${base}/likes`, label: "Likes" }, { href: `${base}/resume`, label: "Resume" }] : []),
@@ -147,6 +149,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
             <p className="mt-0.5 flex items-center gap-2 text-sm text-muted">
               <span>@{profile.handle ?? profile.id}</span>
               {!own && rel.followsYou && <span className="rounded bg-surface-hover px-1.5 py-0.5 text-xs">Follows you</span>}
+              {profile.openToWork && <span className="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">Open to work</span>}
             </p>
           </div>
           {profile.headline && <p className="mt-2 text-sm">{profile.headline}</p>}
@@ -176,10 +179,26 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
           </ul>
 
           <dl className="mt-3 flex gap-4 text-sm">
-            {([["connections", profile.counts.connections], ["following", profile.counts.following], ["followers", followers]] as const).map(([k, n]) => (
-              <div key={k} className="flex flex-row-reverse gap-1">
-                <dt className="capitalize text-muted">{k}</dt>
-                <dd className="font-semibold tabular-nums">{n}</dd>
+            {([
+              ["connections", profile.counts.connections, own ? "/dashboard/network?tab=connections" : null],
+              ["following", profile.counts.following, `${base}/following`],
+              ["followers", followers, `${base}/followers`],
+            ] as const).map(([k, n, href]) => (
+              <div key={k}>
+                <dt className="sr-only">{k}</dt>
+                <dd>
+                  {href ? (
+                    <Link href={href} className="group flex gap-1 hover:underline">
+                      <span className="font-semibold tabular-nums">{n}</span>
+                      <span className="capitalize text-muted">{k}</span>
+                    </Link>
+                  ) : (
+                    <span className="flex gap-1">
+                      <span className="font-semibold tabular-nums">{n}</span>
+                      <span className="capitalize text-muted">{k}</span>
+                    </span>
+                  )}
+                </dd>
               </div>
             ))}
           </dl>
@@ -400,7 +419,7 @@ export function MediaGrid({ userId, initial, own }: { userId: string; initial: P
                 <video src={`/api/media/${p.media[0].key}#t=0.1`} preload="metadata" muted playsInline className="size-full object-cover" />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media
-                <img src={`/api/media/${p.media[0].key}`} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+                <img src={`/api/media/${p.media[0].key}`} alt={p.media[0].alt ?? ""} loading="lazy" decoding="async" className="size-full object-cover" />
               )}
               {(isVideo(p.media[0].type) || p.media.length > 1) && (
                 <span className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white">
@@ -475,5 +494,121 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
         )
       )}
     </>
+  );
+}
+
+/** Followers / following of one member (X style): who they are, and a Follow toggle for everyone but you. */
+export function FollowList({ userId, viewerId, dir, initial, empty }: {
+  userId: string;
+  viewerId: string;
+  dir: FollowDir;
+  initial: { people: FollowPerson[]; next: string | null };
+  empty: string;
+}) {
+  const [page, setPage] = useState(initial);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function more() {
+    setLoading(true);
+    try {
+      const r = await loadFollows(userId, dir, page.next ?? undefined);
+      setPage((pg) => ({ people: [...pg.people, ...r.people.filter((p) => !pg.people.some((q) => q.id === p.id))], next: r.next }));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function follow(p: FollowPerson) {
+    setBusy(p.id);
+    const flip = (on: boolean) => setPage((pg) => ({ ...pg, people: pg.people.map((q) => (q.id === p.id ? { ...q, iFollow: on } : q)) }));
+    flip(!p.iFollow);
+    try {
+      const { following } = await actions.toggleFollow(p.id);
+      flip(following);
+    } catch {
+      flip(p.iFollow);
+      toast("Couldn't update. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section aria-label={dir === "followers" ? "Followers" : "Following"}>
+      <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">{dir === "followers" ? "Followers" : "Following"}</h2>
+      {page.people.length === 0 ? (
+        <p className="px-4 py-12 text-center text-sm text-muted">{empty}</p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {page.people.map((p) => (
+            <li key={p.id} className="flex items-center gap-3 px-4 py-3">
+              <Link href={profileHref(p)} aria-label={p.name} className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Avatar name={p.name} src={p.imageUrl ?? undefined} size={40} />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2">
+                  <Link href={profileHref(p)} className="truncate text-sm font-medium hover:underline">{p.name}</Link>
+                  {p.id !== viewerId && p.followsYou && <span className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-xs text-muted">Follows you</span>}
+                </p>
+                {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
+              </div>
+              {p.id !== viewerId && (
+                <button type="button" aria-pressed={p.iFollow} disabled={busy === p.id} onClick={() => follow(p)} className={p.iFollow ? btnOutline : btnPrimary}>
+                  {p.iFollow ? "Following" : "Follow"}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {page.next && (
+        <button type="button" onClick={more} disabled={loading} className={`${btn} h-12 w-full rounded-none border-t border-border text-muted hover:bg-surface hover:text-foreground`}>
+          {loading ? "Loading…" : "Load more"}
+        </button>
+      )}
+    </section>
+  );
+}
+
+/** On your Resume tab: opt in to showing your resume sections on your profile, and to the "Open to work" badge. Saves on change. */
+export function ProfileVisibility({ resumePublic, openToWork }: { resumePublic: boolean; openToWork: boolean }) {
+  const router = useRouter();
+  const [v, setV] = useState({ resumePublic, openToWork });
+  const [busy, setBusy] = useState(false);
+
+  async function change(next: typeof v) {
+    setV(next);
+    setBusy(true);
+    try {
+      await setProfileVisibility(next);
+      toast("Visibility saved");
+      router.refresh();
+    } catch {
+      setV(v);
+      toast("Couldn't save. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const options = [
+    { key: "resumePublic", label: "Show my experience on my profile", hint: "Members see your summary, experience, education, projects and skills in an About tab. Contact details stay private." },
+    { key: "openToWork", label: "Open to work", hint: "Adds an \"Open to work\" badge next to your name so recruiters know you're looking." },
+  ] as const;
+
+  return (
+    <fieldset className="space-y-3 rounded-lg border border-border p-4" disabled={busy}>
+      <legend className="px-1 text-sm font-semibold">Profile visibility</legend>
+      {options.map((o) => (
+        <label key={o.key} className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" role="switch" checked={v[o.key]} onChange={(e) => change({ ...v, [o.key]: e.target.checked })} className="mt-0.5 size-4 shrink-0 accent-foreground" />
+          <span>
+            <span className="block text-sm font-medium">{o.label}</span>
+            <span className="block text-xs text-muted">{o.hint}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
   );
 }
