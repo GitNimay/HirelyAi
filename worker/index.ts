@@ -1,6 +1,7 @@
 import { createClerkClient } from "@clerk/backend";
 import { DurableObject } from "cloudflare:workers";
 import app from "vinext/server/app-router-entry";
+import { GATED, hasPass, passCookie, safeNext, verifyTurnstile } from "../lib/human";
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/interview";
 import { cleanTranscript } from "../lib/interview-fields";
 import { syncDirectory } from "../lib/network";
@@ -82,6 +83,16 @@ export default {
       // Grading takes up to a minute or two: the queue gives it retries and a 15 minute budget (waitUntil only gets 30 s)
       await enqueue({ t: "evaluate", sessionId });
       return new Response(null, { status: 204 });
+    }
+    // "Verify you are human" (lib/human.ts): the widget posts its token here; a pass cookie lets the visitor into the auth pages
+    if (url.pathname === "/api/human" && request.method === "POST") {
+      if (request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
+      const body = (await request.json().catch(() => ({}))) as { token?: unknown };
+      if (!(await verifyTurnstile(body.token, request.headers.get("CF-Connecting-IP")))) return Response.json({ ok: false }, { status: 403 });
+      return Response.json({ ok: true }, { headers: { "Set-Cookie": await passCookie(url), "Cache-Control": "no-store" } });
+    }
+    if (GATED.test(url.pathname) && !(await hasPass(request, url))) {
+      return Response.redirect(`${url.origin}/verify?next=${encodeURIComponent(safeNext(url.pathname + url.search))}`, 302);
     }
     const res = await app.fetch(request, env, ctx);
     if (res.webSocket) return res;
