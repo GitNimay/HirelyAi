@@ -1,9 +1,8 @@
-import { SignOutButton } from "@clerk/nextjs";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
+import { AccountMenu } from "@/components/account-menu";
 import { Logo } from "@/components/auth";
 import { Nav } from "@/components/nav";
-import { Avatar, Icon, icons } from "@/components/ui";
 import { viewerOf } from "@/lib/profile";
 import { unseenCount } from "@/lib/notifications";
 
@@ -25,18 +24,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <span className="hidden text-sm font-semibold tracking-tight xl:inline">Hire Excellence</span>
         </Link>
         <Nav unseen={unseen} me={me?.handle ?? ""} />
-        <div className="mt-auto flex items-center justify-center gap-3 xl:justify-start xl:px-2">
-          <Avatar name={name} src={me?.imageUrl} size={32} />
-          <div className="hidden min-w-0 flex-1 xl:block">
-            <p className="truncate text-sm font-medium">{name}</p>
-            <p className="truncate text-xs text-muted">{email}</p>
-          </div>
-          <SignOutButton>
-            <button type="button" title="Sign out" className="hidden rounded-md p-1.5 text-muted transition-colors hover:bg-surface hover:text-foreground xl:block">
-              <Icon d={icons.logout} size={16} />
-            </button>
-          </SignOutButton>
-        </div>
+        <AccountMenu name={name} email={email} imageUrl={me?.imageUrl} />
       </aside>
       {/* Phone: bottom tab bar (the aside is hidden) */}
       <div className="sm:hidden"><Nav unseen={unseen} me={me?.handle ?? ""} /></div>

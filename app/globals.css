@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Dark theme, matched to the auth reference; Geist + Vercel-style sizing */
+/* Dark theme, matched to the auth reference; Geist + Vercel-style sizing.
+   Light applies when <html data-theme="light">, or with no data-theme ("System") when the OS is light. */
 :root {
   --background: #161616;
   --foreground: #ededed;
@@ -11,6 +12,53 @@
   --ring: #3b82f6;
   --link: #52a8ff;
   --danger: #ff6166;
+  --success: #34d399;
+  --primary-hover: #ffffff;
+  color-scheme: dark;
+}
+
+/* Two copies: a media query can't share a selector list with the attribute override */
+:root[data-theme="light"] {
+  --background: #ffffff;
+  --foreground: #171717;
+  --muted: #666666;
+  --surface: #fafafa;
+  --surface-hover: #f0f0f0;
+  --border: #e5e5e5;
+  --ring: #2563eb;
+  --link: #0068d6;
+  --danger: #d93036;
+  --success: #059669;
+  --primary-hover: #383838;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --background: #ffffff;
+    --foreground: #171717;
+    --muted: #666666;
+    --surface: #fafafa;
+    --surface-hover: #f0f0f0;
+    --border: #e5e5e5;
+    --ring: #2563eb;
+    --link: #0068d6;
+    --danger: #d93036;
+    --success: #059669;
+    --primary-hover: #383838;
+    color-scheme: light;
+  }
+}
+
+/* `light:` utilities, for the few things that aren't a color token (the logo image) */
+@custom-variant light {
+  &:where([data-theme="light"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: light) {
+    &:where(:root:not([data-theme="dark"]) *) {
+      @slot;
+    }
+  }
 }
 
 @theme inline {
@@ -23,12 +71,10 @@
   --color-ring: var(--ring);
   --color-link: var(--link);
   --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-primary-hover: var(--primary-hover);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-html {
-  color-scheme: dark;
 }
 
 body {
