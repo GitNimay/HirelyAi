@@ -6,11 +6,13 @@ import * as actions from "@/app/dashboard/actions";
 import type { Network as Net, Person } from "@/lib/network";
 import { profileHref } from "@/lib/profile-fields";
 import type { NetEvent } from "@/lib/realtime";
+import { ask, Menu, setParam, Tabs, toast } from "./kit";
 import { Loading, PersonRowSkeleton, times } from "./skeleton";
-import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
+import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons, menuItem } from "./ui";
 import { useRealtime } from "./use-realtime";
 
-type Tab = "grow" | "connections" | "sent";
+export type NetworkTab = "grow" | "connections" | "sent";
+type Tab = NetworkTab;
 
 const without = (list: Person[], id: string) => list.filter((p) => p.id !== id);
 const upsert = (list: Person[], p: Person) => [p, ...without(list, p.id)];
@@ -46,9 +48,9 @@ function why(p: Person) {
 }
 
 /** My Network: invitations, people you may know, connections, sent requests. Live via /api/realtime. */
-export function Network({ initial }: { initial: Net }) {
+export function Network({ initial, initialTab = "grow" }: { initial: Net; initialTab?: Tab }) {
   const [net, setNet] = useState(initial);
-  const [tab, setTab] = useState<Tab>("grow");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [allInvites, setAllInvites] = useState(false);
   const [query, setQuery] = useState("");
@@ -95,6 +97,7 @@ export function Network({ initial }: { initial: Net }) {
     try {
       await call(p.id);
     } catch {
+      toast("Couldn't update. Try again.");
       await refresh();
     } finally {
       setBusy((s) => {
@@ -109,7 +112,9 @@ export function Network({ initial }: { initial: Net }) {
   const ignore = (p: Person) => act(p, "uninvite", "out", actions.ignoreInvite);
   const invite = (p: Person) => act(p, "invite", "out", actions.connect);
   const withdraw = (p: Person) => act(p, "uninvite", "out", actions.withdrawInvite);
-  const remove = (p: Person) => confirm(`Remove ${p.name} from your connections?`) && act(p, "disconnect", "out", actions.removeConnection);
+  const remove = async (p: Person) =>
+    (await ask({ title: `Remove ${p.name}?`, body: "They won't be notified. You can send a new invitation later.", confirm: "Remove connection", danger: true })) &&
+    act(p, "disconnect", "out", actions.removeConnection);
 
   /** The one button that fits where you stand with this person. */
   function personAction(p: Person) {
@@ -121,13 +126,7 @@ export function Network({ initial }: { initial: Net }) {
           Connected
         </span>
       );
-    if (net.sent.some((c) => c.id === p.id))
-      return (
-        <button type="button" title="Withdraw invitation" className={btnOutline} disabled={off} onClick={() => withdraw(p)}>
-          <Icon d={icons.clock} size={14} />
-          Pending
-        </button>
-      );
+    if (net.sent.some((c) => c.id === p.id)) return <PendingButton disabled={off} onClick={() => withdraw(p)} />;
     if (net.received.some((c) => c.id === p.id))
       return <button type="button" className={btnPrimary} disabled={off} onClick={() => accept(p)}>Accept</button>;
     return (
@@ -155,34 +154,27 @@ export function Network({ initial }: { initial: Net }) {
           <h1 className="text-sm font-semibold">My Network</h1>
           <dl className="flex gap-4 text-xs text-muted">
             {(["connections", "following", "followers"] as const).map((k) => (
-              <div key={k} className="flex gap-1">
-                <dt className="sr-only">{k}</dt>
+              <div key={k} className="flex flex-row-reverse gap-1">
+                <dt className="capitalize">{k}</dt>
                 <dd className="font-medium tabular-nums text-foreground">{counts[k]}</dd>
-                <span aria-hidden className="capitalize">{k}</span>
               </div>
             ))}
           </dl>
         </div>
-        <nav className="flex px-2" aria-label="Network sections">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={`relative flex h-10 items-center gap-1.5 px-3 text-sm transition-colors hover:text-foreground ${tab === t.id ? "font-medium text-foreground" : "text-muted"}`}
-            >
-              {t.label}
-              {t.count !== undefined && <span className="rounded-full bg-surface-hover px-1.5 text-xs tabular-nums text-muted">{t.count}</span>}
-              {tab === t.id && <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-link" />}
-            </button>
-          ))}
-        </nav>
+        <Tabs
+          label="Network sections"
+          tabs={tabs}
+          value={tab}
+          onChange={(t) => {
+            setTab(t);
+            setParam("tab", t === "grow" ? null : t);
+          }}
+        />
       </header>
 
       {tab === "grow" && (
         <div className="border-b border-border px-4 py-3">
-          <label className="flex h-9 items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
+          <label className="flex h-10 items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
             <Icon d={icons.search} size={16} />
             <input
               type="search"
@@ -260,7 +252,7 @@ export function Network({ initial }: { initial: Net }) {
           count={counts.connections}
           last
           action={
-            <label className="flex h-8 w-48 items-center gap-2 rounded-md border border-border px-2 text-muted focus-within:border-ring">
+            <label className="flex h-8 w-36 items-center sm:w-48 gap-2 rounded-md border border-border px-2 text-muted focus-within:border-ring">
               <Icon d={icons.search} size={14} />
               <input
                 value={query}
@@ -278,9 +270,16 @@ export function Network({ initial }: { initial: Net }) {
             <ul className="divide-y divide-border">
               {connections.map((p) => (
                 <Row key={p.id} person={p} meta={`Connected ${ago(p.at)}`}>
-                  <button type="button" title="Remove connection" aria-label={`Remove ${p.name}`} className={`${btnGhost} px-2`} disabled={busy.has(p.id)} onClick={() => remove(p)}>
-                    <Icon d={icons.close} size={16} />
-                  </button>
+                  <Menu
+                    label={`More options for ${p.name}`}
+                    button={<Icon d={icons.more} size={16} />}
+                    className={`${btnGhost} px-2`}
+                    panelClassName="right-0 top-9 w-52"
+                  >
+                    <button type="button" role="menuitem" disabled={busy.has(p.id)} onClick={() => remove(p)} className={`${menuItem} text-danger`}>
+                      <Icon d={icons.close} size={14} /> Remove connection
+                    </button>
+                  </Menu>
                 </Row>
               ))}
             </ul>
@@ -330,7 +329,7 @@ function Row({ person: p, meta, children }: { person: Person; meta: string; chil
       <div className="min-w-0 flex-1">
         <Link href={profileHref(p)} className="block truncate text-sm font-medium hover:underline">{p.name}</Link>
         {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
-        {p.bio && <p className="truncate text-xs text-muted/80">{p.bio.replace(/\s+/g, " ")}</p>}
+        {p.bio && <p className="truncate text-xs text-muted">{p.bio.replace(/\s+/g, " ")}</p>}
         {meta && <p className="truncate text-xs text-muted">{meta}</p>}
       </div>
       <div className="flex items-center gap-2">{children}</div>
@@ -339,3 +338,19 @@ function Row({ person: p, meta, children }: { person: Person; meta: string; chil
 }
 
 const Empty = ({ children }: { children: React.ReactNode }) => <p className="px-4 pb-6 text-sm text-muted">{children}</p>;
+
+/** An invitation you sent: reads "Pending", and says what a click does ("Withdraw") on hover or focus. */
+export function PendingButton({ disabled, onClick }: { disabled?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" aria-label="Invitation pending. Withdraw" className={`${btnOutline} group min-w-[104px]`} disabled={disabled} onClick={onClick}>
+      <span className="flex items-center gap-1.5 group-hover:hidden group-focus-visible:hidden">
+        <Icon d={icons.clock} size={14} />
+        Pending
+      </span>
+      <span className="hidden items-center gap-1.5 group-hover:flex group-focus-visible:flex">
+        <Icon d={icons.close} size={14} />
+        Withdraw
+      </span>
+    </button>
+  );
+}

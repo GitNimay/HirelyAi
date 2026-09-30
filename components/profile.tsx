@@ -10,9 +10,12 @@ import type { FeedPost } from "@/lib/feed";
 import { isVideo } from "@/lib/media";
 import type { Connection, Profile, Reply } from "@/lib/profile";
 import { AVATAR_PX, COVER_PX, LIMITS, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl } from "@/lib/profile-fields";
+import { AccountMenu } from "./account-menu";
 import { field, Field } from "./jobs";
+import { ask, BackButton, leaveIfClean, TabLabel, toast, useUnsavedGuard } from "./kit";
+import { PendingButton } from "./network";
 import { MediaTilesSkeleton, RepliesSkeleton } from "./skeleton";
-import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
+import { ago, Avatar, backBtn, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
@@ -57,6 +60,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
       await call();
     } catch {
       setRel(profile.rel);
+      toast("Couldn't update. Try again.");
     } finally {
       setBusy(false);
       if (reload) router.refresh();
@@ -66,17 +70,12 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
   const follow = () => run({ following: !rel.following }, () => actions.toggleFollow(profile.id));
   const connection: Record<Connection, React.ReactNode> = {
     none: (
-      <button type="button" className={btnOutline} disabled={busy} onClick={() => run({ connection: "sent" }, () => actions.connect(profile.id), true)}>
+      <button type="button" className={btnPrimary} disabled={busy} onClick={() => run({ connection: "sent" }, () => actions.connect(profile.id), true)}>
         <Icon d={icons.connect} size={14} />
         Connect
       </button>
     ),
-    sent: (
-      <button type="button" title="Withdraw invitation" className={btnOutline} disabled={busy} onClick={() => run({ connection: "none" }, () => actions.withdrawInvite(profile.id), true)}>
-        <Icon d={icons.clock} size={14} />
-        Pending
-      </button>
-    ),
+    sent: <PendingButton disabled={busy} onClick={() => run({ connection: "none" }, () => actions.withdrawInvite(profile.id), true)} />,
     received: (
       <button type="button" className={btnPrimary} disabled={busy} onClick={() => run({ connection: "connected", following: true }, () => actions.acceptInvite(profile.id), true)}>
         Accept
@@ -88,7 +87,10 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
         title="Remove connection"
         className={btnOutline}
         disabled={busy}
-        onClick={() => confirm(`Remove ${profile.name} from your connections?`) && run({ connection: "none", following: false }, () => actions.removeConnection(profile.id), true)}
+        onClick={async () =>
+          (await ask({ title: `Remove ${profile.name}?`, body: "They won't be notified. You can send a new invitation later.", confirm: "Remove connection", danger: true })) &&
+          run({ connection: "none", following: false }, () => actions.removeConnection(profile.id), true)
+        }
       >
         <Icon d={icons.check} size={14} />
         Connected
@@ -99,13 +101,17 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
   return (
     <>
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
-        <button type="button" aria-label="Back" onClick={() => (history.length > 1 ? router.back() : router.push("/dashboard"))} className="rounded-md p-1 text-muted hover:bg-surface hover:text-foreground">
-          <Icon d={icons.back} size={18} />
-        </button>
-        <div className="min-w-0">
+        <BackButton />
+        <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold leading-tight">{profile.name}</h1>
           <p className="text-xs text-muted">{profile.counts.posts} {profile.counts.posts === 1 ? "post" : "posts"}</p>
         </div>
+        {/* Phones have no sidebar: settings, theme and log out live here */}
+        {own && (
+          <div className="sm:hidden">
+            <AccountMenu name={profile.name} compact />
+          </div>
+        )}
       </header>
 
       <section>
@@ -128,7 +134,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
               ) : (
                 <>
                   {connection[rel.connection]}
-                  <button type="button" aria-pressed={rel.following} className={rel.following ? btnOutline : btnPrimary} disabled={busy} onClick={follow}>
+                  <button type="button" aria-pressed={rel.following} className={btnOutline} disabled={busy} onClick={follow}>
                     {rel.following ? "Following" : "Follow"}
                   </button>
                 </>
@@ -144,7 +150,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
             </p>
           </div>
           {profile.headline && <p className="mt-2 text-sm">{profile.headline}</p>}
-          {profile.bio && <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{profile.bio}</p>}
+          {profile.bio && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{profile.bio}</p>}
 
           <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
             {profile.location && (
@@ -171,9 +177,9 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
 
           <dl className="mt-3 flex gap-4 text-sm">
             {([["connections", profile.counts.connections], ["following", profile.counts.following], ["followers", followers]] as const).map(([k, n]) => (
-              <div key={k} className="flex gap-1">
-                <dd className="font-semibold tabular-nums">{n}</dd>
+              <div key={k} className="flex flex-row-reverse gap-1">
                 <dt className="capitalize text-muted">{k}</dt>
+                <dd className="font-semibold tabular-nums">{n}</dd>
               </div>
             ))}
           </dl>
@@ -192,10 +198,9 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
                 key={t.href}
                 href={t.href}
                 aria-current={active ? "page" : undefined}
-                className={`relative flex h-12 flex-1 items-center justify-center text-sm transition-colors hover:bg-surface ${active ? "font-medium text-foreground" : "text-muted"}`}
+                className={`flex h-12 flex-1 items-center justify-center text-sm transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:bg-surface ${active ? "font-medium text-foreground" : "text-muted"}`}
               >
-                {t.label}
-                {active && <span className="absolute inset-x-0 bottom-0 mx-auto h-0.5 w-12 rounded-full bg-link" />}
+                <TabLabel on={active}>{t.label}</TabLabel>
               </Link>
             );
           })}
@@ -228,6 +233,15 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   const [cover, setCover] = useState<Picked | null>(null);
   const [coverRemoved, setCoverRemoved] = useState(false);
   const [bio, setBio] = useState(profile.bio ?? "");
+  const [dirty, setDirty] = useState(false);
+  const unsaved = dirty || !!avatar || !!cover || coverRemoved;
+  useUnsavedGuard(unsaved);
+  /** Back / Cancel ask before dropping unsaved edits. */
+  function leave(e: React.MouseEvent) {
+    if (!unsaved) return;
+    e.preventDefault();
+    leaveIfClean(true).then((ok) => ok && router.push(back));
+  }
   const coverInput = useRef<HTMLInputElement>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
 
@@ -257,6 +271,8 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         avatarKey: avatarKey || undefined, coverKey: coverKey || undefined, removeCover: coverRemoved && !cover,
       });
       if ("error" in res) throw new Error(res.error);
+      setDirty(false);
+      toast("Profile saved");
       // A new handle means a new URL, and the nav's Me link (in a shared layout) needs it too: one full load
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional hard navigation
       if (res.handle !== profile.handle) return location.assign(`/in/${res.handle}`);
@@ -272,9 +288,9 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   const overlay = "absolute flex size-9 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:opacity-50";
 
   return (
-    <form onSubmit={submit} className="space-y-4 pb-8">
+    <form onSubmit={submit} onChange={() => setDirty(true)} className="space-y-4 pb-8">
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
-          <Link href={back} aria-label="Back to profile" className="rounded-md p-1 text-muted hover:bg-surface hover:text-foreground">
+          <Link href={back} onClick={leave} aria-label="Back to profile" className={backBtn}>
             <Icon d={icons.back} size={18} />
           </Link>
           <h1 className="flex-1 text-sm font-semibold">Edit profile</h1>
@@ -330,8 +346,8 @@ export function ProfileForm({ profile }: { profile: Profile }) {
               <input name="website" maxLength={LIMITS.website} defaultValue={profile.website ?? ""} placeholder="example.com" inputMode="url" className={field} />
             </Field>
           </div>
-          <Field label="Profile URL" hint="3-30 letters, numbers, hyphens">
-            <div className="flex h-9 items-center rounded-md border border-border pl-3 text-sm text-muted focus-within:border-ring">
+          <Field label="Profile URL" hint="3-30 letters, numbers, hyphens. Changing it breaks links to your old URL">
+            <div className="flex h-10 items-center rounded-md border border-border pl-3 text-sm text-muted focus-within:border-ring">
               <span>/in/</span>
               <input
                 name="handle"
@@ -348,7 +364,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           </Field>
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
-            <Link href={back} className={btnGhost}>Cancel</Link>
+            <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
             <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
           </div>
         </div>
@@ -439,7 +455,7 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
                   <span className="truncate font-medium">{author.name}</span>
                   <span className="shrink-0 text-muted" suppressHydrationWarning>· {ago(r.createdAt)}</span>
                 </p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{r.body}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{r.body}</p>
                 <Link href={`/dashboard/post/${r.post.id}`} className="mt-3 block rounded-lg border border-border p-3 text-sm transition-colors hover:bg-surface">
                   <span className="font-medium">{r.post.author.name}</span>
                   <p className="mt-0.5 line-clamp-2 text-muted">{r.post.body || (r.post.hasMedia ? "Photo or video" : "")}</p>

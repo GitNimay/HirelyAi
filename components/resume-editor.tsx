@@ -7,9 +7,10 @@ import {
   emptyEducation, emptyExperience, emptyProject, LIMITS, missingFields, STATUSES,
   type Education, type Experience, type Project, type Resume, type Status,
 } from "@/lib/resume-fields";
-import { btnGhost, btnPrimary, Icon, icons } from "./ui";
+import { leaveIfClean, toast, useUnsavedGuard } from "./kit";
+import { backBtn, btnGhost, btnPrimary, Icon, icons } from "./ui";
 
-export const input = "h-9 w-full rounded-md border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none transition-colors focus:border-ring disabled:opacity-50";
+export const input = "h-10 w-full rounded-md border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none transition-colors focus:border-ring disabled:opacity-50";
 const area = `${input} h-auto resize-y py-2`;
 const ring = (bad: boolean) => (bad ? "border-danger" : "border-border");
 
@@ -59,7 +60,7 @@ export function Tags({ value, onChange, placeholder, bad, max, suggestions = [] 
   const unused = suggestions.filter((s) => s && !value.some((v) => v.toLowerCase() === s.toLowerCase()));
   return (
     <div>
-      <div className={`flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 focus-within:border-ring ${ring(!!bad)}`}>
+      <div className={`flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 focus-within:border-ring ${ring(!!bad)}`}>
         {value.map((t) => (
           <span key={t} className="inline-flex h-6 items-center gap-1 rounded bg-surface-hover pl-2 pr-1 text-xs">
             {t}
@@ -250,6 +251,8 @@ export function ResumeForm({ initial }: { initial: Resume }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const missing = missingFields(r);
+  const dirty = r !== initial;
+  useUnsavedGuard(dirty && !busy);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -260,6 +263,7 @@ export function ResumeForm({ initial }: { initial: Resume }) {
     const res = await saveMyResume(r).catch(() => ({ error: "Couldn't save. Try again." }));
     setBusy(false);
     if ("error" in res) return setError(res.error);
+    toast("Resume saved");
     router.back();
     router.refresh();
   }
@@ -267,7 +271,7 @@ export function ResumeForm({ initial }: { initial: Resume }) {
   return (
     <form onSubmit={save} noValidate className="pb-8">
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
-        <button type="button" aria-label="Back" onClick={() => router.back()} className="rounded-md p-1 text-muted hover:bg-surface hover:text-foreground">
+        <button type="button" aria-label="Back" onClick={() => leaveIfClean(dirty).then((ok) => ok && router.back())} className={backBtn}>
           <Icon d={icons.back} size={18} />
         </button>
         <h1 className="flex-1 text-sm font-semibold">Edit resume</h1>

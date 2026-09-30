@@ -33,6 +33,13 @@ export const btn = "inline-flex h-8 shrink-0 items-center justify-center gap-1.5
 export const btnPrimary = `${btn} bg-foreground text-background hover:bg-primary-hover`;
 export const btnOutline = `${btn} border border-border text-foreground hover:bg-surface-hover`;
 export const btnGhost = `${btn} text-muted hover:bg-surface-hover hover:text-foreground`;
+export const btnDanger = `${btn} bg-danger text-background hover:opacity-90`;
+/** Form controls are 40px (Geist medium); toolbar and inline buttons stay 32px (`btn`). */
+export const btnLg = "h-10 px-4";
+/** Icon-only back button in sticky page headers: 32px target, optically aligned to the header's padding. */
+export const backBtn = "-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
+/** One row in a dropdown menu (see Menu in kit.tsx). */
+export const menuItem = "flex w-full items-center gap-2.5 px-3 py-2 text-left outline-none hover:bg-surface-hover focus-visible:bg-surface-hover";
 
 /** Compact relative time: now, 5m, 3h, 2d, then a date. */
 export function ago(ms: number) {

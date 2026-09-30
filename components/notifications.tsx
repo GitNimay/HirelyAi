@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { categoryOf, hasPreview, verb, who, type Category, type NotificationType } from "@/lib/notification-format";
 import type { Notification } from "@/lib/notifications";
+import { setParam, Tabs, useClientValue } from "./kit";
 import { NotificationRowsSkeleton } from "./skeleton";
 import { ago, Avatar, btnGhost, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Page = { items: Notification[]; next: string | null };
-type Tab = "all" | Category;
+export type NotificationTab = "all" | Category;
+type Tab = NotificationTab;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "all", label: "All" },
@@ -27,10 +29,20 @@ const ICON: Record<NotificationType, string> = {
 
 const newestFirst = (a: Notification, b: Notification) => b.at - a.at;
 
+/** Split a newest-first list into Today / Earlier, dropping empty groups. `midnight` is null until mounted
+    (the server doesn't know the viewer's time zone), so the first render is one plain list. */
+function groups(items: Notification[], midnight: number | null): [string, Notification[]][] {
+  if (midnight === null) return [["Notifications", items]];
+  const today = items.filter((n) => n.at >= midnight);
+  const earlier = items.filter((n) => n.at < midnight);
+  return ([["Today", today], ["Earlier", earlier]] as [string, Notification[]][]).filter(([, l]) => l.length > 0);
+}
+
 /** Notifications: everything that happens to you, grouped LinkedIn/X style, live via /api/realtime. */
-export function Notifications({ initial }: { initial: Page }) {
+export function Notifications({ initial, initialTab = "all" }: { initial: Page; initialTab?: Tab }) {
   const [page, setPage] = useState(initial);
-  const [tab, setTab] = useState<Tab>("all");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const midnight = useClientValue<number | null>(() => new Date().setHours(0, 0, 0, 0), null);
   const [loading, setLoading] = useState(false);
 
   const refresh = () => actions.loadNotifications().then(setPage, () => {});
@@ -102,20 +114,15 @@ export function Notifications({ initial }: { initial: Page }) {
             </button>
           )}
         </div>
-        <nav className="flex px-2" aria-label="Notification types">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={`relative flex h-10 items-center px-3 text-sm transition-colors hover:text-foreground ${tab === t.id ? "font-medium text-foreground" : "text-muted"}`}
-            >
-              {t.label}
-              {tab === t.id && <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-link" />}
-            </button>
-          ))}
-        </nav>
+        <Tabs
+          label="Notification types"
+          tabs={TABS}
+          value={tab}
+          onChange={(t) => {
+            setTab(t);
+            setParam("tab", t === "all" ? null : t);
+          }}
+        />
       </header>
 
       {items.length === 0 ? (
@@ -127,11 +134,16 @@ export function Notifications({ initial }: { initial: Page }) {
           </p>
         </div>
       ) : (
-        <ul>
-          {items.map((n) => (
-            <Row key={n.id} n={n} onOpen={open} onRemove={remove} />
-          ))}
-        </ul>
+        groups(items, midnight).map(([label, list]) => (
+          <section key={label} aria-label={label}>
+            {midnight !== null && <h2 className="border-b border-border px-4 py-2 text-xs font-medium text-muted">{label}</h2>}
+            <ul>
+              {list.map((n) => (
+                <Row key={n.id} n={n} onOpen={open} onRemove={remove} />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
 
       {loading ? (

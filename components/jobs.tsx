@@ -8,8 +8,9 @@ import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATU
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
 import { FITS, INTERVIEW, NOTICE, type Fit } from "@/lib/interview-fields";
 import type { Applicant, Job, JobPage } from "@/lib/jobs";
+import { ask, Clamp, leaveIfClean, Modal, Tabs, toast, useUnsavedGuard } from "./kit";
 import { JobRowsSkeleton, Line, Loading, Skeleton, times } from "./skeleton";
-import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
+import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Tab = "search" | MyJobsTab;
@@ -27,7 +28,7 @@ const EMPTY: Record<Tab, string> = {
   applied: "Jobs you apply to show up here.",
   posted: "Jobs you post show up here.",
 };
-export const field = "h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none focus:border-ring";
+export const field = "h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none focus:border-ring";
 const select = `${field} bg-surface`;
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
@@ -155,7 +156,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
   }
 
   async function setClosed(j: Job, closed: boolean) {
-    if (closed && !confirm("Close this job? It stops accepting applications and leaves search.")) return;
+    if (closed && !(await ask({ title: "Close this job?", body: "It stops accepting applications and leaves search. You can reopen it later.", confirm: "Close job" }))) return;
     patch(j.id, () => ({ closedAt: closed ? Date.now() : null }));
     await actions.setJobClosed(j.id, closed).catch(() => patch(j.id, () => ({ closedAt: j.closedAt })));
   }
@@ -174,20 +175,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
             Post a job
           </Link>
         </div>
-        <nav className="flex px-2" aria-label="Job lists">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={tab === t.id}
-              onClick={() => (tab !== t.id ? switchTab(t.id) : shown && choose(null))}
-              className={`relative flex h-10 items-center px-3 text-sm transition-colors hover:text-foreground ${tab === t.id ? "font-medium text-foreground" : "text-muted"}`}
-            >
-              {t.label}
-              {tab === t.id && <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-link" />}
-            </button>
-          ))}
-        </nav>
+        <Tabs label="Job lists" tabs={TABS} value={tab} onChange={(t) => (tab !== t ? switchTab(t) : shown && choose(null))} />
       </header>
 
       {tab === "search" && <SearchForm filters={filters} onChange={applyFilters} hasFilters={hasFilters} />}
@@ -227,7 +215,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
         ) : (
           <ul className="divide-y divide-border border-b border-border">
             {ids.map((id) => (
-              <JobRow key={id} job={byId[id]} mine={byId[id].poster.id === viewerId} onOpen={() => choose(id)} />
+              <JobRow key={id} job={byId[id]} mine={byId[id].poster.id === viewerId} onOpen={() => choose(id)} onSave={() => toggleSave(byId[id])} />
             ))}
           </ul>
         )}
@@ -244,6 +232,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
             merge([job]);
             setContact(c);
             setApplying(false);
+            toast(`Application sent to ${job.company}`);
           }}
         />
       )}
@@ -270,15 +259,15 @@ function SearchForm({ filters, onChange, hasFilters }: { filters: JobFilters; on
       }}
     >
       <div className="flex gap-2">
-        <label className="flex h-9 min-w-0 flex-[3] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
+        <label className="flex h-10 min-w-0 flex-[3] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
           <Icon d={icons.search} size={16} />
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Title, skill or company" aria-label="Keyword" className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none" />
         </label>
-        <label className="flex h-9 min-w-0 flex-[2] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
+        <label className="flex h-10 min-w-0 flex-[2] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
           <Icon d={icons.pin} size={16} />
           <input type="search" value={loc} onChange={(e) => setLoc(e.target.value)} placeholder="Location" aria-label="Location" className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none" />
         </label>
-        <button type="submit" className={`${btnPrimary} h-9`}>Search</button>
+        <button type="submit" className={`${btnPrimary} ${btnLg}`}>Search</button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {selects.map(({ key, label, opts }) => (
@@ -321,11 +310,32 @@ function CompanyMark({ name, size = 48 }: { name: string; size?: number }) {
   );
 }
 
-function JobRow({ job: j, mine, onOpen }: { job: Job; mine: boolean; onOpen: () => void }) {
+/** A real link (Ctrl/⌘-click opens the job in a new tab); a plain click opens it in place. Save sits on the row, like LinkedIn. */
+function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onOpen: () => void; onSave: () => void }) {
   const tag = j.closedAt ? "Closed" : j.application ? (j.application.status === "submitted" ? "Applied" : STATUSES[j.application.status]) : mine ? "Your job" : j.saved ? "Saved" : null;
   return (
-    <li>
-      <button type="button" onClick={onOpen} className="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface">
+    <li className="relative">
+      {!mine && (
+        <button
+          type="button"
+          aria-label={j.saved ? `Unsave ${j.title}` : `Save ${j.title}`}
+          title={j.saved ? "Unsave" : "Save"}
+          aria-pressed={j.saved}
+          onClick={onSave}
+          className={`${btnGhost} absolute right-3 top-3 z-[1] px-2 ${j.saved ? "text-foreground" : ""}`}
+        >
+          <Icon d={icons.bookmark} size={16} className={j.saved ? "fill-current" : ""} />
+        </button>
+      )}
+      <Link
+        href={`/dashboard/jobs?id=${j.id}`}
+        onClick={(e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+          e.preventDefault();
+          onOpen();
+        }}
+        className={`flex w-full gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${mine ? "" : "pr-14"}`}
+      >
         <CompanyMark name={j.company} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-link">{j.title}</p>
@@ -337,7 +347,7 @@ function JobRow({ job: j, mine, onOpen }: { job: Job; mine: boolean; onOpen: () 
             {j.applicants > 0 && <span>· {applicantsText(j.applicants)}</span>}
           </p>
         </div>
-      </button>
+      </Link>
     </li>
   );
 }
@@ -353,15 +363,24 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
   onStatus: (a: Applicant, s: AppStatus) => void;
 }) {
   const [view, setView] = useState<"details" | "applicants">("details");
-  const [copied, setCopied] = useState(false);
+  // Phones: a sticky Apply / Save bar once the main buttons scroll out of view (LinkedIn mobile)
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [actionsGone, setActionsGone] = useState(false);
+  const canApply = !mine && !j.application && !j.closedAt;
+
+  useEffect(() => {
+    const el = actionsRef.current;
+    if (!el || !canApply) return;
+    const io = new IntersectionObserver(([e]) => setActionsGone(!e.isIntersecting && e.boundingClientRect.top < 0));
+    io.observe(el);
+    return () => io.disconnect();
+  }, [canApply]);
 
   async function share() {
     const url = `${location.origin}/dashboard/jobs?id=${j.id}`;
     if (navigator.share) await navigator.share({ url, title: `${j.title} at ${j.company}` }).catch(() => {});
     else {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link"));
     }
   }
 
@@ -389,7 +408,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
           ))}
         </ul>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div ref={actionsRef} className="flex flex-wrap items-center gap-2">
           {mine ? (
             <>
               <button type="button" className={j.closedAt ? btnPrimary : btnOutline} onClick={() => onClose(!j.closedAt)}>
@@ -415,28 +434,21 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
           )}
           <button type="button" className={btnGhost} onClick={share}>
             <Icon d={icons.share} size={14} />
-            {copied ? "Link copied" : "Share"}
+            Share
           </button>
         </div>
         {j.interview && (mine || j.application) && <InterviewPanel interview={j.interview} mine={mine} />}
       </div>
 
       {mine && (
-        <nav className="flex border-b border-border px-2" aria-label="Job views">
-          {(["details", "applicants"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={view === v}
-              onClick={() => (v === "applicants" ? showApplicants() : setView(v))}
-              className={`relative flex h-10 items-center gap-1.5 px-3 text-sm capitalize transition-colors hover:text-foreground ${view === v ? "font-medium text-foreground" : "text-muted"}`}
-            >
-              {v}
-              {v === "applicants" && <span className="rounded-full bg-surface-hover px-1.5 text-xs tabular-nums text-muted">{j.applicants}</span>}
-              {view === v && <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-link" />}
-            </button>
-          ))}
-        </nav>
+        <div className="border-b border-border">
+          <Tabs
+            label="Job views"
+            tabs={[{ id: "details", label: "Details" }, { id: "applicants", label: "Applicants", count: j.applicants }]}
+            value={view}
+            onChange={(v) => (v === "applicants" ? showApplicants() : setView(v))}
+          />
+        </div>
       )}
 
       {view === "applicants" ? (
@@ -455,12 +467,47 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
           </section>
           <section className="p-4">
             <h3 className="mb-3 text-sm font-semibold">About the job</h3>
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{j.description}</p>
+            <Clamp lines={12} className="space-y-3 break-words text-sm leading-relaxed text-foreground/90">
+              <Prose text={j.description} />
+            </Clamp>
           </section>
         </>
       )}
+
+      {canApply && actionsGone && (
+        <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-10 flex gap-2 border-t border-border bg-background/90 px-4 py-3 backdrop-blur sm:hidden">
+          <button type="button" className={`${btnPrimary} ${btnLg} flex-1`} onClick={onApply}>Easy Apply</button>
+          <button type="button" className={`${btnOutline} ${btnLg}`} aria-pressed={j.saved} onClick={onSave}>
+            <Icon d={icons.bookmark} size={14} className={j.saved ? "fill-current" : ""} />
+            {j.saved ? "Saved" : "Save"}
+          </button>
+        </div>
+      )}
     </article>
   );
+}
+
+const BULLET = /^\s*[-*•]\s+/;
+
+/** Plain-text job description as paragraphs, with "- " / "• " lines rendered as real lists. */
+function Prose({ text }: { text: string }) {
+  return text
+    .trim()
+    .split(/\n\s*\n/)
+    .map((block, i) => {
+      const lines = block.split("\n");
+      const k = lines.findIndex((l) => BULLET.test(l));
+      const bullets = lines.slice(k);
+      // A list only when every line from the first bullet on is a bullet; otherwise keep the text as written
+      if (k < 0 || !bullets.every((l) => BULLET.test(l))) return <p key={i} className="whitespace-pre-wrap">{block}</p>;
+      const intro = lines.slice(0, k).join("\n");
+      return (
+        <div key={i}>
+          {intro && <p className="whitespace-pre-wrap">{intro}</p>}
+          <ul className="list-disc space-y-1 pl-5">{bullets.map((l, j) => <li key={j}>{l.replace(BULLET, "")}</li>)}</ul>
+        </div>
+      );
+    });
 }
 
 function Applicants({ jobId, list, onStatus }: { jobId: string; list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
@@ -483,9 +530,55 @@ function Applicants({ jobId, list, onStatus }: { jobId: string; list?: Applicant
       </Loading>
     );
   if (list.length === 0) return <p className="p-4 text-sm text-muted">No applicants yet. New ones show up here as they apply.</p>;
+  return <ApplicantList jobId={jobId} list={list} onStatus={onStatus} />;
+}
+
+type Stage = "all" | "viewed" | "shortlisted" | "rejected";
+const STAGES: { id: Stage; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "viewed", label: "Under review" },
+  { id: "shortlisted", label: STATUSES.shortlisted },
+  { id: "rejected", label: STATUSES.rejected },
+];
+const stageOf = (a: Applicant): Stage => (a.status === "submitted" ? "viewed" : (a.status as Stage));
+
+/** Pipeline view (LinkedIn Recruiter / Greenhouse): filter by stage with counts, optionally rank by interview score. */
+function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
+  const [stage, setStage] = useState<Stage>("all");
+  const [byScore, setByScore] = useState(false);
+  const scored = list.some((a) => a.interview?.score != null);
+  const shown = list
+    .filter((a) => stage === "all" || stageOf(a) === stage)
+    .sort((a, b) => (byScore ? (b.interview?.score ?? -1) - (a.interview?.score ?? -1) : 0));
+
   return (
-    <ul className="divide-y divide-border">
-      {list.map((a) => (
+    <>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+        {STAGES.map((s) => {
+          const n = s.id === "all" ? list.length : list.filter((a) => stageOf(a) === s.id).length;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              aria-pressed={stage === s.id}
+              onClick={() => setStage(s.id)}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${stage === s.id ? "border-link bg-link/10 text-foreground" : "border-border text-muted hover:text-foreground"}`}
+            >
+              {s.label}
+              <span className="tabular-nums">{n}</span>
+            </button>
+          );
+        })}
+        {scored && (
+          <label className="ml-auto flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" checked={byScore} onChange={(e) => setByScore(e.target.checked)} className="size-4 accent-foreground" />
+            Sort by interview score
+          </label>
+        )}
+      </div>
+      {shown.length === 0 && <p className="p-4 text-sm text-muted">No applicants in this stage.</p>}
+      <ul className="divide-y divide-border">
+      {shown.map((a) => (
         <li key={a.id} className="flex gap-3 p-4">
           <Avatar name={a.name} src={a.imageUrl ?? undefined} size={40} />
           <div className="min-w-0 flex-1 space-y-1">
@@ -519,30 +612,8 @@ function Applicants({ jobId, list, onStatus }: { jobId: string; list?: Applicant
           </div>
         </li>
       ))}
-    </ul>
-  );
-}
-
-/** Native <dialog>: focus trap, Escape and inert background for free. */
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => ref.current?.showModal(), []);
-  return (
-    <dialog
-      ref={ref}
-      onClose={onClose}
-      onClick={(e) => e.target === ref.current && onClose()}
-      aria-label={title}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-black/60 light:backdrop:bg-black/30"
-    >
-      <div className="flex h-14 items-center justify-between border-b border-border px-5">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <button type="button" onClick={onClose} aria-label="Close" className={`${btnGhost} px-2`}>
-          <Icon d={icons.close} size={16} />
-        </button>
-      </div>
-      {children}
-    </dialog>
+      </ul>
+    </>
   );
 }
 
@@ -648,6 +719,15 @@ export function PostJobForm() {
   const [chars, setChars] = useState(0);
   const [interview, setInterview] = useState(false);
   const [now] = useState(Date.now);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedGuard(dirty);
+
+  /** In-app exits (Back, Cancel) ask before dropping a half-written job. */
+  function leave(e: React.MouseEvent) {
+    if (!dirty) return;
+    e.preventDefault();
+    leaveIfClean(true).then((ok) => ok && router.push("/dashboard/jobs"));
+  }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -659,6 +739,8 @@ export function PostJobForm() {
       if (input.deadlineLocal) input.deadline = String(new Date(String(input.deadlineLocal)).getTime());
       const r = await actions.postJob(input);
       if ("error" in r) throw new Error(r.error);
+      setDirty(false);
+      toast("Job posted");
       router.push(`/dashboard/jobs?tab=posted&id=${r.job.id}`);
     } catch (err) {
       setError(errMsg(err));
@@ -670,14 +752,14 @@ export function PostJobForm() {
 
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-border bg-background/80 px-2 backdrop-blur">
-        <Link href="/dashboard/jobs" aria-label="Back to jobs" className={`${btnGhost} px-2`}>
+      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+        <Link href="/dashboard/jobs" onClick={leave} aria-label="Back to jobs" className={backBtn}>
           <Icon d={icons.back} size={18} />
         </Link>
         <h1 className="text-sm font-semibold">Post a job</h1>
       </header>
 
-      <form onSubmit={submit}>
+      <form onSubmit={submit} onChange={() => setDirty(true)}>
         <FormSection title="Role" hint="What candidates see first in search.">
           <Field label="Job title">
             <input name="title" required autoFocus maxLength={LIMITS.title} placeholder="Senior Frontend Engineer" className={field} />
@@ -750,9 +832,9 @@ export function PostJobForm() {
           )}
         </FormSection>
 
-        <div className="sticky bottom-12 flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
+        <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
           {error && <p role="alert" className="mr-auto text-sm text-danger">{error}</p>}
-          <Link href="/dashboard/jobs" className={btnGhost}>Cancel</Link>
+          <Link href="/dashboard/jobs" onClick={leave} className={btnGhost}>Cancel</Link>
           <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Posting…" : "Post job"}</button>
         </div>
       </form>

@@ -8,8 +8,9 @@ import type { Comment } from "@/app/dashboard/actions";
 import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
 import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
 import { profileHref } from "@/lib/profile-fields";
+import { ask, Clamp, Menu, Modal, scrollToTop, setParam, Tabs, toast } from "./kit";
 import { CommentsSkeleton, PostsSkeleton } from "./skeleton";
-import { ago, Avatar, Icon, icons } from "./ui";
+import { ago, Avatar, btnGhost, btnLg, btnPrimary, Icon, icons, menuItem } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Viewer = { id: string; name: string; imageUrl?: string };
@@ -22,8 +23,8 @@ const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "S
  * Home timeline, a single post when `single` (share links), or one member's posts / likes when `list` (profile tabs:
  * no header or composer, same cards and live updates). Live via /api/realtime.
  */
-export function Feed({ viewer, initial, followingIds, single, list }: { viewer: Viewer; initial: Page; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string } }) {
-  const [tab, setTab] = useState<FeedTab>("for-you");
+export function Feed({ viewer, initial, initialTab = "for-you", followingIds, single, list }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string } }) {
+  const [tab, setTab] = useState<FeedTab>(initialTab);
   const [page, setPage] = useState(initial);
   const [fresh, setFresh] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -78,6 +79,7 @@ export function Feed({ viewer, initial, followingIds, single, list }: { viewer: 
         await actions.toggleLike(p.id);
       } catch {
         patch(p.id, (q) => ({ liked: !q.liked, likes: q.likes + (q.liked ? -1 : 1) }));
+        toast("Couldn't update the like. Try again.");
       }
     },
     async repost(p: FeedPost) {
@@ -86,10 +88,13 @@ export function Feed({ viewer, initial, followingIds, single, list }: { viewer: 
         await actions.toggleRepost(p.id);
       } catch {
         patch(p.id, (q) => ({ reposted: !q.reposted, reposts: q.reposts + (q.reposted ? -1 : 1) }));
+        toast("Couldn't update the repost. Try again.");
       }
     },
     async follow(authorId: string) {
-      const { following: now } = await actions.toggleFollow(authorId);
+      const res = await actions.toggleFollow(authorId).catch(() => null);
+      if (!res) return toast("Couldn't update. Try again.");
+      const now = res.following;
       setFollowing((s) => {
         const n = new Set(s);
         if (now) n.add(authorId);
@@ -105,9 +110,14 @@ export function Feed({ viewer, initial, followingIds, single, list }: { viewer: 
       return null;
     },
     async remove(p: FeedPost) {
-      if (!confirm("Delete this post?")) return;
-      await actions.deletePost(p.entryId);
+      if (!(await ask({ title: "Delete post?", body: "It will be removed from your profile and everyone's feed. This can't be undone.", confirm: "Delete", danger: true }))) return;
+      try {
+        await actions.deletePost(p.entryId);
+      } catch {
+        return toast("Couldn't delete the post. Try again.");
+      }
       setPage((pg) => ({ ...pg, posts: pg.posts.filter((q) => q.entryId !== p.entryId && q.id !== p.entryId) }));
+      toast("Post deleted");
     },
   };
 
@@ -115,35 +125,32 @@ export function Feed({ viewer, initial, followingIds, single, list }: { viewer: 
     <>
       {!single && !list && (
         <>
-          <header className="sticky top-0 z-10 flex h-14 border-b border-border bg-background/80 backdrop-blur">
-            {(["for-you", "following"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                aria-pressed={tab === t}
-                onClick={() => {
-                  setTab(t);
-                  setPage({ posts: [], next: null }); // placeholders, not the other tab's posts, until it loads
-                  load(t);
-                }}
-                className={`relative flex-1 text-sm transition-colors hover:bg-surface ${tab === t ? "font-medium text-foreground" : "text-muted"}`}
-              >
-                {t === "for-you" ? "For you" : "Following"}
-                {tab === t && <span className="absolute inset-x-0 bottom-0 mx-auto h-0.5 w-12 rounded-full bg-link" />}
-              </button>
-            ))}
+          <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+            <Tabs
+              label="Feed"
+              fill
+              tabs={[{ id: "for-you", label: "For you" }, { id: "following", label: "Following" }]}
+              value={tab}
+              onChange={(t) => {
+                if (t === tab) return;
+                setTab(t);
+                setParam("tab", t === "for-you" ? null : t);
+                setPage({ posts: [], next: null }); // placeholders, not the other tab's posts, until it loads
+                load(t);
+              }}
+            />
           </header>
           <Composer viewer={viewer} onPosted={(p) => setPage((pg) => ({ ...pg, posts: [p, ...pg.posts] }))} />
         </>
       )}
 
       {fresh > 0 && (
-        <div className="sticky top-16 z-10 flex justify-center">
+        <div className="sticky top-16 z-10 flex justify-center" aria-live="polite">
           <button
             type="button"
             onClick={() => {
               load(tab);
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              scrollToTop();
             }}
             className="mt-2 h-8 rounded-full bg-link px-4 text-sm font-medium text-background shadow-lg"
           >
@@ -272,6 +279,7 @@ function MediaButtons({ draft, disabled }: { draft: MediaDraft; disabled: boolea
 function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost) => void }) {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState(false);
   const media = useMediaDraft();
 
   async function submit() {
@@ -283,6 +291,7 @@ function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost
       media.clear();
       setBody("");
       onPosted(res.post);
+      toast("Posted");
     } catch (e) {
       media.setError(errMsg(e));
     } finally {
@@ -302,17 +311,20 @@ function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost
           maxLength={MAX_POST_CHARS}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && canPost && submit()}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder="Share an update or opportunity"
           aria-label="Write a post"
-          className="w-full resize-none bg-transparent pt-2 text-[15px] placeholder:text-muted outline-none"
+          className="w-full resize-none bg-transparent pt-2 text-sm leading-relaxed placeholder:text-muted outline-none"
         />
         <MediaPreviews draft={media} disabled={busy} />
         {media.error && <p role="alert" className="mt-2 text-sm text-danger">{media.error}</p>}
         <div className="mt-2 flex items-center justify-between">
           <MediaButtons draft={media} disabled={busy} />
           <div className="flex items-center gap-3">
+            {focused && canPost && <span className="hidden text-xs text-muted sm:inline">Ctrl / ⌘ + Enter to post</span>}
             {body.length > MAX_POST_CHARS - 200 && <span className="text-xs tabular-nums text-muted">{MAX_POST_CHARS - body.length}</span>}
-            <button type="button" disabled={!canPost} onClick={submit} className="h-8 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
+            <button type="button" disabled={!canPost} onClick={submit} className={`${btnPrimary} px-4`}>
               {busy ? (media.hasNew ? "Uploading…" : "Posting…") : "Post"}
             </button>
           </div>
@@ -361,17 +373,17 @@ function PostEditor({ post, save, onDone }: { post: FeedPost; save: Handlers["ed
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSave) submit();
         }}
         aria-label="Edit post"
-        className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-[15px] leading-relaxed outline-none focus:border-ring"
+        className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-ring"
       />
       <MediaPreviews draft={media} disabled={busy} />
       {media.error && <p role="alert" className="mt-2 text-sm text-danger">{media.error}</p>}
       <div className="mt-2 flex items-center justify-between">
         <MediaButtons draft={media} disabled={busy} />
         <div className="flex gap-2">
-          <button type="button" onClick={close} disabled={busy} className="h-8 rounded-md px-3 text-sm text-muted hover:bg-surface-hover hover:text-foreground">
+          <button type="button" onClick={close} disabled={busy} className={btnGhost}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={!canSave} className="h-8 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
+          <button type="button" onClick={submit} disabled={!canSave} className={`${btnPrimary} px-4`}>
             {busy ? (media.hasNew ? "Uploading…" : "Saving…") : "Save"}
           </button>
         </div>
@@ -389,10 +401,8 @@ type Handlers = {
 };
 
 function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit, remove }: { post: FeedPost; viewerId: string; openComments?: boolean } & Handlers) {
-  const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showComments, setShowComments] = useState(!!openComments);
-  const [copied, setCopied] = useState(false);
   const mine = p.author.id === viewerId;
   const ownEntry = p.repostedBy ? p.repostedBy.id === viewerId : mine;
 
@@ -401,11 +411,13 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
     if (navigator.share) {
       await navigator.share({ url, title: `Post by ${p.author.name}` }).catch(() => {});
     } else {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link"));
     }
   }
+
+  // X hides zero counts; the accessible name still carries the number when there is one
+  const count = (n: number) => (n > 0 ? <span className="tabular-nums">{n}</span> : null);
+  const named = (label: string, n: number) => (n > 0 ? `${label}, ${n}` : label);
 
   return (
     <article className="border-b border-border p-4">
@@ -424,56 +436,62 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
             <div className="min-w-0">
               <p className="flex items-center gap-1 truncate text-sm">
                 <Link href={profileHref(p.author)} className="truncate font-medium hover:underline">{p.author.name}</Link>
-                <Link href={`/dashboard/post/${p.id}`} className="shrink-0 text-muted hover:underline" suppressHydrationWarning>
-                  · {ago(p.createdAt)}
+                <Link href={`/dashboard/post/${p.id}`} className="shrink-0 text-muted hover:underline">
+                  · <Time ms={p.createdAt} />
                 </Link>
-                {p.editedAt && <span className="shrink-0 text-muted" title={new Date(p.editedAt).toLocaleString()}>· Edited</span>}
-                {!mine && !p.following && (
-                  <button type="button" onClick={() => follow(p.author.id)} className="ml-1 shrink-0 text-sm font-medium text-link hover:underline">
-                    Follow
-                  </button>
-                )}
+                {p.editedAt && <span className="shrink-0 text-muted" title={new Date(p.editedAt).toLocaleString()} suppressHydrationWarning>· Edited</span>}
               </p>
               {p.author.headline && <p className="truncate text-xs text-muted">{p.author.headline}</p>}
             </div>
-            {(ownEntry || (!mine && p.following)) && (
-              <div className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setMenu(false)}>
-                <button type="button" aria-label="More" aria-expanded={menu} onClick={() => setMenu((m) => !m)} className="rounded-md p-1 text-muted hover:bg-surface hover:text-foreground">
-                  <Icon d={icons.more} size={18} />
+            <div className="-mt-1 flex shrink-0 items-center gap-1">
+              {!mine && !p.following && (
+                <button type="button" onClick={() => follow(p.author.id)} className={`${btnGhost} px-2 text-link hover:text-link`}>
+                  <Icon d={icons.plus} size={14} />
+                  Follow
                 </button>
-                {menu && (
-                  <div role="menu" className="absolute right-0 top-8 z-20 w-48 overflow-hidden rounded-lg border border-border bg-surface py-1 text-sm shadow-xl">
-                    {ownEntry && !p.repostedBy && (
-                      <button type="button" role="menuitem" onClick={() => (setMenu(false), setEditing(true))} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-hover">
-                        <Icon d={icons.edit} size={14} /> Edit post
-                      </button>
-                    )}
-                    {ownEntry && !p.repostedBy && (
-                      <button type="button" role="menuitem" onClick={() => (setMenu(false), remove(p))} className="flex w-full items-center gap-2 px-3 py-2 text-danger hover:bg-surface-hover">
-                        <Icon d={icons.trash} size={14} /> Delete post
-                      </button>
-                    )}
-                    {ownEntry && p.repostedBy && (
-                      <button type="button" role="menuitem" onClick={() => (setMenu(false), repost(p))} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-hover">
-                        <Icon d={icons.repost} size={14} /> Undo repost
-                      </button>
-                    )}
-                    {!mine && p.following && (
-                      <button type="button" role="menuitem" onClick={() => (setMenu(false), follow(p.author.id))} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-hover">
-                        <Icon d={icons.connect} size={14} /> Unfollow {p.author.name.split(" ")[0]}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+              {(ownEntry || (!mine && p.following)) && (
+                <Menu
+                  label="More options"
+                  button={<Icon d={icons.more} size={18} />}
+                  className="flex size-8 items-center justify-center rounded-md text-muted transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  panelClassName="right-0 top-9 w-52"
+                >
+                  {ownEntry && !p.repostedBy && (
+                    <button type="button" role="menuitem" onClick={() => setEditing(true)} className={menuItem}>
+                      <Icon d={icons.edit} size={14} /> Edit post
+                    </button>
+                  )}
+                  {ownEntry && !p.repostedBy && (
+                    <button type="button" role="menuitem" onClick={() => remove(p)} className={`${menuItem} text-danger`}>
+                      <Icon d={icons.trash} size={14} /> Delete post
+                    </button>
+                  )}
+                  {ownEntry && p.repostedBy && (
+                    <button type="button" role="menuitem" onClick={() => repost(p)} className={menuItem}>
+                      <Icon d={icons.repost} size={14} /> Undo repost
+                    </button>
+                  )}
+                  {!mine && p.following && (
+                    <button type="button" role="menuitem" onClick={() => follow(p.author.id)} className={menuItem}>
+                      <Icon d={icons.connect} size={14} /> Unfollow {p.author.name.split(" ")[0]}
+                    </button>
+                  )}
+                </Menu>
+              )}
+            </div>
           </div>
 
           {editing ? (
             <PostEditor post={p} save={edit} onDone={() => setEditing(false)} />
           ) : (
             <>
-              {p.body && <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{p.body}</p>}
+              {p.body &&
+                (openComments ? (
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{p.body}</p>
+                ) : (
+                  <Clamp className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{p.body}</Clamp>
+                ))}
               <MediaGrid media={p.media} />
             </>
           )}
@@ -481,17 +499,19 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
       </div>
 
       <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center">
-        <button type="button" aria-label="Like" aria-pressed={p.liked} onClick={() => like(p)} className={`${iconBtn} ${p.liked ? "text-danger hover:text-danger" : ""}`}>
+        <button type="button" aria-label={named("Like", p.likes)} aria-pressed={p.liked} onClick={() => like(p)} className={`${iconBtn} ${p.liked ? "text-danger hover:text-danger" : ""}`}>
           <Icon d={icons.like} size={16} className={p.liked ? "fill-current" : ""} />
-          <span className="tabular-nums">{p.likes}</span>
+          <span className="hidden sm:inline">Like</span>
+          {count(p.likes)}
         </button>
-        <button type="button" aria-label="Comment" aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={`${iconBtn} ${showComments ? "text-foreground" : ""}`}>
+        <button type="button" aria-label={named("Comment", p.comments)} aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={`${iconBtn} ${showComments ? "text-foreground" : ""}`}>
           <Icon d={icons.comment} size={16} />
-          <span className="tabular-nums">{p.comments}</span>
+          <span className="hidden sm:inline">Comment</span>
+          {count(p.comments)}
         </button>
         <button
           type="button"
-          aria-label="Repost"
+          aria-label={named("Repost", p.reposts)}
           aria-pressed={p.reposted}
           disabled={mine}
           title={mine ? "You can't repost your own post" : undefined}
@@ -499,11 +519,12 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
           className={`${iconBtn} ${p.reposted ? "text-success hover:text-success" : ""}`}
         >
           <Icon d={icons.repost} size={16} />
-          <span className="tabular-nums">{p.reposts}</span>
+          <span className="hidden sm:inline">Repost</span>
+          {count(p.reposts)}
         </button>
         <button type="button" aria-label="Share" onClick={share} className={iconBtn}>
           <Icon d={icons.share} size={16} />
-          {copied && <span className="text-xs">Link copied</span>}
+          <span className="hidden sm:inline">Share</span>
         </button>
       </div>
 
@@ -512,21 +533,68 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
   );
 }
 
+/** Relative time ("3h"), with the full date on hover and for assistive tech. */
+function Time({ ms }: { ms: number }) {
+  return (
+    <time dateTime={new Date(ms).toISOString()} title={new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} suppressHydrationWarning>
+      {ago(ms)}
+    </time>
+  );
+}
+
+/** Photos open in a lightbox (Ctrl/⌘-click still opens the file in a new tab). Three photos: one tall, two stacked, like X. */
 function MediaGrid({ media }: { media: FeedPost["media"] }) {
+  const [open, setOpen] = useState<number | null>(null);
   if (media.length === 0) return null;
   const src = mediaUrl;
   if (isVideo(media[0].type)) {
     return <video src={src(media[0].key)} controls playsInline preload="metadata" className="mt-3 max-h-[520px] w-full rounded-xl border border-border bg-black" />;
   }
+  const n = media.length;
   return (
-    <div className={`mt-3 grid gap-1 overflow-hidden rounded-xl border border-border ${media.length > 1 ? "grid-cols-2" : ""}`}>
-      {media.map((m) => (
-        <a key={m.key} href={src(m.key)} target="_blank" rel="noreferrer">
-          {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
-          <img src={src(m.key)} alt="" loading="lazy" decoding="async" className={`w-full bg-surface object-cover ${media.length > 1 ? "aspect-square" : "max-h-[520px]"}`} />
-        </a>
-      ))}
-    </div>
+    <>
+      <div className={`mt-3 grid gap-1 overflow-hidden rounded-xl border border-border ${n > 1 ? "grid-cols-2" : ""}`}>
+        {media.map((m, i) => {
+          const tall = n === 3 && i === 0;
+          return (
+            <a
+              key={m.key}
+              href={src(m.key)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={n > 1 ? `Open image ${i + 1} of ${n}` : "Open image"}
+              className={`block ${tall ? "row-span-2" : ""}`}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                e.preventDefault();
+                setOpen(i);
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
+              <img src={src(m.key)} alt="" loading="lazy" decoding="async" className={`w-full bg-surface object-cover ${tall ? "h-full" : n > 1 ? "aspect-square" : "max-h-[520px]"}`} />
+            </a>
+          );
+        })}
+      </div>
+      {open !== null && (
+        <Modal title={n > 1 ? `Image ${open + 1} of ${n}` : "Image"} wide onClose={() => setOpen(null)}>
+          <div className="flex items-center justify-center gap-2 bg-black/40 p-2">
+            {n > 1 && (
+              <button type="button" aria-label="Previous image" onClick={() => setOpen((open + n - 1) % n)} className={`${btnGhost} px-2`}>
+                <Icon d={icons.back} size={18} />
+              </button>
+            )}
+            {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
+            <img src={src(media[open].key)} alt="" className="max-h-[75vh] min-w-0 flex-1 object-contain" />
+            {n > 1 && (
+              <button type="button" aria-label="Next image" onClick={() => setOpen((open + 1) % n)} className={`${btnGhost} px-2`}>
+                <Icon d={icons.back} size={18} className="rotate-180" />
+              </button>
+            )}
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -571,9 +639,9 @@ function Comments({ postId, count }: { postId: string; count: number }) {
           maxLength={MAX_COMMENT_CHARS}
           placeholder="Add a comment"
           aria-label="Add a comment"
-          className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm placeholder:text-muted outline-none focus:border-ring"
+          className="h-10 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm placeholder:text-muted outline-none focus:border-ring"
         />
-        <button type="submit" disabled={busy || !body.trim()} className="h-9 rounded-md bg-foreground px-3 text-sm font-medium text-background disabled:opacity-60">
+        <button type="submit" disabled={busy || !body.trim()} className={`${btnPrimary} ${btnLg}`}>
           Reply
         </button>
       </form>
@@ -590,7 +658,7 @@ function Comments({ postId, count }: { postId: string; count: number }) {
               <div className="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2">
                 <p className="text-xs">
                   <Link href={profileHref(c.author)} className="font-medium hover:underline">{c.author.name}</Link>{" "}
-                  <span className="text-muted" suppressHydrationWarning>· {ago(c.createdAt)}</span>
+                  <span className="text-muted">· <Time ms={c.createdAt} /></span>
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">{c.body}</p>
               </div>

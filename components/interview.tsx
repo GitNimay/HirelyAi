@@ -8,6 +8,7 @@ import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, NOTICE, type Profile } from "@/lib/interview-fields";
 import { Head, primary, StepFrame } from "./onboarding";
 import { F, input } from "./resume-editor";
+import { ask } from "./kit";
 import { btnGhost, Icon, icons } from "./ui";
 
 type Step = "gate" | "details" | "mic" | "live" | "done" | "closed";
@@ -164,7 +165,7 @@ export function Interview({ view }: { view: CandidateView }) {
         agent={agent}
         caption={caption}
         startedAt={startedAt}
-        onEnd={() => confirm("End the interview now? You can't restart it.") && room.current?.disconnect()}
+        onEnd={async () => (await ask({ title: "End the interview now?", body: "You can't restart it.", confirm: "End interview", danger: true })) && room.current?.disconnect()}
         onTimeUp={() => room.current?.disconnect()}
       />
     ),
@@ -369,10 +370,12 @@ function Live({ agent, caption, startedAt, onEnd, onTimeUp }: {
   return (
     <div className="flex flex-col items-center gap-8 py-4 text-center">
       <div className="flex w-full items-center justify-between text-[13px] text-muted">
-        <span className="flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-danger" />Live</span>
-        <span className={`tabular-nums ${secs <= 30 ? "font-medium text-danger" : ""}`} aria-label="Time left">
+        <span className="flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />Live</span>
+        <span className={`tabular-nums ${secs <= 30 ? "font-medium text-danger" : ""}`}>
           {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")} left
         </span>
+        {/* Screen readers hear the countdown once at each threshold, not every tick */}
+        <span className="sr-only" aria-live="assertive">{secs <= 30 && secs > 0 ? "30 seconds left" : secs <= 60 && secs > 0 ? "One minute left" : ""}</span>
       </div>
 
       <div className="relative flex size-40 items-center justify-center" aria-hidden>
@@ -384,7 +387,7 @@ function Live({ agent, caption, startedAt, onEnd, onTimeUp }: {
 
       <div className="min-h-24 w-full space-y-3" aria-live="polite">
         <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
-        {caption.agent && <p className="text-[15px] leading-relaxed text-balance">{caption.agent}</p>}
+        {caption.agent && <p className="text-base leading-relaxed text-balance">{caption.agent}</p>}
         {caption.you && <p className="text-[13px] text-muted">You: {caption.you}</p>}
       </div>
 

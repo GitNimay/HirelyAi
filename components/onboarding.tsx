@@ -164,17 +164,17 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
           >
             <Badge tone="text-link"><Icon d={upload} size={16} /></Badge>
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-medium">Upload your resume</span>
+              <span className="block text-sm font-medium">Upload your resume</span>
               <span className="block text-[13px] text-muted">PDF up to 5 MB. We&apos;ll fill in your profile for you.</span>
             </span>
-            <span className="hidden rounded-full border border-border px-2 py-0.5 text-[11px] text-muted sm:inline">Recommended</span>
+            <span className="hidden rounded-full border border-border px-2 py-0.5 text-xs text-muted sm:inline">Recommended</span>
             <Icon d={chevron} size={16} className="text-muted" />
           </button>
           <input ref={file} type="file" accept="application/pdf" hidden onChange={(e) => (read(e.target.files?.[0]), (e.target.value = ""))} />
           <button type="button" onClick={() => (setFromPdf(false), setShow(false), go("review"))} className={option}>
             <Badge tone="text-success"><Icon d={icons.edit} size={16} /></Badge>
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-medium">Fill in manually</span>
+              <span className="block text-sm font-medium">Fill in manually</span>
               <span className="block text-[13px] text-muted">Add your experience, education, projects and skills.</span>
             </span>
             <Icon d={chevron} size={16} className="text-muted" />
@@ -215,7 +215,7 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
     ),
     verify: (
       <form onSubmit={verify} className="space-y-5">
-        <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email || "your email"}. Enter it to create your profile.`} />
+        <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email || "your email"}. This confirms the address recruiters will use to reach you, even if you signed in with Google, GitHub or X.`} />
         <input
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
@@ -286,7 +286,8 @@ export function StepFrame({ title, steps, current, stepKey, action, children }: 
         </aside>
 
         <main className="border-dashed border-border px-4 py-8 sm:py-10 lg:border-x lg:px-6">
-          <ol className="mb-6 flex items-center gap-2 lg:hidden" aria-label="Progress">
+          <p className="mb-2 text-xs text-muted lg:hidden">Step {current + 1} of {steps.length} · {steps[current]}</p>
+          <ol className="mb-6 flex items-center gap-2 lg:hidden" aria-hidden>
             {steps.map((label, i) => (
               <li key={label} className={`h-1 flex-1 rounded-full transition-colors ${i <= current ? "bg-foreground" : "bg-border"}`}><span className="sr-only">{label}</span></li>
             ))}

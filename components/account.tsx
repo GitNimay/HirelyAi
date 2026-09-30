@@ -8,12 +8,12 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { deleteAccount } from "@/app/settings/actions";
 import { validPhone } from "@/lib/resume-fields";
 import { errorText, providerIcons, providers } from "./auth";
-import { field, Field, Modal } from "./jobs";
+import { field, Field } from "./jobs";
+import { Modal } from "./kit";
 import { Line, Loading, Skeleton, times } from "./skeleton";
-import { ago, btn, btnGhost, btnOutline, btnPrimary } from "./ui";
+import { ago, btnDanger, btnGhost, btnOutline, btnPrimary } from "./ui";
 
 type NeedsReverification = { level?: "first_factor" | "second_factor" | "multi_factor"; complete: () => void; cancel: () => void };
-const btnDanger = `${btn} bg-danger text-background hover:opacity-90`;
 const badge = "rounded-full border border-border px-2 py-0.5 text-xs text-muted";
 const lastActive = (d: Date) => {
   const a = ago(d.getTime());
@@ -100,13 +100,21 @@ function useTask() {
   return { busy, error, go };
 }
 
-function Section({ title, desc, children }: { title: string; desc: string; children: ReactNode }) {
-  return (
-    <section className="border-b border-border px-5 py-6">
-      <h2 className="text-sm font-semibold">{title}</h2>
+function Section({ title, desc, danger, children }: { title: string; desc: string; danger?: boolean; children: ReactNode }) {
+  const body = (
+    <>
+      <h2 className={`text-sm font-semibold ${danger ? "text-danger" : ""}`}>{title}</h2>
       <p className="mt-1 text-sm text-muted">{desc}</p>
       <div className="mt-4">{children}</div>
+    </>
+  );
+  // The danger zone gets a red-bordered card, as in Vercel's settings
+  return danger ? (
+    <section className="px-5 py-6">
+      <div className="rounded-lg border border-danger/40 p-4">{body}</div>
     </section>
+  ) : (
+    <section className="border-b border-border px-5 py-6">{body}</section>
   );
 }
 
@@ -421,7 +429,7 @@ function DeleteAccount({ run }: { run: Run }) {
   }
 
   return (
-    <Section title="Delete account" desc="Permanently delete your account and everything in it. This can't be undone.">
+    <Section title="Delete account" desc="Permanently delete your account and everything in it. This can't be undone." danger>
       <button type="button" className={`${btnOutline} text-danger`} onClick={() => setOpen(true)}>
         Delete account
       </button>

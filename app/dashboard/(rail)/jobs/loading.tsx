@@ -13,9 +13,9 @@ export default function JobsLoading() {
       />
       <div aria-hidden className="space-y-2 border-b border-border px-4 py-3">
         <div className="flex gap-2">
-          <Skeleton className="h-9 flex-[3]" />
-          <Skeleton className="h-9 flex-[2]" />
-          <Skeleton className="h-9 w-[74px]" />
+          <Skeleton className="h-10 flex-[3]" />
+          <Skeleton className="h-10 flex-[2]" />
+          <Skeleton className="h-10 w-[74px]" />
         </div>
         <div className="flex flex-wrap gap-2">
           {[104, 96, 84, 96].map((w, i) => <Skeleton key={i} className="h-8 rounded-full" style={{ width: w }} />)}
