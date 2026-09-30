@@ -1,4 +1,4 @@
-import { clerkClient, type User } from "@clerk/nextjs/server";
+import { createClerkClient, type User } from "@clerk/backend";
 import { env } from "cloudflare:workers";
 import { slugify } from "./profile-fields";
 
@@ -128,30 +128,20 @@ const assign = (u: Profile) =>
 
 export const syncStatements = (u: Profile) => [upsert(u), assign(u)];
 
-/** Snapshot a Clerk profile so feeds and the network can join on it. */
-export async function saveUser(u: Profile) {
-  await env.DB.batch(syncStatements(u));
-}
-
-let directorySyncedAt = 0;
-
 /**
- * Copy every Clerk member into D1 so People you may know and search cover the whole platform,
- * including people who signed up but never opened the app since.
- * ponytail: per-isolate 5 min throttle, newest 500 members. Swap for a Clerk `user.created/updated`
- * webhook when the member count outgrows one page.
+ * Cron: copy every Clerk member into D1 so People you may know and search cover the whole platform,
+ * including people who signed up but never opened the app since (members who do open it are synced on page load).
+ * ponytail: newest 500 members every 15 min. Swap for a Clerk `user.created/updated` webhook when the member count outgrows one page.
  */
 export async function syncDirectory() {
-  if (Date.now() - directorySyncedAt < 5 * 60_000) return;
-  directorySyncedAt = Date.now();
   try {
-    const { data } = await (await clerkClient()).users.getUserList({ limit: 500, orderBy: "-created_at" });
+    const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY, publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY });
+    const { data } = await clerk.users.getUserList({ limit: 500, orderBy: "-created_at" });
     // Handles are only (re)assigned for members that lack one, which keeps the batch near one statement per member
     const { results } = await env.DB.prepare("SELECT id FROM users WHERE handle IS NOT NULL AND joined_at IS NOT NULL").all<{ id: string }>();
     const done = new Set(results.map((r) => r.id));
     if (data.length) await env.DB.batch(data.flatMap((u) => { const p = profileOf(u); return done.has(p.id) ? [upsert(p)] : [upsert(p), assign(p)]; }));
   } catch (e) {
-    directorySyncedAt = 0; // retry on the next request; the page still works with what D1 has
-    console.error("syncDirectory failed", e);
+    console.error("syncDirectory failed", e); // next cron run retries; the app works with what D1 has
   }
 }

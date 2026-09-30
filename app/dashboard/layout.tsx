@@ -1,17 +1,17 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountMenu } from "@/components/account-menu";
 import { Logo } from "@/components/auth";
 import { Nav } from "@/components/nav";
-import { viewerOf } from "@/lib/profile";
+import { signedIn } from "@/lib/profile";
 import { unseenCount } from "@/lib/notifications";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
-  await auth.protect();
-  const user = await currentUser();
+  const { userId } = await auth.protect();
   // Name and photo come from D1 (editable on the profile), not Clerk
-  const [me, unseen] = user ? await Promise.all([viewerOf(user), unseenCount(user.id)]) : [null, 0];
+  const [session, unseen] = await Promise.all([signedIn(), unseenCount(userId)]);
+  const [user, me] = [session?.user, session?.me];
   // New members set up their profile first
   if (me && !me.onboarded) redirect("/onboarding");
   const name = me?.name ?? "You";

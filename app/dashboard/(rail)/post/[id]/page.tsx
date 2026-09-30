@@ -1,16 +1,16 @@
-import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Feed } from "@/components/feed";
 import { Icon } from "@/components/ui";
 import { getPost } from "@/lib/feed";
-import { viewerOf } from "@/lib/profile";
+import { signedIn } from "@/lib/profile";
 
 /** Permalink target for "Share". */
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
-  const [post, viewer] = await Promise.all([getPost(user.id, (await params).id), viewerOf(user)]);
+  const session = await signedIn();
+  if (!session) redirect("/sign-in");
+  const viewer = session.me;
+  const post = await getPost(viewer.id, (await params).id);
   if (!post || post.repostedBy) notFound();
 
   return (

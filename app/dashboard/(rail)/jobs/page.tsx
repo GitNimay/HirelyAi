@@ -1,7 +1,8 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { Jobs } from "@/components/jobs";
 import { cleanFilters, type MyJobsTab } from "@/lib/job-fields";
 import { getJob, lastApplication, myJobs, searchJobs } from "@/lib/jobs";
+import { signedIn } from "@/lib/profile";
 import { getResume } from "@/lib/resume";
 
 const MY_TABS: string[] = ["saved", "applied", "posted"] satisfies MyJobsTab[];
@@ -13,14 +14,15 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
   const filters = cleanFilters(params);
   const tab = typeof params.tab === "string" && MY_TABS.includes(params.tab) ? (params.tab as MyJobsTab) : "search";
   const id = typeof params.id === "string" ? params.id : undefined;
-  const [page, selected, last, user, resume] = await Promise.all([
+  const [page, selected, last, session, resume] = await Promise.all([
     tab === "search" ? searchJobs(userId, filters) : myJobs(userId, tab).then((jobs) => ({ jobs, next: null })),
     id ? getJob(userId, id) : null,
     lastApplication(userId),
-    currentUser(),
+    signedIn(),
     getResume(userId),
   ]);
 
+  const user = session?.user;
   return (
     <Jobs
       viewerId={userId}

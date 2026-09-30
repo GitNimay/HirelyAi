@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import type { Media } from "./feed";
 import type { AppStatus } from "./job-fields";
 import type { Counts, Person } from "./network";
@@ -45,13 +45,16 @@ export const hubFor = (userId: string) => {
   return `hub-${Math.abs(h) % HUB_SHARDS}`;
 };
 
-export async function broadcast(event: FeedEvent | JobEvent) {
+/**
+ * Realtime is best effort and never holds up the write that caused it: pushes finish after the response
+ * (waitUntil), and a failed push is dropped. Clients refetch on reconnect.
+ */
+export function broadcast(event: FeedEvent | JobEvent) {
   const msg = JSON.stringify(event);
-  // Realtime is best effort: a failed push must never fail the write that caused it
-  await Promise.allSettled(Array.from({ length: HUB_SHARDS }, (_, i) => env.FEED_HUB.getByName(`hub-${i}`).broadcast(msg)));
+  waitUntil(Promise.allSettled(Array.from({ length: HUB_SHARDS }, (_, i) => env.FEED_HUB.getByName(`hub-${i}`).broadcast(msg))));
 }
 
 /** Push to one user's open sockets (every tab/device), which all live on that user's hub shard. */
-export async function sendTo(userId: string, event: NetEvent | AppEvent | NotifEvent) {
-  await env.FEED_HUB.getByName(hubFor(userId)).broadcast(JSON.stringify(event), userId).catch(() => {});
+export function sendTo(userId: string, event: NetEvent | AppEvent | NotifEvent) {
+  waitUntil(env.FEED_HUB.getByName(hubFor(userId)).broadcast(JSON.stringify(event), userId).catch(() => {}));
 }
