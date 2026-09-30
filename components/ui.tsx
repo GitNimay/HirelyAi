@@ -19,8 +19,20 @@ export const icons = {
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   close: "M18 6 6 18M6 6l12 12",
   edit: "M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
+  clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 6v6l4 2",
+  check: "M20 6 9 17l-5-5",
   trash: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
 };
+
+/** Compact relative time: now, 5m, 3h, 2d, then a date. */
+export function ago(ms: number) {
+  const m = (Date.now() - ms) / 60_000;
+  if (m < 1) return "now";
+  if (m < 60) return `${Math.floor(m)}m`;
+  if (m < 1440) return `${Math.floor(m / 60)}h`;
+  if (m < 10080) return `${Math.floor(m / 1440)}d`;
+  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 export function Icon({ d, size = 20, className }: { d: string; size?: number; className?: string }) {
   return (

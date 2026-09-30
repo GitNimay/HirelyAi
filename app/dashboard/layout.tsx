@@ -4,12 +4,15 @@ import Link from "next/link";
 import { Logo } from "@/components/auth";
 import { Nav } from "@/components/nav";
 import { Avatar, Icon, icons } from "@/components/ui";
+import { profileOf, saveUser } from "@/lib/network";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   await auth.protect();
   const user = await currentUser();
   const name = user?.fullName || user?.username || "You";
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
+  // Everyone who signs in shows up in People you may know, not only people who have posted
+  if (user) await saveUser(profileOf(user));
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-1 justify-center">

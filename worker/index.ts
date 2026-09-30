@@ -11,14 +11,16 @@ export class FeedHub extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
 
-  async fetch() {
+  async fetch(request: Request) {
     const { 0: client, 1: server } = new WebSocketPair();
-    this.ctx.acceptWebSocket(server);
+    // Tagged with the user id so private network events can target just that user's sockets
+    this.ctx.acceptWebSocket(server, [request.headers.get("X-User-Id")!]);
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  broadcast(msg: string) {
-    for (const ws of this.ctx.getWebSockets()) {
+  /** To everyone on this shard, or only to `userId`'s sockets. */
+  broadcast(msg: string, userId?: string) {
+    for (const ws of this.ctx.getWebSockets(userId)) {
       try {
         ws.send(msg);
       } catch {
@@ -42,7 +44,10 @@ export default {
       const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY, publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY });
       const state = await clerk.authenticateRequest(request, { authorizedParties: [url.origin] });
       if (!state.isAuthenticated) return new Response("Unauthorized", { status: 401 });
-      return env.FEED_HUB.getByName(hubFor(state.toAuth().userId)).fetch(request);
+      const { userId } = state.toAuth();
+      const forward = new Request(request);
+      forward.headers.set("X-User-Id", userId);
+      return env.FEED_HUB.getByName(hubFor(userId)).fetch(forward);
     }
     return app.fetch(request, env, ctx);
   },

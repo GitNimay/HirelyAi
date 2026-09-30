@@ -6,23 +6,14 @@ import * as actions from "@/app/dashboard/actions";
 import type { Comment } from "@/app/dashboard/actions";
 import type { FeedPost, FeedTab } from "@/lib/feed";
 import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
-import type { FeedEvent } from "@/lib/realtime";
-import { Avatar, Icon, icons } from "./ui";
+import { ago, Avatar, Icon, icons } from "./ui";
+import { useRealtime } from "./use-realtime";
 
 type Viewer = { id: string; name: string; imageUrl?: string };
 type Page = { posts: FeedPost[]; next: string | null };
 
 const iconBtn = "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
-
-function ago(ms: number) {
-  const m = (Date.now() - ms) / 60_000;
-  if (m < 1) return "now";
-  if (m < 60) return `${Math.floor(m)}m`;
-  if (m < 1440) return `${Math.floor(m / 60)}h`;
-  if (m < 10080) return `${Math.floor(m / 1440)}d`;
-  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 /** Home timeline, or a single post when `single` (share links). Live via /api/realtime. */
 export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer; initial: Page; followingIds: string[]; single?: boolean }) {
@@ -47,42 +38,12 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
     }
   }
 
-  const onEvent = useEffectEvent((e: FeedEvent) => {
+  useRealtime((e) => {
     if (e.t === "stats") patch(e.id, () => ({ likes: e.likes, comments: e.comments, reposts: e.reposts }));
     else if (e.t === "edit") patch(e.id, () => ({ body: e.body, media: e.media, editedAt: e.editedAt }));
     else if (e.t === "delete") setPage((pg) => ({ ...pg, posts: pg.posts.filter((p) => p.entryId !== e.id && p.id !== e.id) }));
-    else if (!single && e.authorId !== viewer.id && (tab === "for-you" || following.has(e.authorId))) setFresh((n) => n + 1);
+    else if (e.t === "post" && !single && e.authorId !== viewer.id && (tab === "for-you" || following.has(e.authorId))) setFresh((n) => n + 1);
   });
-
-  // Realtime: one socket, exponential reconnect, heartbeat answered by the Durable Object without waking it
-  useEffect(() => {
-    let ws: WebSocket | undefined;
-    let stopped = false;
-    let retry = 0;
-    let ping = 0;
-    let timer = 0;
-    const connect = () => {
-      ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/realtime`);
-      ws.onopen = () => {
-        retry = 0;
-        ping = window.setInterval(() => ws?.send("ping"), 25_000);
-      };
-      ws.onmessage = (m) => {
-        if (m.data !== "pong") onEvent(JSON.parse(m.data));
-      };
-      ws.onclose = () => {
-        clearInterval(ping);
-        if (!stopped) timer = window.setTimeout(connect, Math.min(30_000, 1000 * 2 ** retry++));
-      };
-    };
-    connect();
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-      clearInterval(ping);
-      ws?.close();
-    };
-  }, []);
 
   const loadMore = useEffectEvent(() => {
     if (page.next && !loading) load(tab, true);
