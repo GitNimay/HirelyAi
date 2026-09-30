@@ -2,10 +2,11 @@
 
 import { useClerk, useReverification, useSession, useUser } from "@clerk/nextjs";
 import { isReverificationCancelledError } from "@clerk/nextjs/errors";
-import type { EmailAddressResource, OAuthStrategy, PhoneNumberResource, SessionWithActivitiesResource } from "@clerk/nextjs/types";
+import type { EmailAddressResource, OAuthStrategy, SessionWithActivitiesResource } from "@clerk/nextjs/types";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { deleteAccount } from "@/app/settings/actions";
+import { validPhone } from "@/lib/resume-fields";
 import { errorText, providerIcons, providers } from "./auth";
 import { field, Field, Modal } from "./jobs";
 import { Line, Loading, Skeleton, times } from "./skeleton";
@@ -35,7 +36,7 @@ export function AccountSettings() {
       {user && (
         <>
           <Emails run={run} />
-          <Phones run={run} />
+          <Phones />
           <Connected run={run} />
           <Sessions run={run} />
           <DeleteAccount run={run} />
@@ -155,7 +156,6 @@ function Emails({ run }: { run: Run }) {
       </ul>
       <Alert text={error} />
       <AddContact
-        kind="email"
         run={run}
         // Changing your email = verify the new one, which then becomes primary. The old one stays until removed.
         onVerified={(r) => user.update({ primaryEmailAddressId: r.id })}
@@ -164,53 +164,76 @@ function Emails({ run }: { run: Run }) {
   );
 }
 
-function Phones({ run }: { run: Run }) {
+/** Saved straight to Clerk metadata: no OTP, so it's a contact detail, not a sign-in identity. */
+function Phones() {
   const { user } = useUser();
   const { busy, error, go } = useTask();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
   if (!user) return null;
+  const phone = typeof user.unsafeMetadata.phone === "string" ? user.unsafeMetadata.phone : "";
+  const save = (next: string) => go(() => user.update({ unsafeMetadata: { ...user.unsafeMetadata, phone: next } }));
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const next = value.trim();
+    if (!validPhone(next)) return void (await go(() => Promise.reject(new Error("Enter a valid phone number"))));
+    if (await save(next)) setEditing(false);
+  }
+
   return (
-    <Section title="Phone number" desc="Only you can see it. Used to prefill job applications and to recover your account.">
-      {user.phoneNumbers.length > 0 && (
+    <Section title="Phone number" desc="Only you can see it. Used to prefill job applications.">
+      {phone && !editing && (
         <ul>
-          {user.phoneNumbers.map((p) => (
-            <Row
-              key={p.id}
-              actions={
-                <button type="button" className={btnGhost} disabled={busy} onClick={() => go(() => run(() => p.destroy()).then(() => user.reload()))}>
-                  Remove
-                </button>
-              }
-            >
-              <span>{p.phoneNumber}</span>
-              {p.id === user.primaryPhoneNumberId && user.phoneNumbers.length > 1 && <span className={badge}>Primary</span>}
-              {p.verification?.status !== "verified" && <span className={badge}>Unverified</span>}
-            </Row>
-          ))}
+          <Row
+            actions={
+              <>
+                <button type="button" className={btnGhost} disabled={busy} onClick={() => (setValue(phone), setEditing(true))}>Edit</button>
+                <button type="button" className={btnGhost} disabled={busy} onClick={() => save("")}>Remove</button>
+              </>
+            }
+          >
+            <span>{phone}</span>
+          </Row>
         </ul>
       )}
-      <Alert text={error} />
-      <AddContact kind="phone" run={run} onVerified={(r) => (user.primaryPhoneNumberId ? user.reload() : user.update({ primaryPhoneNumberId: r.id }))} />
+      {editing ? (
+        <form onSubmit={submit} className="mt-4 max-w-sm space-y-3">
+          <Field label="Phone number" hint="include country code">
+            <input type="tel" value={value} onChange={(e) => setValue(e.target.value)} placeholder="+91 98765 43210" autoComplete="tel" autoFocus required className={field} />
+          </Field>
+          <Alert text={error} />
+          <div className="flex gap-2">
+            <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+            <button type="button" className={btnGhost} disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <Alert text={error} />
+          {!phone && <button type="button" className={`${btnOutline} mt-3`} onClick={() => (setValue(""), setEditing(true))}>Add phone number</button>}
+        </>
+      )}
     </Section>
   );
 }
 
-/** Add an email or phone: enter it, get a 6-digit code, verify. */
-function AddContact({ kind, run, onVerified }: { kind: "email" | "phone"; run: Run; onVerified: (r: EmailAddressResource | PhoneNumberResource) => Promise<unknown> }) {
+/** Add an email: enter it, get a 6-digit code, verify. */
+function AddContact({ run, onVerified }: { run: Run; onVerified: (r: EmailAddressResource) => Promise<unknown> }) {
   const { user } = useUser();
   const { busy, error, go } = useTask();
   const [step, setStep] = useState<"idle" | "value" | "code">("idle");
   const [value, setValue] = useState("");
   const [code, setCode] = useState("");
-  const pending = useRef<EmailAddressResource | PhoneNumberResource | null>(null);
-  const email = kind === "email";
+  const pending = useRef<EmailAddressResource | null>(null);
   const reset = () => (setStep("idle"), setValue(""), setCode(""), (pending.current = null));
 
   async function send(e: FormEvent) {
     e.preventDefault();
     const ok = await go(async () => {
-      const r = (await run(() => (email ? user!.createEmailAddress({ email: value.trim() }) : user!.createPhoneNumber({ phoneNumber: value.trim() })))) as EmailAddressResource | PhoneNumberResource;
+      const r = (await run(() => user!.createEmailAddress({ email: value.trim() }))) as EmailAddressResource;
       pending.current = r;
-      await ("emailAddress" in r ? r.prepareVerification({ strategy: "email_code" }) : r.prepareVerification());
+      await r.prepareVerification({ strategy: "email_code" });
     });
     if (ok) setStep("code");
   }
@@ -229,20 +252,20 @@ function AddContact({ kind, run, onVerified }: { kind: "email" | "phone"; run: R
   if (step === "idle") {
     return (
       <button type="button" className={`${btnOutline} mt-3`} onClick={() => setStep("value")}>
-        {email ? "Change email" : user?.phoneNumbers.length ? "Add another number" : "Add phone number"}
+        Change email
       </button>
     );
   }
   return (
     <form onSubmit={step === "value" ? send : check} className="mt-4 max-w-sm space-y-3">
       {step === "value" ? (
-        <Field label={email ? "New email address" : "Phone number"} hint={email ? "becomes your primary" : "include country code"}>
+        <Field label="New email address" hint="becomes your primary">
           <input
-            type={email ? "email" : "tel"}
+            type="email"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder={email ? "you@example.com" : "+91 98765 43210"}
-            autoComplete={email ? "email" : "tel"}
+            placeholder="you@example.com"
+            autoComplete="email"
             autoFocus
             required
             className={field}

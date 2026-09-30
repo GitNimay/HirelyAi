@@ -15,7 +15,7 @@ export default async function OnboardingPage() {
       initial={{
         name: me.name === "Member" ? "" : me.name,
         email: user.primaryEmailAddress?.emailAddress ?? "",
-        phone: user.primaryPhoneNumber?.phoneNumber ?? "",
+        phone: (user.unsafeMetadata.phone as string | undefined) || user.primaryPhoneNumber?.phoneNumber || "",
       }}
     />
   );
