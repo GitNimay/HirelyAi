@@ -4,7 +4,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
 import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
-import { broadcast } from "@/lib/realtime";
+import { getNetwork, getPersonAndCounts, profileOf, saveUser, searchPeople, syncDirectory } from "@/lib/network";
+import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
 
 /** A message safe to show the user. Other errors get redacted by the framework in production. */
 class Fail extends Error {}
@@ -30,12 +31,7 @@ async function writer() {
 /** Snapshot the author's Clerk profile so feeds can join on it without calling Clerk. */
 async function syncUser(userId: string) {
   const u = await currentUser();
-  const name = u?.fullName || u?.username || "Member";
-  const headline = typeof u?.publicMetadata?.headline === "string" ? u.publicMetadata.headline : null;
-  await env.DB.prepare(
-    `INSERT INTO users (id, name, image_url, headline, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
-     ON CONFLICT (id) DO UPDATE SET name = ?2, image_url = ?3, headline = ?4, updated_at = ?5`,
-  ).bind(userId, name, u?.imageUrl ?? null, headline, Date.now()).run();
+  if (u?.id === userId) await saveUser(profileOf(u));
 }
 
 async function pushStats(postId: string) {
@@ -193,5 +189,88 @@ export async function toggleFollow(targetId: string) {
     await env.DB.prepare("INSERT INTO follows (follower_id, followee_id, created_at) SELECT ?, id, ? FROM users WHERE id = ?")
       .bind(userId, Date.now(), id).run();
   }
+  await notify("follow", userId, id);
   return { following: !del.meta.changes };
+}
+
+// ---- My Network ----
+
+/**
+ * Tell both sides (or just the actor, for changes the other side must not learn about) what changed,
+ * each with the other person as they see them and their own fresh counts.
+ */
+async function notify(kind: NetEvent["kind"], actor: string, other: string, both = true) {
+  const pair = both ? ([[actor, other, "out"], [other, actor, "in"]] as const) : ([[actor, other, "out"]] as const);
+  await Promise.all(
+    pair.map(async ([to, about, dir]) => {
+      const { person, counts } = await getPersonAndCounts(to, about);
+      if (person) await sendTo(to, { t: "net", kind, dir, person, counts });
+    }),
+  );
+}
+
+export async function loadNetwork() {
+  const me = await viewer();
+  await syncDirectory();
+  return getNetwork(me);
+}
+
+export async function findPeople(query: string) {
+  const me = await viewer();
+  await syncDirectory();
+  return searchPeople(me, String(query));
+}
+
+/** Send a connection request, or accept theirs if they already invited you. */
+export async function connect(targetId: string) {
+  const me = await writer();
+  const id = String(targetId);
+  if (id === me) throw new Error("You can't connect with yourself");
+  const theirs = await env.DB.prepare("SELECT 1 FROM invitations WHERE from_id = ? AND to_id = ?").bind(id, me).first();
+  if (theirs) return acceptInvite(id);
+  await syncUser(me);
+  const ins = await env.DB.prepare(
+    `INSERT OR IGNORE INTO invitations (from_id, to_id, created_at) SELECT ?1, id, ?3 FROM users
+     WHERE id = ?2 AND NOT EXISTS (SELECT 1 FROM connections WHERE user_id = ?1 AND peer_id = ?2)`,
+  ).bind(me, id, Date.now()).run();
+  if (ins.meta.changes) await notify("invite", me, id);
+}
+
+export async function acceptInvite(fromId: string) {
+  const me = await writer();
+  const id = String(fromId);
+  const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(id, me).run();
+  if (!del.meta.changes) throw new Error("This invitation is no longer available");
+  await syncUser(me);
+  const now = Date.now();
+  // Connecting also makes you follow each other, like LinkedIn. A crossed invite in the other direction is now moot.
+  await env.DB.batch([
+    env.DB.prepare("INSERT OR IGNORE INTO connections (user_id, peer_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)").bind(me, id, now),
+    env.DB.prepare("INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)").bind(me, id, now),
+    env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, id),
+  ]);
+  await notify("connect", me, id);
+}
+
+/** The sender isn't told (same as LinkedIn): their request just stays pending on their side. */
+export async function ignoreInvite(fromId: string) {
+  const me = await writer();
+  const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(String(fromId), me).run();
+  if (del.meta.changes) await notify("uninvite", me, String(fromId), false);
+}
+
+export async function withdrawInvite(toId: string) {
+  const me = await writer();
+  const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, String(toId)).run();
+  if (del.meta.changes) await notify("uninvite", me, String(toId));
+}
+
+export async function removeConnection(peerId: string) {
+  const me = await writer();
+  const id = String(peerId);
+  const [del] = await env.DB.batch([
+    env.DB.prepare("DELETE FROM connections WHERE (user_id = ?1 AND peer_id = ?2) OR (user_id = ?2 AND peer_id = ?1)").bind(me, id),
+    env.DB.prepare("DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)").bind(me, id),
+  ]);
+  if (del.meta.changes) await notify("disconnect", me, id);
 }
