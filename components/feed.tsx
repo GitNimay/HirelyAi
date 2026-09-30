@@ -469,37 +469,37 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
               <MediaGrid media={p.media} />
             </>
           )}
-
-          <div className="-ml-2 mt-2 flex justify-between sm:max-w-[420px]">
-            <button type="button" aria-label="Like" aria-pressed={p.liked} onClick={() => like(p)} className={`${iconBtn} ${p.liked ? "text-danger hover:text-danger" : ""}`}>
-              <Icon d={icons.like} size={16} className={p.liked ? "fill-current" : ""} />
-              <span className="tabular-nums">{p.likes}</span>
-            </button>
-            <button type="button" aria-label="Comment" aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={`${iconBtn} ${showComments ? "text-foreground" : ""}`}>
-              <Icon d={icons.comment} size={16} />
-              <span className="tabular-nums">{p.comments}</span>
-            </button>
-            <button
-              type="button"
-              aria-label="Repost"
-              aria-pressed={p.reposted}
-              disabled={mine}
-              title={mine ? "You can't repost your own post" : undefined}
-              onClick={() => repost(p)}
-              className={`${iconBtn} ${p.reposted ? "text-emerald-400 hover:text-emerald-400" : ""}`}
-            >
-              <Icon d={icons.repost} size={16} />
-              <span className="tabular-nums">{p.reposts}</span>
-            </button>
-            <button type="button" aria-label="Share" onClick={share} className={iconBtn}>
-              <Icon d={icons.share} size={16} />
-              {copied && <span className="text-xs">Link copied</span>}
-            </button>
-          </div>
-
-          {showComments && <Comments postId={p.id} count={p.comments} />}
         </div>
       </div>
+
+      <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center">
+        <button type="button" aria-label="Like" aria-pressed={p.liked} onClick={() => like(p)} className={`${iconBtn} ${p.liked ? "text-danger hover:text-danger" : ""}`}>
+          <Icon d={icons.like} size={16} className={p.liked ? "fill-current" : ""} />
+          <span className="tabular-nums">{p.likes}</span>
+        </button>
+        <button type="button" aria-label="Comment" aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={`${iconBtn} ${showComments ? "text-foreground" : ""}`}>
+          <Icon d={icons.comment} size={16} />
+          <span className="tabular-nums">{p.comments}</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Repost"
+          aria-pressed={p.reposted}
+          disabled={mine}
+          title={mine ? "You can't repost your own post" : undefined}
+          onClick={() => repost(p)}
+          className={`${iconBtn} ${p.reposted ? "text-emerald-400 hover:text-emerald-400" : ""}`}
+        >
+          <Icon d={icons.repost} size={16} />
+          <span className="tabular-nums">{p.reposts}</span>
+        </button>
+        <button type="button" aria-label="Share" onClick={share} className={iconBtn}>
+          <Icon d={icons.share} size={16} />
+          {copied && <span className="text-xs">Link copied</span>}
+        </button>
+      </div>
+
+      {showComments && <Comments postId={p.id} count={p.comments} />}
     </article>
   );
 }
@@ -555,7 +555,7 @@ function Comments({ postId, count }: { postId: string; count: number }) {
   }
 
   return (
-    <div className="mt-3 space-y-3 border-t border-border pt-3">
+    <div className="space-y-3 border-t border-border pt-3">
       <form onSubmit={submit} className="flex gap-2">
         <input
           value={body}
