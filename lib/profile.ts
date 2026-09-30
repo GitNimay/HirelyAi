@@ -1,5 +1,6 @@
-import type { User } from "@clerk/nextjs/server";
+import { currentUser, type User } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
+import { cache } from "react";
 import { profileOf, syncStatements } from "./network";
 
 export type Connection = "none" | "connected" | "sent" | "received";
@@ -69,6 +70,15 @@ export async function viewerOf(u: User): Promise<Viewer> {
   const r = row.results[0];
   return { id: u.id, name: r?.name ?? p.name, imageUrl: r?.image_url ?? p.imageUrl ?? undefined, handle: r?.handle ?? u.id, onboarded: !!r?.onboarded };
 }
+
+/**
+ * The signed-in Clerk user and their Viewer, once per request: the layout and the page both need them, and
+ * currentUser() is a Clerk Backend API round trip (rate limited) while viewerOf is a D1 write batch.
+ */
+export const signedIn = cache(async () => {
+  const user = await currentUser();
+  return user && { user, me: await viewerOf(user) };
+});
 
 /** One comment with the post it answers, for the Replies tab. */
 export type Reply = {

@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build output, generated types, and the agent (its own package with its own lint config)
+    "dist/**",
+    ".wrangler/**",
+    "worker-configuration.d.ts",
+    "interview-agent/**",
   ]),
 ]);
 

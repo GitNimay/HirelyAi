@@ -27,7 +27,7 @@ export async function saveResume(userId: string, input: unknown) {
     env.DB.prepare("SELECT handle, bio, image_url FROM users WHERE id = ?").bind(userId),
   ]);
   const u = row.results[0];
-  if (u) await broadcast({ t: "profile", id: userId, name, handle: u.handle, headline, bio: u.bio && u.bio.slice(0, 120), imageUrl: u.image_url });
+  if (u) broadcast({ t: "profile", id: userId, name, handle: u.handle, headline, bio: u.bio && u.bio.slice(0, 120), imageUrl: u.image_url });
   return r;
 }
 

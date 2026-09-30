@@ -28,6 +28,8 @@ export async function deleteAccount() {
     "DELETE FROM invitations WHERE from_id = ?1 OR to_id = ?1",
     "DELETE FROM connections WHERE user_id = ?1 OR peer_id = ?1",
     "DELETE FROM saved_jobs WHERE user_id = ?1",
+    // Their voice interviews for other people's jobs: onboarding answers and transcripts are personal data
+    "DELETE FROM interview_sessions WHERE applicant_id = ?1",
     "DELETE FROM applications WHERE applicant_id = ?1",
     "DELETE FROM jobs WHERE poster_id = ?1",
     "DELETE FROM resumes WHERE user_id = ?1",

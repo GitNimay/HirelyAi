@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import type { Actor, NotificationType } from "./notification-format";
 import { sendTo } from "./realtime";
+import { enqueue } from "./tasks";
 
 export type Notification = {
   id: string;
@@ -31,38 +32,42 @@ const SELECT = `SELECT n.id, n.user_id, n.type, n.link, n.body, n.created_at, n.
     (SELECT COUNT(*) FROM notifications x WHERE x.user_id = n.user_id AND x.created_at > me.notif_seen_at) AS unseen
   FROM notifications n JOIN users me ON me.id = n.user_id`;
 
-// ponytail: a post/job fans out to at most this many followers (and pushes to them live). Move to a Queue
-// consumer for bigger audiences.
+// ponytail: a post/job fans out to at most this many followers, in one queue message. Split into chunked
+// messages (one per 200) for bigger audiences.
 const MAX_RECIPIENTS = 200;
 
 export type Spec = { type: NotificationType; actor: string; ref: string; link: string; body?: string | null };
 
 /**
- * Tell `to` (minus the actor) about something, then push it live to their open tabs. Same (type, ref) again
- * from a new actor joins the existing notification; the same actor twice is ignored, so like/unlike spam
- * can't pile up. Best effort like realtime: a failure here never fails the write that caused it.
+ * Tell `to` (minus the actor) about something. Queued (lib/tasks.ts), so the write that caused it returns right away
+ * and a failed delivery is retried instead of lost. Best effort: a queue hiccup never fails the write.
  */
-export async function notifyUsers(to: string[], s: Spec) {
-  const ids = JSON.stringify([...new Set(to)].filter((id) => id !== s.actor).slice(0, MAX_RECIPIENTS));
-  if (ids === "[]") return;
+export async function notifyUsers(to: string[], spec: Spec) {
+  const ids = [...new Set(to)].filter((id) => id !== spec.actor).slice(0, MAX_RECIPIENTS);
+  if (ids.length) await enqueue({ t: "notify", to: ids, spec }).catch((e) => console.error("notifyUsers: enqueue failed", e));
+}
+
+/**
+ * Queue consumer side: store the notifications, then push them live to their open tabs. Same (type, ref) again
+ * from a new actor joins the existing notification; the same actor twice is ignored, so like/unlike spam
+ * can't pile up. Idempotent (INSERT OR IGNORE), so a retried message doesn't duplicate anything.
+ */
+export async function deliverNotifications(to: string[], s: Spec) {
+  const ids = JSON.stringify(to);
   const now = Date.now();
-  try {
-    await env.DB.batch([
-      env.DB.prepare(
-        `INSERT OR IGNORE INTO notifications (id, user_id, type, ref_id, link, body, created_at)
-         SELECT lower(hex(randomblob(16))), value, ?1, ?2, ?3, ?4, ?5 FROM json_each(?6)`,
-      ).bind(s.type, s.ref, s.link, s.body ?? null, now, ids),
-      env.DB.prepare(
-        `INSERT OR IGNORE INTO notification_actors (notification_id, actor_id, created_at)
-         SELECT id, ?1, ?2 FROM notifications WHERE type = ?3 AND ref_id = ?4 AND user_id IN (SELECT value FROM json_each(?5))`,
-      ).bind(s.actor, now, s.type, s.ref, ids),
-    ]);
-    const { results } = await env.DB.prepare(`${SELECT} WHERE n.type = ?1 AND n.ref_id = ?2 AND n.user_id IN (SELECT value FROM json_each(?3))`)
-      .bind(s.type, s.ref, ids).all<Row>();
-    await Promise.all(results.map((r) => sendTo(r.user_id, { t: "notif", n: toNotification(r), unseen: r.unseen })));
-  } catch (e) {
-    console.error("notifyUsers failed", e);
-  }
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO notifications (id, user_id, type, ref_id, link, body, created_at)
+       SELECT lower(hex(randomblob(16))), value, ?1, ?2, ?3, ?4, ?5 FROM json_each(?6) WHERE value IN (SELECT id FROM users)`,
+    ).bind(s.type, s.ref, s.link, s.body ?? null, now, ids),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO notification_actors (notification_id, actor_id, created_at)
+       SELECT id, ?1, ?2 FROM notifications WHERE type = ?3 AND ref_id = ?4 AND user_id IN (SELECT value FROM json_each(?5))`,
+    ).bind(s.actor, now, s.type, s.ref, ids),
+  ]);
+  const { results } = await env.DB.prepare(`${SELECT} WHERE n.type = ?1 AND n.ref_id = ?2 AND n.user_id IN (SELECT value FROM json_each(?3))`)
+    .bind(s.type, s.ref, ids).all<Row>();
+  results.forEach((r) => sendTo(r.user_id, { t: "notif", n: toNotification(r), unseen: r.unseen }));
 }
 
 export async function listNotifications(userId: string, cursor?: string) {

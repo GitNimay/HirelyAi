@@ -75,6 +75,6 @@ async function save(input: ProfileInput) {
   ].filter((k): k is string => !!k);
   if (stale.length) await env.MEDIA.delete(stale);
 
-  await broadcast({ t: "profile", id: me, name, handle, headline, bio: bio && bio.slice(0, 120), imageUrl });
+  broadcast({ t: "profile", id: me, name, handle, headline, bio: bio && bio.slice(0, 120), imageUrl });
   return { handle };
 }

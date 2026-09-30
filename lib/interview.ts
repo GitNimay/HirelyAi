@@ -31,7 +31,7 @@ const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"; // no 0/o, 1/l/i: people ret
 const code = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => ALPHABET[b % ALPHABET.length]).join("");
 
 /** Constant-time string compare, for the shared password and the agent's bearer secret. */
-function same(a: string, b: string) {
+export function same(a: string, b: string) {
   const [x, y] = [new TextEncoder().encode(a), new TextEncoder().encode(b)];
   // timingSafeEqual is a Workers extension, missing from the DOM typings
   return x.byteLength === y.byteLength && (crypto.subtle as unknown as { timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean }).timingSafeEqual(x, y);
@@ -57,14 +57,14 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
 /**
  * Mails the interview link and password to a new applicant (Resend's REST API; the SDK adds nothing here).
- * Best effort: the application already went through, and the link is also shown on the job page.
+ * Runs from the queue: throws on errors worth retrying (network, 429, 5xx); a rejected address is logged and dropped.
  */
-export async function sendInvite(jobId: string, to: string, origin: string) {
+export async function sendInvite(jobId: string, to: string) {
   const iv = await env.DB.prepare(
     "SELECT i.slug, i.password, i.deadline, i.questions, j.title, j.company FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.job_id = ?",
   ).bind(jobId).first<{ slug: string; password: string; deadline: number; questions: string; title: string; company: string }>();
   if (!iv) return;
-  const link = `${origin}/interview/${iv.slug}`;
+  const link = `${env.APP_URL}/interview/${iv.slug}`;
   const n = JSON.parse(iv.questions).length;
   const lines = [
     `Thanks for applying for ${iv.title} at ${iv.company}.`,
@@ -81,8 +81,12 @@ export async function sendInvite(jobId: string, to: string, origin: string) {
     method: "POST",
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject: `Your voice interview for ${iv.title} at ${iv.company}`, html, text: lines.join("\n\n") }),
-  }).catch(() => null);
-  if (!res?.ok) console.error("resend", res?.status, await res?.text().catch(() => ""));
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (res.ok) return;
+  const detail = await res.text().catch(() => "");
+  if (res.status === 429 || res.status >= 500) throw new Error(`resend ${res.status}: ${detail}`);
+  console.error("resend rejected", res.status, detail);
 }
 
 type IvRow = { job_id: string; slug: string; password: string; questions: string; deadline: number; title: string; company: string; description: string; poster_id: string; closed_at: number | null };
@@ -185,12 +189,11 @@ async function livekitToken(claims: Record<string, unknown>) {
   return `${body}.${b64(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body))))}`;
 }
 
-/** The agent's end-of-call report. Returns the session id to evaluate, or null for a bad secret / repeat post. */
-export async function acceptTranscript(auth: string | null, sessionId: string, transcript: Line[]) {
-  if (!same(auth ?? "", `Bearer ${env.INTERVIEW_AGENT_SECRET}`)) return null;
+/** The agent's end-of-call report (caller checked its secret). False for a repeat post. */
+export async function acceptTranscript(sessionId: string, transcript: Line[]) {
   const upd = await env.DB.prepare("UPDATE interview_sessions SET status = 'processing', transcript = ?, ended_at = ? WHERE id = ? AND status = 'live'")
     .bind(JSON.stringify(transcript), Date.now(), sessionId).run();
-  return upd.meta.changes ? sessionId : null;
+  return upd.meta.changes > 0;
 }
 
 const JUDGE = `You are a fair, experienced hiring manager reviewing a short AI-led voice screening interview.
@@ -207,8 +210,11 @@ small transcription errors and filler words). Judge only what the candidate actu
 "questions" has exactly one entry per interview question, in the same order. Unanswered questions score 0.
 Never invent answers. A candidate who ran out of time is judged on what they covered.`;
 
-/** Bedrock grades the transcript. On failure the transcript stays and the poster can retry. */
-export async function evaluate(sessionId: string) {
+/**
+ * Bedrock grades the transcript. When Bedrock is busy and this isn't the `final` try, throws so the queue retries later;
+ * otherwise a failure is stored as "failed" (transcript kept) and the poster can retry.
+ */
+export async function evaluate(sessionId: string, final = true) {
   const r = await env.DB.prepare(
     `SELECT s.transcript, s.job_id, s.applicant_id, i.questions, j.title, j.company, j.description, j.poster_id
      FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id JOIN jobs j ON j.id = s.job_id WHERE s.id = ?`,
@@ -225,13 +231,14 @@ export async function evaluate(sessionId: string) {
       `Job: ${r.title} at ${r.company}\n\nJob description:\n${r.description.slice(0, 6000)}\n\nInterview questions:\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\nTranscript:\n${transcript.map((l) => `${l.role === "agent" ? "Interviewer" : "Candidate"}: ${l.text}`).join("\n")}`,
       4000,
     );
+    if (!out.ok && out.reason === "busy" && !final) throw new Error(`evaluate ${sessionId}: bedrock busy`);
     report = out.ok ? cleanReport(out.value, questions) : null;
   }
   await env.DB.prepare("UPDATE interview_sessions SET status = ?, report = ?, score = ? WHERE id = ?")
     .bind(report ? "done" : "failed", report && JSON.stringify(report), report?.score ?? null, sessionId).run();
   // The poster's open applicant list refetches on this
   const status = await env.DB.prepare("SELECT status FROM applications WHERE job_id = ? AND applicant_id = ?").bind(r.job_id, r.applicant_id).first<"submitted">("status");
-  if (status) await sendTo(r.poster_id, { t: "app", jobId: r.job_id, applicantId: r.applicant_id, status });
+  if (status) sendTo(r.poster_id, { t: "app", jobId: r.job_id, applicantId: r.applicant_id, status });
 }
 
 /** Full result for the poster, or null if they don't own the job. */
@@ -253,7 +260,14 @@ export async function retryEvaluation(posterId: string, jobId: string, applicant
   if (s) await evaluate(s);
 }
 
-/** Cron: jobs whose interview deadline passed stop taking applications. */
+/**
+ * Cron: jobs whose interview deadline passed stop taking applications, and gradings still "processing" an hour after
+ * the call (their queue message ended up in the DLQ) become "failed" so the poster sees a Retry button instead of a spinner.
+ */
 export async function closeExpired() {
-  await env.DB.prepare("UPDATE jobs SET closed_at = ?1 WHERE closed_at IS NULL AND id IN (SELECT job_id FROM interviews WHERE deadline <= ?1)").bind(Date.now()).run();
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE jobs SET closed_at = ?1 WHERE closed_at IS NULL AND id IN (SELECT job_id FROM interviews WHERE deadline <= ?1)").bind(now),
+    env.DB.prepare("UPDATE interview_sessions SET status = 'failed' WHERE status = 'processing' AND ended_at < ?").bind(now - 3_600_000),
+  ]);
 }

@@ -1,14 +1,13 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
-import { viewerOf } from "@/lib/profile";
+import { signedIn } from "@/lib/profile";
 
 export const metadata = { title: "Set up your profile | Hire Excellence" };
 
 export default async function OnboardingPage() {
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
-  const me = await viewerOf(user);
+  const session = await signedIn();
+  if (!session) redirect("/sign-in");
+  const { user, me } = session;
   if (me.onboarded) redirect("/dashboard");
   return (
     <Onboarding

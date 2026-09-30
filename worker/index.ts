@@ -1,9 +1,31 @@
 import { createClerkClient } from "@clerk/backend";
 import { DurableObject } from "cloudflare:workers";
 import app from "vinext/server/app-router-entry";
-import { acceptTranscript, closeExpired, evaluate } from "../lib/interview";
+import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/interview";
 import { cleanTranscript } from "../lib/interview-fields";
+import { syncDirectory } from "../lib/network";
+import { deliverNotifications } from "../lib/notifications";
 import { hubFor } from "../lib/realtime";
+import { enqueue, type Task } from "../lib/tasks";
+
+// Baseline for every app response; a route's own value (e.g. the media route's CSP) wins.
+// Microphone stays allowed for the voice interview page.
+const SECURITY_HEADERS: Record<string, string> = {
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), geolocation=(), payment=(), microphone=(self)",
+};
+
+/** Retries only transient failures; `attempts` starts at 1. The last tries of a grading store "failed" instead of throwing. */
+async function runTask(task: Task, attempts: number) {
+  switch (task.t) {
+    case "evaluate": return evaluate(task.sessionId, attempts >= 4);
+    case "invite": return sendInvite(task.jobId, task.to);
+    case "notify": return deliverNotifications(task.to, task.spec);
+  }
+}
 
 /** Holds feed WebSockets (hibernatable, so idle sockets cost nothing) and fans out FeedEvents. */
 export class FeedHub extends DurableObject<Env> {
@@ -53,15 +75,38 @@ export default {
     }
     // The interview agent (LiveKit Cloud) posts the transcript here when a call ends; grading runs after we answer
     if (url.pathname === "/api/interview/complete" && request.method === "POST") {
+      if (!same(request.headers.get("Authorization") ?? "", `Bearer ${env.INTERVIEW_AGENT_SECRET}`)) return new Response(null, { status: 401 });
       const body = (await request.json().catch(() => ({}))) as { sessionId?: unknown; transcript?: unknown };
-      const id = await acceptTranscript(request.headers.get("Authorization"), String(body.sessionId), cleanTranscript(body.transcript));
-      if (id) ctx.waitUntil(evaluate(id));
-      return new Response(null, { status: id ? 204 : 409 });
+      const sessionId = String(body.sessionId);
+      if (!(await acceptTranscript(sessionId, cleanTranscript(body.transcript)))) return new Response(null, { status: 409 });
+      // Grading takes up to a minute or two: the queue gives it retries and a 15 minute budget (waitUntil only gets 30 s)
+      await enqueue({ t: "evaluate", sessionId });
+      return new Response(null, { status: 204 });
     }
-    return app.fetch(request, env, ctx);
+    const res = await app.fetch(request, env, ctx);
+    if (res.webSocket) return res;
+    const out = new Response(res.body, res);
+    for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!out.headers.has(k)) out.headers.set(k, v);
+    return out;
   },
-  // Every 15 minutes: close jobs whose interview deadline has passed
-  async scheduled() {
+
+  async queue(batch) {
+    await Promise.all(
+      batch.messages.map(async (msg) => {
+        try {
+          await runTask(msg.body, msg.attempts);
+          msg.ack();
+        } catch (e) {
+          console.error(JSON.stringify({ msg: "task failed", task: msg.body.t, attempts: msg.attempts, error: String(e) }));
+          msg.retry({ delaySeconds: Math.min(30 * 2 ** (msg.attempts - 1), 900) });
+        }
+      }),
+    );
+  },
+
+  // Every 15 minutes: close expired interviews, fail stuck gradings, copy new Clerk members into D1
+  async scheduled(_controller, _env, ctx) {
+    ctx.waitUntil(syncDirectory());
     await closeExpired();
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env, Task>;

@@ -1,49 +1,30 @@
 "use server";
 
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { env } from "cloudflare:workers";
-import { headers } from "next/headers";
+import { env, waitUntil } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
-import { Fail, failed } from "@/lib/guard";
-import { insertInterview, interviewResult, parseInterview, retryEvaluation, sendInvite } from "@/lib/interview";
+import { Fail, failed, text, viewer, writer } from "@/lib/guard";
+import { insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
 import { inFolder, isVideo, newKey, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
-import { getNetwork, getPersonAndCounts, profileOf, saveUser, searchPeople, syncDirectory } from "@/lib/network";
+import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
 import { followersOf, listNotifications, notifyUsers, unseenCount } from "@/lib/notifications";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
 import { getResume } from "@/lib/resume";
 import { resumePdf } from "@/lib/resume-pdf";
+import { enqueue } from "@/lib/tasks";
 
 
-// Every action re-checks auth: server actions are public POST endpoints.
-async function viewer() {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-  return userId;
-}
-
-async function writer() {
-  const userId = await viewer();
-  const { success } = await env.WRITE_LIMIT.limit({ key: userId });
-  if (!success) throw new Fail("You're doing that too fast. Try again in a minute.");
-  return userId;
-}
-
-/** Snapshot the author's Clerk profile so feeds can join on it without calling Clerk. */
-async function syncUser(userId: string) {
-  const u = await currentUser();
-  if (u?.id === userId) await saveUser(profileOf(u));
-}
+// Every action re-checks auth (viewer/writer): server actions are public POST endpoints.
+// No Clerk call on writes: the dashboard layout already synced this member's users row on page load.
 
 async function pushStats(postId: string) {
   const p = await env.DB.prepare("SELECT like_count, comment_count, repost_count FROM posts WHERE id = ?")
     .bind(postId).first<{ like_count: number; comment_count: number; repost_count: number }>();
-  if (p) await broadcast({ t: "stats", id: postId, likes: p.like_count, comments: p.comment_count, reposts: p.repost_count });
+  if (p) broadcast({ t: "stats", id: postId, likes: p.like_count, comments: p.comment_count, reposts: p.repost_count });
   return p;
 }
 
-const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim() : "").slice(0, max);
 const snippet = (s: string) => s.slice(0, 140) || null;
 const postOf = (id: string) => env.DB.prepare("SELECT author_id, body FROM posts WHERE id = ?").bind(id).first<{ author_id: string; body: string }>();
 const jobTitle = (id: string) => env.DB.prepare("SELECT title FROM jobs WHERE id = ?").bind(id).first<string>("title");
@@ -80,11 +61,10 @@ async function publish(input: { body: string; media: string[] }) {
   const media = await checkMedia(userId, input.media);
   if (!body && media.length === 0) throw new Fail("Write something or add media");
 
-  await syncUser(userId);
   const id = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO posts (id, author_id, body, media, created_at) VALUES (?, ?, ?, ?, ?)")
     .bind(id, userId, body, media.length ? JSON.stringify(media) : null, Date.now()).run();
-  await broadcast({ t: "post", id, authorId: userId });
+  broadcast({ t: "post", id, authorId: userId });
   await notifyUsers(await followersOf(userId), { type: "post", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(body) });
   return getPost(userId, id);
 }
@@ -113,7 +93,7 @@ async function edit(id: string, input: { body: string; media: string[] }) {
   const removed = (post.media ? (JSON.parse(post.media) as Media[]) : []).filter((m) => !kept.has(m.key)).map((m) => m.key);
   if (removed.length) await env.MEDIA.delete(removed);
 
-  await broadcast({ t: "edit", id, body, media, editedAt });
+  broadcast({ t: "edit", id, body, media, editedAt });
   return { body, media, editedAt };
 }
 
@@ -129,7 +109,7 @@ export async function deletePost(id: string) {
     env.DB.prepare("DELETE FROM notifications WHERE link = ?").bind(`/dashboard/post/${String(id)}`),
   ]);
   if (post.media) await env.MEDIA.delete((JSON.parse(post.media) as Media[]).map((m) => m.key));
-  await broadcast({ t: "delete", id: String(id) });
+  broadcast({ t: "delete", id: String(id) });
   if (post.repost_of) await pushStats(post.repost_of);
 }
 
@@ -152,15 +132,14 @@ export async function toggleRepost(postId: string) {
   const id = String(postId);
   const removed = await env.DB.prepare("DELETE FROM posts WHERE author_id = ? AND repost_of = ? RETURNING id").bind(userId, id).first<{ id: string }>();
   if (removed) {
-    await broadcast({ t: "delete", id: removed.id });
+    broadcast({ t: "delete", id: removed.id });
   } else {
-    await syncUser(userId);
     const entryId = crypto.randomUUID();
     const ins = await env.DB.prepare(
       "INSERT INTO posts (id, author_id, repost_of, created_at) SELECT ?, ?, id, ? FROM posts WHERE id = ? AND repost_of IS NULL AND author_id <> ?",
     ).bind(entryId, userId, Date.now(), id, userId).run();
     if (ins.meta.changes) {
-      await broadcast({ t: "post", id: entryId, authorId: userId });
+      broadcast({ t: "post", id: entryId, authorId: userId });
       const post = await postOf(id);
       if (post) await notifyUsers([post.author_id], { type: "repost", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
     }
@@ -188,7 +167,6 @@ async function comment(postId: string, input: string) {
   const userId = await writer();
   const body = text(input, MAX_COMMENT_CHARS);
   if (!body) throw new Fail("Comment is empty");
-  await syncUser(userId);
   const commentId = crypto.randomUUID();
   const ins = await env.DB.prepare("INSERT INTO comments (id, post_id, author_id, body, created_at) SELECT ?, id, ?, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL")
     .bind(commentId, userId, body, Date.now(), String(postId)).run();
@@ -215,7 +193,7 @@ export async function toggleFollow(targetId: string) {
     await env.DB.prepare("INSERT INTO follows (follower_id, followee_id, created_at) SELECT ?, id, ? FROM users WHERE id = ?")
       .bind(userId, Date.now(), id).run();
   }
-  await notify("follow", userId, id);
+  notify("follow", userId, id);
   if (!del.meta.changes) await notifyUsers([id], { type: "follow", actor: userId, ref: "", link: "/dashboard/network" });
   return { following: !del.meta.changes };
 }
@@ -226,26 +204,23 @@ export async function toggleFollow(targetId: string) {
  * Tell both sides (or just the actor, for changes the other side must not learn about) what changed,
  * each with the other person as they see them and their own fresh counts.
  */
-async function notify(kind: NetEvent["kind"], actor: string, other: string, both = true) {
+function notify(kind: NetEvent["kind"], actor: string, other: string, both = true) {
   const pair = both ? ([[actor, other, "out"], [other, actor, "in"]] as const) : ([[actor, other, "out"]] as const);
-  await Promise.all(
+  // After the response: it's two lookups per side, and only feeds realtime
+  waitUntil(Promise.all(
     pair.map(async ([to, about, dir]) => {
       const { person, counts } = await getPersonAndCounts(to, about);
-      if (person) await sendTo(to, { t: "net", kind, dir, person, counts });
+      if (person) sendTo(to, { t: "net", kind, dir, person, counts });
     }),
-  );
+  ).catch((e) => console.error("notify failed", e)));
 }
 
 export async function loadNetwork() {
-  const me = await viewer();
-  await syncDirectory();
-  return getNetwork(me);
+  return getNetwork(await viewer());
 }
 
 export async function findPeople(query: string) {
-  const me = await viewer();
-  await syncDirectory();
-  return searchPeople(me, String(query));
+  return searchPeople(await viewer(), String(query));
 }
 
 /** Send a connection request, or accept theirs if they already invited you. */
@@ -255,13 +230,12 @@ export async function connect(targetId: string) {
   if (id === me) throw new Error("You can't connect with yourself");
   const theirs = await env.DB.prepare("SELECT 1 FROM invitations WHERE from_id = ? AND to_id = ?").bind(id, me).first();
   if (theirs) return acceptInvite(id);
-  await syncUser(me);
   const ins = await env.DB.prepare(
     `INSERT OR IGNORE INTO invitations (from_id, to_id, created_at) SELECT ?1, id, ?3 FROM users
      WHERE id = ?2 AND NOT EXISTS (SELECT 1 FROM connections WHERE user_id = ?1 AND peer_id = ?2)`,
   ).bind(me, id, Date.now()).run();
   if (ins.meta.changes) {
-    await notify("invite", me, id);
+    notify("invite", me, id);
     await notifyUsers([id], { type: "invite", actor: me, ref: me, link: "/dashboard/network" });
   }
 }
@@ -271,7 +245,6 @@ export async function acceptInvite(fromId: string) {
   const id = String(fromId);
   const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(id, me).run();
   if (!del.meta.changes) throw new Error("This invitation is no longer available");
-  await syncUser(me);
   const now = Date.now();
   // Connecting also makes you follow each other, like LinkedIn. A crossed invite in the other direction is now moot.
   await env.DB.batch([
@@ -279,7 +252,7 @@ export async function acceptInvite(fromId: string) {
     env.DB.prepare("INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)").bind(me, id, now),
     env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, id),
   ]);
-  await notify("connect", me, id);
+  notify("connect", me, id);
   await notifyUsers([id], { type: "accept", actor: me, ref: me, link: "/dashboard/network" });
 }
 
@@ -287,13 +260,13 @@ export async function acceptInvite(fromId: string) {
 export async function ignoreInvite(fromId: string) {
   const me = await writer();
   const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(String(fromId), me).run();
-  if (del.meta.changes) await notify("uninvite", me, String(fromId), false);
+  if (del.meta.changes) notify("uninvite", me, String(fromId), false);
 }
 
 export async function withdrawInvite(toId: string) {
   const me = await writer();
   const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, String(toId)).run();
-  if (del.meta.changes) await notify("uninvite", me, String(toId));
+  if (del.meta.changes) notify("uninvite", me, String(toId));
 }
 
 export async function removeConnection(peerId: string) {
@@ -303,7 +276,7 @@ export async function removeConnection(peerId: string) {
     env.DB.prepare("DELETE FROM connections WHERE (user_id = ?1 AND peer_id = ?2) OR (user_id = ?2 AND peer_id = ?1)").bind(me, id),
     env.DB.prepare("DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)").bind(me, id),
   ]);
-  if (del.meta.changes) await notify("disconnect", me, id);
+  if (del.meta.changes) notify("disconnect", me, id);
 }
 
 // ---- Jobs ----
@@ -347,7 +320,6 @@ async function createJob(input: Record<string, unknown>) {
   if (job.description.length < 50) throw new Fail("Describe the role in at least 50 characters");
   const interview = parseInterview(input);
 
-  await syncUser(me);
   const id = crypto.randomUUID();
   await env.DB.batch([
     env.DB.prepare(
@@ -355,14 +327,14 @@ async function createJob(input: Record<string, unknown>) {
     ).bind(id, me, job.title, job.company, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()),
     ...(interview ? [insertInterview(id, interview)] : []),
   ]);
-  await broadcast({ t: "job", id, posterId: me });
+  broadcast({ t: "job", id, posterId: me });
   await notifyUsers(await followersOf(me), { type: "job", actor: me, ref: id, link: `/dashboard/jobs?id=${id}`, body: job.title });
   return getJob(me, id);
 }
 
 async function pushJobStats(jobId: string) {
   const j = await env.DB.prepare("SELECT applicant_count, closed_at FROM jobs WHERE id = ?").bind(jobId).first<{ applicant_count: number; closed_at: number | null }>();
-  if (j) await broadcast({ t: "jobstat", id: jobId, applicants: j.applicant_count, closed: j.closed_at !== null });
+  if (j) broadcast({ t: "jobstat", id: jobId, applicants: j.applicant_count, closed: j.closed_at !== null });
 }
 
 /** Close a listing to new applicants (it leaves search), or reopen it. */
@@ -418,7 +390,6 @@ async function apply(jobId: string, input: Record<string, unknown>) {
     if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume");
   }
 
-  await syncUser(me);
   const now = Date.now();
   const ins = await env.DB.prepare(
     `INSERT OR IGNORE INTO applications (job_id, applicant_id, email, phone, resume_key, note, created_at, updated_at)
@@ -432,9 +403,10 @@ async function apply(jobId: string, input: Record<string, unknown>) {
     throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");
   }
   const job = await getJob(me, jobId);
-  if (job?.interview) await sendInvite(jobId, email, (await headers()).get("origin") ?? "https://hire-excellence.n1m35h.in");
+  // Queued: Resend is slow-ish and can fail; the link is also on the job page, so the application never waits on it
+  if (job?.interview) await enqueue({ t: "invite", jobId, to: email }).catch((e) => console.error("invite: enqueue failed", e));
   if (job) {
-    await sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
+    sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
     await notifyUsers([job.poster.id], { type: "applicant", actor: me, ref: jobId, link: `/dashboard/jobs?tab=posted&id=${jobId}`, body: job.title });
   }
   await pushJobStats(jobId);
@@ -450,7 +422,7 @@ export async function loadApplicants(jobId: string) {
      WHERE job_id = ?1 AND status = 'submitted' AND EXISTS (SELECT 1 FROM jobs WHERE id = ?1 AND poster_id = ?2)
      RETURNING applicant_id`,
   ).bind(id, me, Date.now()).all<{ applicant_id: string }>();
-  await Promise.all(results.map((r) => sendTo(r.applicant_id, { t: "app", jobId: id, applicantId: r.applicant_id, status: "viewed" })));
+  results.forEach((r) => sendTo(r.applicant_id, { t: "app", jobId: id, applicantId: r.applicant_id, status: "viewed" }));
   if (results.length) {
     await notifyUsers(results.map((r) => r.applicant_id), {
       type: "app_viewed", actor: me, ref: id, link: `/dashboard/jobs?tab=applied&id=${id}`, body: await jobTitle(id),
@@ -467,7 +439,7 @@ export async function setApplicationStatus(jobId: string, applicantId: string, s
      WHERE job_id = ?1 AND applicant_id = ?2 AND EXISTS (SELECT 1 FROM jobs WHERE id = ?1 AND poster_id = ?3)`,
   ).bind(String(jobId), String(applicantId), me, s, Date.now()).run();
   if (!upd.meta.changes) throw new Error("Application not found");
-  await sendTo(String(applicantId), { t: "app", jobId: String(jobId), applicantId: String(applicantId), status: s });
+  sendTo(String(applicantId), { t: "app", jobId: String(jobId), applicantId: String(applicantId), status: s });
   if (s === "viewed" || s === "shortlisted" || s === "rejected") {
     await notifyUsers([String(applicantId)], {
       type: `app_${s}`, actor: me, ref: String(jobId), link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`, body: await jobTitle(String(jobId)),
@@ -489,7 +461,7 @@ export async function markSeen() {
     // Keep the table bounded: nobody scrolls back three months
     env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND created_at < ?").bind(me, Date.now() - 90 * 86_400_000),
   ]);
-  await sendTo(me, { t: "notif-seen" });
+  sendTo(me, { t: "notif-seen" });
 }
 
 export async function markRead(id: string) {

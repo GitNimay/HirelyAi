@@ -1,14 +1,22 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hire-excellence",
-  // Wraps vinext's handler: adds the realtime WebSocket route and exports the FeedHub Durable Object
+  // Wraps vinext's handler: adds the realtime WebSocket route, the queue consumer, and exports the FeedHub Durable Object
   "main": "./worker/index.ts",
   "compatibility_date": "2026-09-26",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "not_found_handling": "none", "binding": "ASSETS" },
-  "observability": { "enabled": true },
+  // Pages make several sequential D1 queries; run the Worker next to the database instead of next to the visitor
+  "placement": { "mode": "smart" },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": true },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  },
   // Cloudflare creates the DNS record and certificate for this on deploy
   "routes": [{ "pattern": "hire-excellence.n1m35h.in", "custom_domain": true }],
+  // Links in emails are built from this, never from request headers (a client controls those)
+  "vars": { "APP_URL": "https://hire-excellence.n1m35h.in" },
   "d1_databases": [
     {
       "binding": "DB",
@@ -20,9 +28,23 @@
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "hire-excellence-media" }],
   "durable_objects": { "bindings": [{ "name": "FEED_HUB", "class_name": "FeedHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FeedHub"] }],
+  // Background work (lib/tasks.ts): AI grading, invite emails, notification fan-out. Retried with backoff, then parked in the DLQ.
+  "queues": {
+    "producers": [{ "binding": "TASKS", "queue": "hire-excellence-tasks" }],
+    "consumers": [
+      {
+        "queue": "hire-excellence-tasks",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "retry_delay": 30,
+        "dead_letter_queue": "hire-excellence-tasks-dlq"
+      }
+    ]
+  },
   // Per-user write throttle (posts, uploads, likes, comments...)
   "ratelimits": [{ "name": "WRITE_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }],
-  // Closes jobs whose voice interview deadline has passed (worker/index.ts scheduled)
+  // Every 15 minutes (worker/index.ts scheduled): close expired interviews, re-queue stuck gradings, sync the Clerk directory
   "triggers": { "crons": ["*/15 * * * *"] }
-  // Secrets (not in this file): CLERK_SECRET_KEY, BEDROCK_*, RESEND_API_KEY, LIVEKIT_*, INTERVIEW_AGENT_SECRET via `wrangler secret`, .env.local locally
+  // Secrets (not in this file): CLERK_SECRET_KEY, BEDROCK_*, RESEND_API_KEY, MAIL_FROM, LIVEKIT_*, INTERVIEW_AGENT_SECRET via `wrangler secret`, .env.local locally
 }

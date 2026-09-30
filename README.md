@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hire Excellence
 
-## Getting Started
+A LinkedIn-style network (feed, connections, jobs with Easy Apply, AI voice interviews) on Cloudflare Workers.
+It uses Next.js via [vinext](https://github.com/cloudflare/vinext) and Clerk for auth.
 
-First, run the development server:
+| Piece | What it does |
+|---|---|
+| Worker (`worker/index.ts`) | vinext app, plus the realtime WebSocket route, the interview-agent callback, the queue consumer and the cron |
+| D1 `hire-excellence-db` | All app data (`migrations/`) |
+| R2 `hire-excellence-media` | Post media, profile images, resume PDFs |
+| Durable Object `FeedHub` | Realtime fan-out over hibernatable WebSockets (4 shards) |
+| Queue `hire-excellence-tasks` | Background work: AI grading, invite emails, notifications. Retries with backoff, then goes to `hire-excellence-tasks-dlq` |
+| Cron (every 15 min) | Closes expired interviews, fails stuck gradings, syncs the Clerk directory |
+| `interview-agent/` | LiveKit voice agent (separate package, deployed to LiveKit Cloud) |
+
+## Develop
 
 ```bash
+npm install
+npm run db:migrate:local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Secrets go in `.env.local` (see the list at the bottom of `wrangler.jsonc`). Add `APP_URL=http://localhost:3000` there too, or invite emails will link to production.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Checks (CI runs them all): `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## First deploy of a new resource
 
-## Learn More
+```bash
+npx wrangler queues create hire-excellence-tasks
+npx wrangler queues create hire-excellence-tasks-dlq
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run deploy
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This builds, applies pending D1 migrations to production, then deploys. Set secrets with `npx wrangler secret put NAME`.
