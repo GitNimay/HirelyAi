@@ -57,7 +57,7 @@ export const navItems = [
   { slug: "network", label: "My Network", icon: icons.network },
   { slug: "jobs", label: "Jobs", icon: icons.jobs },
   { slug: "notifications", label: "Notifications", icon: icons.notifications },
-  { slug: "settings", label: "Me", icon: icons.settings },
+  { slug: "me", label: "Me", icon: icons.settings }, // links to /in/<your handle>, see Nav
 ];
 
 /** Image when we have one (Clerk avatar), initials otherwise. */

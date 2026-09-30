@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Feed } from "@/components/feed";
 import { Icon } from "@/components/ui";
 import { getPost } from "@/lib/feed";
+import { viewerOf } from "@/lib/profile";
 
 /** Permalink target for "Share". */
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +21,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         </Link>
         <h1 className="text-sm font-semibold">Post</h1>
       </header>
-      <Feed single viewer={{ id: user.id, name: user.fullName || user.username || "You", imageUrl: user.imageUrl }} initial={{ posts: [post], next: null }} followingIds={[]} />
+      <Feed single viewer={await viewerOf(user)} initial={{ posts: [post], next: null }} followingIds={[]} />
     </>
   );
 }

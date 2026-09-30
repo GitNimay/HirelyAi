@@ -24,7 +24,7 @@ const EMPTY: Record<Tab, string> = {
   applied: "Jobs you apply to show up here.",
   posted: "Jobs you post show up here.",
 };
-const field = "h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none focus:border-ring";
+export const field = "h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none focus:border-ring";
 const select = `${field} bg-surface`;
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
@@ -502,7 +502,7 @@ function Applicants({ list, onStatus }: { list?: Applicant[]; onStatus: (a: Appl
 }
 
 /** Native <dialog>: focus trap, Escape and inert background for free. */
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => ref.current?.showModal(), []);
   return (
@@ -524,7 +524,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-medium">{label}{hint && <span className="font-normal text-muted"> · {hint}</span>}</span>

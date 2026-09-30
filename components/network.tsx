@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import type { Network as Net, Person } from "@/lib/network";
+import { profileHref } from "@/lib/profile-fields";
 import type { NetEvent } from "@/lib/realtime";
 import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
@@ -55,8 +57,13 @@ export function Network({ initial }: { initial: Net }) {
   const refresh = () => actions.loadNetwork().then(setNet, () => {});
 
   useRealtime((e) => {
-    if (e.t !== "net") return;
-    setNet((n) => ({ ...apply(n, e), counts: e.counts }));
+    if (e.t === "net") setNet((n) => ({ ...apply(n, e), counts: e.counts }));
+    // Someone edited their profile: same person, new name / photo / headline / bio, wherever they're listed
+    else if (e.t === "profile") {
+      const edit = (p: Person) => (p.id === e.id ? { ...p, name: e.name, handle: e.handle, headline: e.headline, bio: e.bio, imageUrl: e.imageUrl } : p);
+      setNet((n) => ({ ...n, received: n.received.map(edit), sent: n.sent.map(edit), connections: n.connections.map(edit), suggestions: n.suggestions.map(edit) }));
+      setFound((f) => f && f.map(edit));
+    }
   });
 
   // Events sent while the socket was down are gone, so resync whenever the tab comes back
@@ -316,10 +323,13 @@ function Section({ title, count, action, last, children }: { title: string; coun
 function Row({ person: p, meta, children }: { person: Person; meta: string; children: React.ReactNode }) {
   return (
     <li className="flex items-center gap-3 px-4 py-3">
-      <Avatar name={p.name} src={p.imageUrl ?? undefined} size={48} />
+      <Link href={profileHref(p)} aria-label={p.name} className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Avatar name={p.name} src={p.imageUrl ?? undefined} size={48} />
+      </Link>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{p.name}</p>
+        <Link href={profileHref(p)} className="block truncate text-sm font-medium hover:underline">{p.name}</Link>
         {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
+        {p.bio && <p className="truncate text-xs text-muted/80">{p.bio.replace(/\s+/g, " ")}</p>}
         {meta && <p className="truncate text-xs text-muted">{meta}</p>}
       </div>
       <div className="flex items-center gap-2">{children}</div>

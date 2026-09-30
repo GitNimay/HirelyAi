@@ -1,5 +1,6 @@
 import { clerkClient, type User } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
+import { slugify } from "./profile-fields";
 
 /** Someone as seen by one viewer: mutual connections and "follows you" are relative to that viewer. */
 export type Person = {
@@ -7,6 +8,8 @@ export type Person = {
   name: string;
   imageUrl: string | null;
   headline: string | null;
+  handle: string | null;
+  bio: string | null; // first 120 chars, enough for a one-line summary
   mutual: number;
   followsYou: boolean;
   at: number; // when invited / connected; 0 for suggestions
@@ -14,14 +17,14 @@ export type Person = {
 export type Counts = { connections: number; following: number; followers: number };
 export type Network = { received: Person[]; sent: Person[]; connections: Person[]; suggestions: Person[]; counts: Counts };
 
-type Row = { id: string; name: string; image_url: string | null; headline: string | null; mutual: number; follows_you: number; at: number };
+type Row = { id: string; name: string; image_url: string | null; headline: string | null; handle: string | null; bio: string | null; mutual: number; follows_you: number; at: number };
 
 const toPerson = (r: Row): Person => ({
-  id: r.id, name: r.name, imageUrl: r.image_url, headline: r.headline, mutual: r.mutual, followsYou: !!r.follows_you, at: r.at ?? 0,
+  id: r.id, name: r.name, imageUrl: r.image_url, headline: r.headline, handle: r.handle, bio: r.bio, mutual: r.mutual, followsYou: !!r.follows_you, at: r.at ?? 0,
 });
 
 // ?1 is always the viewer
-const PERSON = `u.id, u.name, u.image_url, u.headline,
+const PERSON = `u.id, u.name, u.image_url, u.headline, u.handle, substr(u.bio, 1, 120) AS bio,
   (SELECT COUNT(*) FROM connections a JOIN connections b ON b.user_id = u.id AND b.peer_id = a.peer_id WHERE a.user_id = ?1) AS mutual,
   EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = u.id AND f.followee_id = ?1) AS follows_you`;
 
@@ -94,26 +97,40 @@ export async function searchPeople(viewerId: string, query: string) {
   return results.map(toPerson);
 }
 
-type Profile = { id: string; name: string; imageUrl: string | null; headline: string | null };
+type Profile = { id: string; name: string; imageUrl: string | null; headline: string | null; joinedAt: number };
 
 export const profileOf = (u: User): Profile => ({
   id: u.id,
   name: u.fullName || u.username || "Member",
   imageUrl: u.imageUrl ?? null,
   headline: typeof u.publicMetadata?.headline === "string" ? u.publicMetadata.headline : null,
+  joinedAt: u.createdAt,
 });
 
-// No-op write when nothing changed
-const upsertUser = (u: Profile) =>
+/**
+ * Clerk is only the starting point: once a member edits their profile here (custom = 1) D1 owns name, photo and headline.
+ * Second statement gives everyone a clean /in/<handle> (name slug, plus 4 id characters only if it's taken) and a joined date.
+ * No-op writes when nothing changed.
+ */
+const upsert = (u: Profile) =>
   env.DB.prepare(
-    `INSERT INTO users (id, name, image_url, headline, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
+    `INSERT INTO users (id, name, image_url, headline, joined_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?6, ?5)
      ON CONFLICT (id) DO UPDATE SET name = ?2, image_url = ?3, headline = ?4, updated_at = ?5
-     WHERE name IS NOT ?2 OR image_url IS NOT ?3 OR headline IS NOT ?4`,
-  ).bind(u.id, u.name, u.imageUrl, u.headline, Date.now());
+     WHERE custom = 0 AND (name IS NOT ?2 OR image_url IS NOT ?3 OR headline IS NOT ?4)`,
+  ).bind(u.id, u.name, u.imageUrl, u.headline, Date.now(), u.joinedAt);
+
+const assign = (u: Profile) =>
+  env.DB.prepare(
+    `UPDATE users SET handle = COALESCE(handle, ?2 || CASE WHEN EXISTS (SELECT 1 FROM users WHERE handle = ?2) THEN '-' || lower(substr(id, -4)) ELSE '' END),
+       joined_at = COALESCE(joined_at, ?3)
+     WHERE id = ?1 AND (handle IS NULL OR joined_at IS NULL)`,
+  ).bind(u.id, slugify(u.name), u.joinedAt);
+
+export const syncStatements = (u: Profile) => [upsert(u), assign(u)];
 
 /** Snapshot a Clerk profile so feeds and the network can join on it. */
 export async function saveUser(u: Profile) {
-  await upsertUser(u).run();
+  await env.DB.batch(syncStatements(u));
 }
 
 let directorySyncedAt = 0;
@@ -129,7 +146,10 @@ export async function syncDirectory() {
   directorySyncedAt = Date.now();
   try {
     const { data } = await (await clerkClient()).users.getUserList({ limit: 500, orderBy: "-created_at" });
-    if (data.length) await env.DB.batch(data.map((u) => upsertUser(profileOf(u))));
+    // Handles are only (re)assigned for members that lack one, which keeps the batch near one statement per member
+    const { results } = await env.DB.prepare("SELECT id FROM users WHERE handle IS NOT NULL AND joined_at IS NOT NULL").all<{ id: string }>();
+    const done = new Set(results.map((r) => r.id));
+    if (data.length) await env.DB.batch(data.flatMap((u) => { const p = profileOf(u); return done.has(p.id) ? [upsert(p)] : [upsert(p), assign(p)]; }));
   } catch (e) {
     directorySyncedAt = 0; // retry on the next request; the page still works with what D1 has
     console.error("syncDirectory failed", e);

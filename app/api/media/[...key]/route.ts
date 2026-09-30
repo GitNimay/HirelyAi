@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
+import { keyOwner } from "@/lib/media";
 
 /** Serves post media from R2 to signed-in users, with Range support so videos can seek. */
 export async function GET(request: Request, { params }: { params: Promise<{ key: string[] }> }) {
@@ -8,7 +9,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
 
   const key = (await params).key.map(decodeURIComponent).join("/");
   // Resumes are private: only the applicant and posters of jobs they applied to with it
-  const owner = key.split("/")[0];
+  const owner = keyOwner(key);
   if (key.endsWith(".pdf") && owner !== userId) {
     const ok = await env.DB.prepare(
       "SELECT 1 FROM applications a JOIN jobs j ON j.id = a.job_id WHERE a.applicant_id = ? AND a.resume_key = ? AND j.poster_id = ? LIMIT 1",

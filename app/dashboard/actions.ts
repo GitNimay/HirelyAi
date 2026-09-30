@@ -5,8 +5,9 @@ import { env } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
-import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
+import { inFolder, isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
 import { getNetwork, getPersonAndCounts, profileOf, saveUser, searchPeople, syncDirectory } from "@/lib/network";
+import { followersOf, listNotifications, notifyUsers, unseenCount } from "@/lib/notifications";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
 
 /** A message safe to show the user. Other errors get redacted by the framework in production. */
@@ -44,6 +45,9 @@ async function pushStats(postId: string) {
 }
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim() : "").slice(0, max);
+const snippet = (s: string) => s.slice(0, 140) || null;
+const postOf = (id: string) => env.DB.prepare("SELECT author_id, body FROM posts WHERE id = ?").bind(id).first<{ author_id: string; body: string }>();
+const jobTitle = (id: string) => env.DB.prepare("SELECT title FROM jobs WHERE id = ?").bind(id).first<string>("title");
 
 export async function loadFeed(tab: FeedTab, cursor?: string) {
   return getFeed(await viewer(), tab === "following" ? "following" : "for-you", cursor);
@@ -59,7 +63,7 @@ async function checkMedia(userId: string, input: unknown): Promise<Media[]> {
   if (keys.length > MAX_IMAGES) throw new Fail("A post can have up to 4 images or 1 video");
   const media = await Promise.all(
     keys.map(async (key) => {
-      if (!key.startsWith(`${userId}/`)) throw new Fail("Invalid media");
+      if (!inFolder(key, "posts", userId)) throw new Fail("Invalid media");
       const obj = await env.MEDIA.head(key);
       const type = obj?.httpMetadata?.contentType ?? "";
       if (!obj || obj.customMetadata?.owner !== userId || !MEDIA_TYPES[type]) throw new Fail("Invalid media");
@@ -82,6 +86,7 @@ async function publish(input: { body: string; media: string[] }) {
   await env.DB.prepare("INSERT INTO posts (id, author_id, body, media, created_at) VALUES (?, ?, ?, ?, ?)")
     .bind(id, userId, body, media.length ? JSON.stringify(media) : null, Date.now()).run();
   await broadcast({ t: "post", id, authorId: userId });
+  await notifyUsers(await followersOf(userId), { type: "post", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(body) });
   return getPost(userId, id);
 }
 
@@ -119,7 +124,11 @@ export async function deletePost(id: string) {
     .bind(String(id), userId).first<{ media: string | null; repost_of: string | null }>();
   if (!post) throw new Error("Not found");
   // Reposts of this post cascade in SQL; their counters don't matter since the original is gone
-  await env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(String(id)).run();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(String(id)),
+    // Their notifications would only lead to a missing page
+    env.DB.prepare("DELETE FROM notifications WHERE link = ?").bind(`/dashboard/post/${String(id)}`),
+  ]);
   if (post.media) await env.MEDIA.delete((JSON.parse(post.media) as Media[]).map((m) => m.key));
   await broadcast({ t: "delete", id: String(id) });
   if (post.repost_of) await pushStats(post.repost_of);
@@ -130,8 +139,10 @@ export async function toggleLike(postId: string) {
   const id = String(postId);
   const del = await env.DB.prepare("DELETE FROM likes WHERE user_id = ? AND post_id = ?").bind(userId, id).run();
   if (!del.meta.changes) {
-    await env.DB.prepare("INSERT INTO likes (user_id, post_id, created_at) SELECT ?, id, ? FROM posts WHERE id = ? AND repost_of IS NULL")
+    const ins = await env.DB.prepare("INSERT INTO likes (user_id, post_id, created_at) SELECT ?, id, ? FROM posts WHERE id = ? AND repost_of IS NULL")
       .bind(userId, Date.now(), id).run();
+    const post = ins.meta.changes ? await postOf(id) : null;
+    if (post) await notifyUsers([post.author_id], { type: "like", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
   }
   await pushStats(id);
   return { liked: !del.meta.changes };
@@ -149,21 +160,25 @@ export async function toggleRepost(postId: string) {
     const ins = await env.DB.prepare(
       "INSERT INTO posts (id, author_id, repost_of, created_at) SELECT ?, ?, id, ? FROM posts WHERE id = ? AND repost_of IS NULL AND author_id <> ?",
     ).bind(entryId, userId, Date.now(), id, userId).run();
-    if (ins.meta.changes) await broadcast({ t: "post", id: entryId, authorId: userId });
+    if (ins.meta.changes) {
+      await broadcast({ t: "post", id: entryId, authorId: userId });
+      const post = await postOf(id);
+      if (post) await notifyUsers([post.author_id], { type: "repost", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
+    }
   }
   await pushStats(id);
   return { reposted: !removed };
 }
 
-export type Comment = { id: string; body: string; createdAt: number; author: { id: string; name: string; imageUrl: string | null } };
+export type Comment = { id: string; body: string; createdAt: number; author: { id: string; name: string; imageUrl: string | null; handle: string | null } };
 
 export async function loadComments(postId: string): Promise<Comment[]> {
   await viewer();
   const { results } = await env.DB.prepare(
-    `SELECT c.id, c.body, c.created_at, u.id AS uid, u.name, u.image_url FROM comments c JOIN users u ON u.id = c.author_id
+    `SELECT c.id, c.body, c.created_at, u.id AS uid, u.name, u.image_url, u.handle FROM comments c JOIN users u ON u.id = c.author_id
      WHERE c.post_id = ? ORDER BY c.created_at LIMIT 200`,
-  ).bind(String(postId)).all<{ id: string; body: string; created_at: number; uid: string; name: string; image_url: string | null }>();
-  return results.map((r) => ({ id: r.id, body: r.body, createdAt: r.created_at, author: { id: r.uid, name: r.name, imageUrl: r.image_url } }));
+  ).bind(String(postId)).all<{ id: string; body: string; created_at: number; uid: string; name: string; image_url: string | null; handle: string | null }>();
+  return results.map((r) => ({ id: r.id, body: r.body, createdAt: r.created_at, author: { id: r.uid, name: r.name, imageUrl: r.image_url, handle: r.handle } }));
 }
 
 export async function addComment(postId: string, input: string) {
@@ -175,9 +190,19 @@ async function comment(postId: string, input: string) {
   const body = text(input, MAX_COMMENT_CHARS);
   if (!body) throw new Fail("Comment is empty");
   await syncUser(userId);
+  const commentId = crypto.randomUUID();
   const ins = await env.DB.prepare("INSERT INTO comments (id, post_id, author_id, body, created_at) SELECT ?, id, ?, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL")
-    .bind(crypto.randomUUID(), userId, body, Date.now(), String(postId)).run();
+    .bind(commentId, userId, body, Date.now(), String(postId)).run();
   if (!ins.meta.changes) throw new Fail("This post was deleted");
+  const post = await postOf(String(postId));
+  if (post) {
+    const link = `/dashboard/post/${String(postId)}`;
+    await notifyUsers([post.author_id], { type: "comment", actor: userId, ref: commentId, link, body: snippet(body) });
+    // People already in the conversation hear about it too (the author already got the message above)
+    const { results } = await env.DB.prepare("SELECT DISTINCT author_id FROM comments WHERE post_id = ? AND author_id NOT IN (?, ?) LIMIT 50")
+      .bind(String(postId), userId, post.author_id).all<{ author_id: string }>();
+    await notifyUsers(results.map((r) => r.author_id), { type: "thread", actor: userId, ref: commentId, link, body: snippet(body) });
+  }
   await pushStats(String(postId));
   return loadComments(postId);
 }
@@ -192,6 +217,7 @@ export async function toggleFollow(targetId: string) {
       .bind(userId, Date.now(), id).run();
   }
   await notify("follow", userId, id);
+  if (!del.meta.changes) await notifyUsers([id], { type: "follow", actor: userId, ref: "", link: "/dashboard/network" });
   return { following: !del.meta.changes };
 }
 
@@ -235,7 +261,10 @@ export async function connect(targetId: string) {
     `INSERT OR IGNORE INTO invitations (from_id, to_id, created_at) SELECT ?1, id, ?3 FROM users
      WHERE id = ?2 AND NOT EXISTS (SELECT 1 FROM connections WHERE user_id = ?1 AND peer_id = ?2)`,
   ).bind(me, id, Date.now()).run();
-  if (ins.meta.changes) await notify("invite", me, id);
+  if (ins.meta.changes) {
+    await notify("invite", me, id);
+    await notifyUsers([id], { type: "invite", actor: me, ref: me, link: "/dashboard/network" });
+  }
 }
 
 export async function acceptInvite(fromId: string) {
@@ -252,6 +281,7 @@ export async function acceptInvite(fromId: string) {
     env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, id),
   ]);
   await notify("connect", me, id);
+  await notifyUsers([id], { type: "accept", actor: me, ref: me, link: "/dashboard/network" });
 }
 
 /** The sender isn't told (same as LinkedIn): their request just stays pending on their side. */
@@ -323,6 +353,7 @@ async function createJob(input: Record<string, unknown>) {
     "INSERT INTO jobs (id, poster_id, title, company, location, workplace, type, level, salary, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   ).bind(id, me, job.title, job.company, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()).run();
   await broadcast({ t: "job", id, posterId: me });
+  await notifyUsers(await followersOf(me), { type: "job", actor: me, ref: id, link: `/dashboard/jobs?id=${id}`, body: job.title });
   return getJob(me, id);
 }
 
@@ -337,6 +368,12 @@ export async function setJobClosed(jobId: string, closed: boolean) {
   const upd = await env.DB.prepare("UPDATE jobs SET closed_at = ? WHERE id = ? AND poster_id = ?").bind(closed ? Date.now() : null, String(jobId), me).run();
   if (!upd.meta.changes) throw new Error("Job not found");
   await pushJobStats(String(jobId));
+  if (closed) {
+    const { results } = await env.DB.prepare("SELECT applicant_id FROM applications WHERE job_id = ? LIMIT 200").bind(String(jobId)).all<{ applicant_id: string }>();
+    await notifyUsers(results.map((r) => r.applicant_id), {
+      type: "job_closed", actor: me, ref: String(jobId), link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`, body: await jobTitle(String(jobId)),
+    });
+  }
 }
 
 export async function toggleSaveJob(jobId: string) {
@@ -362,7 +399,7 @@ async function apply(jobId: string, input: Record<string, unknown>) {
   const resumeKey = text(input.resumeKey, 200);
   if (!EMAIL.test(email)) throw new Fail("Enter a valid email");
   if (phone && !/^[+\d\s().-]{6,}$/.test(phone)) throw new Fail("Enter a valid phone number");
-  if (!resumeKey.startsWith(`${me}/`)) throw new Fail("Upload your resume");
+  if (!inFolder(resumeKey, "resumes", me)) throw new Fail("Upload your resume");
   const obj = await env.MEDIA.head(resumeKey);
   if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume");
 
@@ -378,7 +415,10 @@ async function apply(jobId: string, input: Record<string, unknown>) {
     throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");
   }
   const job = await getJob(me, jobId);
-  if (job) await sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
+  if (job) {
+    await sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
+    await notifyUsers([job.poster.id], { type: "applicant", actor: me, ref: jobId, link: `/dashboard/jobs?tab=posted&id=${jobId}`, body: job.title });
+  }
   await pushJobStats(jobId);
   return job;
 }
@@ -393,6 +433,11 @@ export async function loadApplicants(jobId: string) {
      RETURNING applicant_id`,
   ).bind(id, me, Date.now()).all<{ applicant_id: string }>();
   await Promise.all(results.map((r) => sendTo(r.applicant_id, { t: "app", jobId: id, applicantId: r.applicant_id, status: "viewed" })));
+  if (results.length) {
+    await notifyUsers(results.map((r) => r.applicant_id), {
+      type: "app_viewed", actor: me, ref: id, link: `/dashboard/jobs?tab=applied&id=${id}`, body: await jobTitle(id),
+    });
+  }
   return getApplicants(me, id);
 }
 
@@ -405,4 +450,43 @@ export async function setApplicationStatus(jobId: string, applicantId: string, s
   ).bind(String(jobId), String(applicantId), me, s, Date.now()).run();
   if (!upd.meta.changes) throw new Error("Application not found");
   await sendTo(String(applicantId), { t: "app", jobId: String(jobId), applicantId: String(applicantId), status: s });
+  if (s === "viewed" || s === "shortlisted" || s === "rejected") {
+    await notifyUsers([String(applicantId)], {
+      type: `app_${s}`, actor: me, ref: String(jobId), link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`, body: await jobTitle(String(jobId)),
+    });
+  }
 }
+
+// ---- Notifications ----
+
+export async function loadNotifications(cursor?: string) {
+  return listNotifications(await viewer(), cursor ? String(cursor) : undefined);
+}
+
+/** Opening the page clears the badge on every open tab and device; items stay unread until clicked. */
+export async function markSeen() {
+  const me = await viewer();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET notif_seen_at = ? WHERE id = ?").bind(Date.now(), me),
+    // Keep the table bounded: nobody scrolls back three months
+    env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND created_at < ?").bind(me, Date.now() - 90 * 86_400_000),
+  ]);
+  await sendTo(me, { t: "notif-seen" });
+}
+
+export async function markRead(id: string) {
+  const me = await viewer();
+  await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ? AND read_at IS NULL").bind(Date.now(), String(id), me).run();
+}
+
+export async function markAllRead() {
+  const me = await viewer();
+  await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL").bind(Date.now(), me).run();
+}
+
+export async function deleteNotification(id: string) {
+  const me = await viewer();
+  await env.DB.prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?").bind(String(id), me).run();
+}
+
+export const loadUnseen = async () => unseenCount(await viewer());
