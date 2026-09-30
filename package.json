@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "lint": "eslint",
-    "test": "node --experimental-strip-types lib/rank.test.ts",
+    "test": "node --experimental-strip-types lib/rank.test.ts && node --experimental-strip-types lib/job-fields.test.ts",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply hire-excellence-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply hire-excellence-db --remote"
@@ -16,10 +16,13 @@
   "dependencies": {
     "@clerk/backend": "^3.21.0",
     "@clerk/nextjs": "^7.9.8",
+    "clsx": "^2.1.1",
+    "motion": "^13.4.6",
     "next": "16.3.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-server-dom-webpack": "^19.2.8",
+    "tailwind-merge": "^3.7.0",
     "vinext": "^1.0.0"
   },
   "devDependencies": {

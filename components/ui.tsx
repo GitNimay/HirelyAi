@@ -21,8 +21,18 @@ export const icons = {
   edit: "M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
   clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 6v6l4 2",
   check: "M20 6 9 17l-5-5",
+  bookmark: "m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",
+  pin: "M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
+  back: "m15 18-6-6 6-6",
+  plus: "M12 5v14M5 12h14",
+  file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
   trash: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
 };
+
+export const btn = "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+export const btnPrimary = `${btn} bg-foreground text-background hover:bg-white`;
+export const btnOutline = `${btn} border border-border text-foreground hover:bg-surface-hover`;
+export const btnGhost = `${btn} text-muted hover:bg-surface-hover hover:text-foreground`;
 
 /** Compact relative time: now, 5m, 3h, 2d, then a date. */
 export function ago(ms: number) {

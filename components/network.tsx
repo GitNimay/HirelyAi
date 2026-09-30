@@ -4,15 +4,10 @@ import { useEffect, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import type { Network as Net, Person } from "@/lib/network";
 import type { NetEvent } from "@/lib/realtime";
-import { ago, Avatar, Icon, icons } from "./ui";
+import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Tab = "grow" | "connections" | "sent";
-
-const btn = "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-const btnPrimary = `${btn} bg-foreground text-background hover:bg-white`;
-const btnOutline = `${btn} border border-border text-foreground hover:bg-surface-hover`;
-const btnGhost = `${btn} text-muted hover:bg-surface-hover hover:text-foreground`;
 
 const without = (list: Person[], id: string) => list.filter((p) => p.id !== id);
 const upsert = (list: Person[], p: Person) => [p, ...without(list, p.id)];
