@@ -1,0 +1,705 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import * as actions from "@/app/dashboard/actions";
+import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
+import type { Applicant, Job, JobPage } from "@/lib/jobs";
+import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
+import { useRealtime } from "./use-realtime";
+
+type Tab = "search" | MyJobsTab;
+type Contact = { email: string; phone: string; resumeKey: string };
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "search", label: "Search" },
+  { id: "saved", label: "Saved" },
+  { id: "applied", label: "Applied" },
+  { id: "posted", label: "Posted" },
+];
+const EMPTY: Record<Tab, string> = {
+  search: "No open jobs yet. Be the first to post one.",
+  saved: "Jobs you save show up here.",
+  applied: "Jobs you apply to show up here.",
+  posted: "Jobs you post show up here.",
+};
+const field = "h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none focus:border-ring";
+const select = `${field} bg-surface`;
+const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
+
+function posted(ms: number) {
+  const a = ago(ms);
+  return a === "now" ? "Just now" : /^\d/.test(a) ? `${a} ago` : a;
+}
+const where = (j: Job) => (j.location ? `${j.location} (${WORKPLACES[j.workplace]})` : WORKPLACES[j.workplace]);
+const applicantsText = (n: number) => (n === 0 ? "Be an early applicant" : `${n} applicant${n === 1 ? "" : "s"}`);
+
+/**
+ * Jobs, in the feed column: search with LinkedIn's core filters, saved/applied/posted lists, and a job's
+ * details opening under the search in place of the list. Live via /api/realtime.
+ */
+export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSelected, contact: initialContact }: {
+  viewerId: string;
+  initialTab: Tab;
+  initial: JobPage;
+  initialFilters: JobFilters;
+  initialSelected: Job | null;
+  contact: Contact;
+}) {
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [filters, setFilters] = useState(initialFilters);
+  const [byId, setById] = useState<Record<string, Job>>(() => Object.fromEntries([...initial.jobs, ...(initialSelected ? [initialSelected] : [])].map((j) => [j.id, j])));
+  const [list, setList] = useState({ ids: initial.jobs.map((j) => j.id), next: initial.next });
+  const [selectedId, setSelectedId] = useState(initialSelected?.id ?? null);
+  const [loading, setLoading] = useState(false);
+  const [fresh, setFresh] = useState(0);
+  const [applying, setApplying] = useState(false);
+  const [contact, setContact] = useState(initialContact);
+  const [applicants, setApplicants] = useState<Record<string, Applicant[]>>({});
+  const sentinel = useRef<HTMLDivElement>(null);
+  const request = useRef(0);
+  const listScroll = useRef(0);
+
+  const merge = (jobs: Job[]) => setById((m) => ({ ...m, ...Object.fromEntries(jobs.map((j) => [j.id, j])) }));
+  const patch = (id: string, fn: (j: Job) => Partial<Job>) => setById((m) => (m[id] ? { ...m, [id]: { ...m[id], ...fn(m[id]) } } : m));
+
+  /** Shareable URL for what's on screen; replaceState keeps Back meaning "leave Jobs". */
+  function syncUrl(t: Tab, f: JobFilters, id: string | null) {
+    const entries = Object.entries({ tab: t === "search" ? null : t, ...(t === "search" ? f : {}), id });
+    const qs = new URLSearchParams(entries.filter((e): e is [string, string] => !!e[1]));
+    history.replaceState(null, "", qs.size ? `?${qs}` : location.pathname);
+  }
+
+  /** Newest request wins, so fast filter changes never show stale results. */
+  async function load(t: Tab, f: JobFilters, append = false) {
+    const n = ++request.current;
+    setLoading(true);
+    try {
+      const res = t === "search" ? await actions.loadJobs(f, append ? (list.next ?? undefined) : undefined) : { jobs: await actions.loadMyJobs(t), next: null };
+      if (n !== request.current) return;
+      merge(res.jobs);
+      setList((l) => ({ ids: append ? [...l.ids, ...res.jobs.map((j) => j.id).filter((id) => !l.ids.includes(id))] : res.jobs.map((j) => j.id), next: res.next }));
+      if (!append && t === "search") setFresh(0);
+    } catch {
+      // keep what's on screen; the next visibility resync retries
+    } finally {
+      if (n === request.current) setLoading(false);
+    }
+  }
+
+  function switchTab(t: Tab) {
+    setTab(t);
+    setSelectedId(null);
+    setList({ ids: [], next: null });
+    syncUrl(t, filters, null);
+    load(t, filters);
+  }
+
+  function applyFilters(f: JobFilters) {
+    setFilters(f);
+    setSelectedId(null);
+    syncUrl("search", f, null);
+    load("search", f);
+  }
+
+  /** Open a job in place of the list, and come back to the same scroll position. */
+  function choose(id: string | null) {
+    if (id) listScroll.current = window.scrollY;
+    setSelectedId(id);
+    syncUrl(tab, filters, id);
+    requestAnimationFrame(() => window.scrollTo({ top: id ? 0 : listScroll.current }));
+  }
+
+  async function refreshApplicants(jobId: string) {
+    const list = await actions.loadApplicants(jobId);
+    setApplicants((a) => ({ ...a, [jobId]: list }));
+  }
+
+  useRealtime((e) => {
+    if (e.t === "job" && e.posterId !== viewerId) setFresh((n) => n + 1);
+    else if (e.t === "jobstat") patch(e.id, (j) => ({ applicants: e.applicants, closedAt: e.closed ? (j.closedAt ?? Date.now()) : null }));
+    else if (e.t === "app" && e.applicantId === viewerId) patch(e.jobId, (j) => ({ application: { status: e.status, at: j.application?.at ?? Date.now() } }));
+    else if (e.t === "app" && applicants[e.jobId]) refreshApplicants(e.jobId).catch(() => {});
+  });
+
+  // Events sent while the socket was down are gone, so resync whenever the tab comes back
+  const resync = useEffectEvent(() => load(tab, filters));
+  useEffect(() => {
+    const onShow = () => document.visibilityState === "visible" && resync();
+    document.addEventListener("visibilitychange", onShow);
+    return () => document.removeEventListener("visibilitychange", onShow);
+  }, []);
+
+  const loadMore = useEffectEvent(() => {
+    if (list.next && !loading && !selectedId) load(tab, filters, true);
+  });
+  useEffect(() => {
+    if (!sentinel.current) return;
+    const io = new IntersectionObserver((es) => es[0].isIntersecting && loadMore(), { rootMargin: "400px" });
+    io.observe(sentinel.current);
+    return () => io.disconnect();
+  }, []);
+
+  async function toggleSave(j: Job) {
+    patch(j.id, () => ({ saved: !j.saved }));
+    try {
+      const { saved } = await actions.toggleSaveJob(j.id);
+      patch(j.id, () => ({ saved }));
+    } catch {
+      patch(j.id, () => ({ saved: j.saved }));
+    }
+  }
+
+  async function setClosed(j: Job, closed: boolean) {
+    if (closed && !confirm("Close this job? It stops accepting applications and leaves search.")) return;
+    patch(j.id, () => ({ closedAt: closed ? Date.now() : null }));
+    await actions.setJobClosed(j.id, closed).catch(() => patch(j.id, () => ({ closedAt: j.closedAt })));
+  }
+
+  const ids = list.ids.filter((id) => byId[id]);
+  const shown = selectedId ? byId[selectedId] : undefined;
+  const hasFilters = Object.values(filters).some(Boolean);
+
+  return (
+    <>
+      <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+        <div className="flex h-14 items-center justify-between px-4">
+          <h1 className="text-sm font-semibold">Jobs</h1>
+          <Link href="/dashboard/jobs/post" className={btnOutline}>
+            <Icon d={icons.plus} size={14} />
+            Post a job
+          </Link>
+        </div>
+        <nav className="flex px-2" aria-label="Job lists">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={tab === t.id}
+              onClick={() => (tab !== t.id ? switchTab(t.id) : shown && choose(null))}
+              className={`relative flex h-10 items-center px-3 text-sm transition-colors hover:text-foreground ${tab === t.id ? "font-medium text-foreground" : "text-muted"}`}
+            >
+              {t.label}
+              {tab === t.id && <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-link" />}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      {tab === "search" && <SearchForm filters={filters} onChange={applyFilters} hasFilters={hasFilters} />}
+
+      {shown && (
+        <>
+          <button type="button" onClick={() => choose(null)} className="flex h-10 w-full items-center gap-1.5 border-b border-border px-3 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+            <Icon d={icons.back} size={16} />
+            Back to results
+          </button>
+          <JobDetail
+            key={shown.id}
+            job={shown}
+            mine={shown.poster.id === viewerId}
+            applicants={applicants[shown.id]}
+            onApply={() => setApplying(true)}
+            onSave={() => toggleSave(shown)}
+            onClose={(c) => setClosed(shown, c)}
+            onLoadApplicants={() => refreshApplicants(shown.id)}
+            onStatus={async (a, status) => {
+              setApplicants((m) => ({ ...m, [shown.id]: m[shown.id].map((x) => (x.id === a.id ? { ...x, status } : x)) }));
+              await actions.setApplicationStatus(shown.id, a.id, status).catch(() => refreshApplicants(shown.id));
+            }}
+          />
+        </>
+      )}
+
+      {/* Stays mounted while a job is open so infinite scroll and the list position survive */}
+      <div className={shown ? "hidden" : undefined}>
+        {tab === "search" && fresh > 0 && (
+          <button type="button" onClick={() => load("search", filters)} className="h-10 w-full border-b border-border text-sm text-link transition-colors hover:bg-surface">
+            Show {fresh} new job{fresh === 1 ? "" : "s"}
+          </button>
+        )}
+        {ids.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-muted">{loading ? "Loading…" : tab === "search" && hasFilters ? "No jobs match these filters." : EMPTY[tab]}</p>
+        ) : (
+          <ul className="divide-y divide-border border-b border-border">
+            {ids.map((id) => (
+              <JobRow key={id} job={byId[id]} mine={byId[id].poster.id === viewerId} onOpen={() => choose(id)} />
+            ))}
+          </ul>
+        )}
+        <div ref={sentinel} className="h-px" />
+        {loading && ids.length > 0 && <p className="py-4 text-center text-sm text-muted">Loading…</p>}
+      </div>
+
+      {applying && shown && (
+        <ApplyDialog
+          job={shown}
+          contact={contact}
+          onClose={() => setApplying(false)}
+          onApplied={(job, c) => {
+            merge([job]);
+            setContact(c);
+            setApplying(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function SearchForm({ filters, onChange, hasFilters }: { filters: JobFilters; onChange: (f: JobFilters) => void; hasFilters: boolean }) {
+  const [q, setQ] = useState(filters.q ?? "");
+  const [loc, setLoc] = useState(filters.loc ?? "");
+  const selects = [
+    { key: "posted", label: "Date posted", opts: POSTED },
+    { key: "workplace", label: "Workplace", opts: WORKPLACES },
+    { key: "type", label: "Job type", opts: JOB_TYPES },
+    { key: "level", label: "Experience", opts: LEVELS },
+  ] as const;
+
+  return (
+    <form
+      className="space-y-2 border-b border-border px-4 py-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onChange({ ...filters, q: q.trim() || undefined, loc: loc.trim() || undefined });
+      }}
+    >
+      <div className="flex gap-2">
+        <label className="flex h-9 min-w-0 flex-[3] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
+          <Icon d={icons.search} size={16} />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Title, skill or company" aria-label="Keyword" className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none" />
+        </label>
+        <label className="flex h-9 min-w-0 flex-[2] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
+          <Icon d={icons.pin} size={16} />
+          <input type="search" value={loc} onChange={(e) => setLoc(e.target.value)} placeholder="Location" aria-label="Location" className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none" />
+        </label>
+        <button type="submit" className={`${btnPrimary} h-9`}>Search</button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {selects.map(({ key, label, opts }) => (
+          <select
+            key={key}
+            aria-label={label}
+            value={filters[key] ?? ""}
+            onChange={(e) => onChange({ ...filters, [key]: e.target.value || undefined })}
+            className={`h-8 rounded-full border px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${filters[key] ? "border-link bg-link/10 text-foreground" : "border-border bg-background text-muted hover:text-foreground"}`}
+          >
+            <option value="">{label}</option>
+            {Object.entries(opts).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        ))}
+        {hasFilters && (
+          <button
+            type="button"
+            className="h-8 px-2 text-xs text-muted hover:text-foreground"
+            onClick={() => {
+              setQ("");
+              setLoc("");
+              onChange({});
+            }}
+          >
+            Reset
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function CompanyMark({ name, size = 48 }: { name: string; size?: number }) {
+  return (
+    <span className="flex shrink-0 items-center justify-center rounded-md border border-border bg-surface font-semibold text-muted" style={{ width: size, height: size, fontSize: size / 2.6 }}>
+      {name.trim()[0]?.toUpperCase() ?? "?"}
+    </span>
+  );
+}
+
+function JobRow({ job: j, mine, onOpen }: { job: Job; mine: boolean; onOpen: () => void }) {
+  const tag = j.closedAt ? "Closed" : j.application ? (j.application.status === "submitted" ? "Applied" : STATUSES[j.application.status]) : mine ? "Your job" : j.saved ? "Saved" : null;
+  return (
+    <li>
+      <button type="button" onClick={onOpen} className="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface">
+        <CompanyMark name={j.company} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-link">{j.title}</p>
+          <p className="truncate text-sm">{j.company}</p>
+          <p className="truncate text-xs text-muted">{where(j)}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted" suppressHydrationWarning>
+            {tag && <span className="font-medium text-foreground">{tag} ·</span>}
+            {posted(j.createdAt)}
+            {j.applicants > 0 && <span>· {applicantsText(j.applicants)}</span>}
+          </p>
+        </div>
+      </button>
+    </li>
+  );
+}
+
+function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadApplicants, onStatus }: {
+  job: Job;
+  mine: boolean;
+  applicants?: Applicant[];
+  onApply: () => void;
+  onSave: () => void;
+  onClose: (closed: boolean) => void;
+  onLoadApplicants: () => Promise<void>;
+  onStatus: (a: Applicant, s: AppStatus) => void;
+}) {
+  const [view, setView] = useState<"details" | "applicants">("details");
+  const [copied, setCopied] = useState(false);
+
+  async function share() {
+    const url = `${location.origin}/dashboard/jobs?id=${j.id}`;
+    if (navigator.share) await navigator.share({ url, title: `${j.title} at ${j.company}` }).catch(() => {});
+    else {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  function showApplicants() {
+    setView("applicants");
+    if (!applicants) onLoadApplicants().catch(() => {});
+  }
+
+  return (
+    <article className="border-b border-border">
+      <div className="space-y-4 border-b border-border p-4">
+        <div className="flex items-center gap-2 text-sm">
+          <CompanyMark name={j.company} size={28} />
+          <span className="font-medium">{j.company}</span>
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-balance">{j.title}</h2>
+          <p className="mt-1 text-sm text-muted" suppressHydrationWarning>
+            {where(j)} · {posted(j.createdAt)} · {applicantsText(j.applicants)}
+          </p>
+        </div>
+        <ul className="flex flex-wrap gap-2 text-xs">
+          {[WORKPLACES[j.workplace], JOB_TYPES[j.type], LEVELS[j.level], j.salary].filter(Boolean).map((t) => (
+            <li key={t} className="rounded-full border border-border px-2.5 py-1 text-muted">{t}</li>
+          ))}
+        </ul>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {mine ? (
+            <>
+              <button type="button" className={j.closedAt ? btnPrimary : btnOutline} onClick={() => onClose(!j.closedAt)}>
+                {j.closedAt ? "Reopen job" : "Close job"}
+              </button>
+              {j.closedAt && <span className="text-sm text-muted">No longer accepting applications</span>}
+            </>
+          ) : j.application ? (
+            <span className={`${btn} border border-border text-muted`} suppressHydrationWarning>
+              <Icon d={icons.check} size={14} />
+              Applied {posted(j.application.at).toLowerCase()} · {STATUSES[j.application.status]}
+            </span>
+          ) : j.closedAt ? (
+            <span className="text-sm text-muted">No longer accepting applications</span>
+          ) : (
+            <button type="button" className={btnPrimary} onClick={onApply}>Easy Apply</button>
+          )}
+          {!mine && (
+            <button type="button" className={btnOutline} aria-pressed={j.saved} onClick={onSave}>
+              <Icon d={icons.bookmark} size={14} className={j.saved ? "fill-current" : ""} />
+              {j.saved ? "Saved" : "Save"}
+            </button>
+          )}
+          <button type="button" className={btnGhost} onClick={share}>
+            <Icon d={icons.share} size={14} />
+            {copied ? "Link copied" : "Share"}
+          </button>
+        </div>
+      </div>
+
+      {mine && (
+        <nav className="flex border-b border-border px-2" aria-label="Job views">
+          {(["details", "applicants"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => (v === "applicants" ? showApplicants() : setView(v))}
+              className={`relative flex h-10 items-center gap-1.5 px-3 text-sm capitalize transition-colors hover:text-foreground ${view === v ? "font-medium text-foreground" : "text-muted"}`}
+            >
+              {v}
+              {v === "applicants" && <span className="rounded-full bg-surface-hover px-1.5 text-xs tabular-nums text-muted">{j.applicants}</span>}
+              {view === v && <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-link" />}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {view === "applicants" ? (
+        <Applicants list={applicants} onStatus={onStatus} />
+      ) : (
+        <>
+          <section className="border-b border-border p-4">
+            <h3 className="mb-3 text-sm font-semibold">Meet the hiring team</h3>
+            <div className="flex items-center gap-3">
+              <Avatar name={j.poster.name} src={j.poster.imageUrl ?? undefined} size={40} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{j.poster.name}{mine && <span className="font-normal text-muted"> · You</span>}</p>
+                <p className="truncate text-xs text-muted">{j.poster.headline ?? "Job poster"}</p>
+              </div>
+            </div>
+          </section>
+          <section className="p-4">
+            <h3 className="mb-3 text-sm font-semibold">About the job</h3>
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{j.description}</p>
+          </section>
+        </>
+      )}
+    </article>
+  );
+}
+
+function Applicants({ list, onStatus }: { list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
+  if (!list) return <p className="p-4 text-sm text-muted">Loading applicants…</p>;
+  if (list.length === 0) return <p className="p-4 text-sm text-muted">No applicants yet. New ones show up here as they apply.</p>;
+  return (
+    <ul className="divide-y divide-border">
+      {list.map((a) => (
+        <li key={a.id} className="flex gap-3 p-4">
+          <Avatar name={a.name} src={a.imageUrl ?? undefined} size={40} />
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{a.name}</p>
+                {a.headline && <p className="truncate text-xs text-muted">{a.headline}</p>}
+              </div>
+              <select
+                aria-label={`Status for ${a.name}`}
+                value={a.status === "submitted" ? "viewed" : a.status}
+                onChange={(e) => onStatus(a, e.target.value as AppStatus)}
+                className="h-8 shrink-0 rounded-md border border-border bg-surface px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {(["viewed", "shortlisted", "rejected"] as const).map((s) => (
+                  <option key={s} value={s}>{s === "viewed" ? "Under review" : STATUSES[s]}</option>
+                ))}
+              </select>
+            </div>
+            <p className="flex flex-wrap gap-x-3 text-xs text-muted" suppressHydrationWarning>
+              <a href={`mailto:${a.email}`} className="text-link hover:underline">{a.email}</a>
+              {a.phone && <a href={`tel:${a.phone}`} className="hover:text-foreground">{a.phone}</a>}
+              <span>Applied {posted(a.at).toLowerCase()}</span>
+            </p>
+            {a.note && <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{a.note}</p>}
+            <a href={`/api/media/${a.resumeKey}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline">
+              <Icon d={icons.file} size={14} />
+              Download resume
+            </a>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Native <dialog>: focus trap, Escape and inert background for free. */
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => ref.current?.showModal(), []);
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onClick={(e) => e.target === ref.current && onClose()}
+      aria-label={title}
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-black/60"
+    >
+      <div className="flex h-14 items-center justify-between border-b border-border px-5">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <button type="button" onClick={onClose} aria-label="Close" className={`${btnGhost} px-2`}>
+          <Icon d={icons.close} size={16} />
+        </button>
+      </div>
+      {children}
+    </dialog>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-sm font-medium">{label}{hint && <span className="font-normal text-muted"> · {hint}</span>}</span>
+      {children}
+    </label>
+  );
+}
+
+function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: Contact; onClose: () => void; onApplied: (j: Job, c: Contact) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setBusy(true);
+    setError("");
+    try {
+      let resumeKey = contact.resumeKey;
+      if (file) {
+        const res = await fetch("/api/uploads", { method: "PUT", headers: { "Content-Type": RESUME_TYPE }, body: file });
+        const data = (await res.json()) as { key?: string; error?: string };
+        if (!res.ok || !data.key) throw new Error(data.error ?? "Upload failed");
+        resumeKey = data.key;
+      }
+      const c = { email: String(fd.get("email")), phone: String(fd.get("phone")), resumeKey };
+      const r = await actions.applyToJob(job.id, { ...c, note: fd.get("note") });
+      if ("error" in r) throw new Error(r.error);
+      onApplied(r.job, c);
+    } catch (err) {
+      setError(errMsg(err));
+      setBusy(false);
+    }
+  }
+
+  function pick(f: File | undefined) {
+    setError("");
+    if (!f) return setFile(null);
+    if (f.type !== RESUME_TYPE) return setError("Resume must be a PDF");
+    if (f.size > MAX_RESUME_BYTES) return setError("Resume must be 5 MB or smaller");
+    setFile(f);
+  }
+
+  return (
+    <Modal title={`Apply to ${job.company}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4 p-5">
+        <p className="text-sm text-muted">{job.title} · {where(job)}</p>
+        <Field label="Email">
+          <input name="email" type="email" required maxLength={LIMITS.email} defaultValue={contact.email} autoComplete="email" className={field} />
+        </Field>
+        <Field label="Phone" hint="optional">
+          <input name="phone" type="tel" maxLength={LIMITS.phone} defaultValue={contact.phone} autoComplete="tel" className={field} />
+        </Field>
+        <Field label="Resume" hint="PDF, up to 5 MB">
+          <div className="flex items-center gap-3 rounded-md border border-dashed border-border px-3 py-2.5">
+            <Icon d={icons.file} size={18} className="text-muted" />
+            <span className="min-w-0 flex-1 truncate text-sm">{file ? file.name : contact.resumeKey ? "Resume from your last application" : <span className="text-muted">No file chosen</span>}</span>
+            <span className={btnOutline}>{file || contact.resumeKey ? "Replace" : "Upload"}</span>
+            <input type="file" accept={RESUME_TYPE} className="sr-only" required={!contact.resumeKey} onChange={(e) => pick(e.target.files?.[0])} />
+          </div>
+        </Field>
+        <Field label="Why you're a fit" hint="optional">
+          <textarea name="note" rows={4} maxLength={LIMITS.note} className={`${field} h-auto resize-none py-2`} />
+        </Field>
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" className={btnGhost} onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? (file ? "Uploading…" : "Submitting…") : "Submit application"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** Dedicated Post a job page in the feed column: grouped sections, then straight to the new listing. */
+export function PostJobForm() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [workplace, setWorkplace] = useState("onsite");
+  const [chars, setChars] = useState(0);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const r = await actions.postJob(Object.fromEntries(new FormData(e.currentTarget)));
+      if ("error" in r) throw new Error(r.error);
+      router.push(`/dashboard/jobs?tab=posted&id=${r.job.id}`);
+    } catch (err) {
+      setError(errMsg(err));
+      setBusy(false);
+    }
+  }
+
+  const options = (opts: Record<string, string>) => Object.entries(opts).map(([v, l]) => <option key={v} value={v}>{l}</option>);
+
+  return (
+    <>
+      <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-border bg-background/80 px-2 backdrop-blur">
+        <Link href="/dashboard/jobs" aria-label="Back to jobs" className={`${btnGhost} px-2`}>
+          <Icon d={icons.back} size={18} />
+        </Link>
+        <h1 className="text-sm font-semibold">Post a job</h1>
+      </header>
+
+      <form onSubmit={submit}>
+        <FormSection title="Role" hint="What candidates see first in search.">
+          <Field label="Job title">
+            <input name="title" required autoFocus maxLength={LIMITS.title} placeholder="Senior Frontend Engineer" className={field} />
+          </Field>
+          <Field label="Company">
+            <input name="company" required maxLength={LIMITS.company} className={field} />
+          </Field>
+        </FormSection>
+
+        <FormSection title="Workplace">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Workplace type">
+              <select name="workplace" value={workplace} onChange={(e) => setWorkplace(e.target.value)} className={select}>{options(WORKPLACES)}</select>
+            </Field>
+            <Field label="Location" hint={workplace === "remote" ? "optional" : undefined}>
+              <input name="location" required={workplace !== "remote"} maxLength={LIMITS.location} placeholder="City, country" className={field} />
+            </Field>
+          </div>
+        </FormSection>
+
+        <FormSection title="Details">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Job type">
+              <select name="type" defaultValue="full-time" className={select}>{options(JOB_TYPES)}</select>
+            </Field>
+            <Field label="Experience level">
+              <select name="level" defaultValue="mid-senior" className={select}>{options(LEVELS)}</select>
+            </Field>
+          </div>
+          <Field label="Salary" hint="optional">
+            <input name="salary" maxLength={LIMITS.salary} placeholder="$120k–$150k / year" className={field} />
+          </Field>
+        </FormSection>
+
+        <FormSection title="Description" hint="Responsibilities, requirements, skills and benefits.">
+          <textarea
+            name="description"
+            required
+            minLength={50}
+            maxLength={LIMITS.description}
+            rows={12}
+            aria-label="Description"
+            onChange={(e) => setChars(e.target.value.length)}
+            className={`${field} h-auto resize-y py-2 leading-relaxed`}
+          />
+          <p className="text-right text-xs tabular-nums text-muted">{chars < 50 ? `${50 - chars} more characters needed` : `${chars} / ${LIMITS.description}`}</p>
+        </FormSection>
+
+        <div className="sticky bottom-12 flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
+          {error && <p role="alert" className="mr-auto text-sm text-danger">{error}</p>}
+          <Link href="/dashboard/jobs" className={btnGhost}>Cancel</Link>
+          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Posting…" : "Post job"}</button>
+        </div>
+      </form>
+    </>
+  );
+}
+
+function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-4 border-b border-border px-4 py-6">
+      <div>
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {hint && <p className="mt-0.5 text-sm text-muted">{hint}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}

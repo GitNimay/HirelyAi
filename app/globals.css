@@ -41,3 +41,9 @@ button:not(:disabled),
 [role="button"] {
   cursor: pointer;
 }
+
+/* Native dropdown lists: Windows paints them white, so match the dark theme explicitly */
+select option {
+  background-color: var(--surface);
+  color: var(--foreground);
+}

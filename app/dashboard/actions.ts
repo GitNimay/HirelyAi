@@ -3,6 +3,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
+import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
+import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
 import { isVideo, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
 import { getNetwork, getPersonAndCounts, profileOf, saveUser, searchPeople, syncDirectory } from "@/lib/network";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
@@ -273,4 +275,134 @@ export async function removeConnection(peerId: string) {
     env.DB.prepare("DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)").bind(me, id),
   ]);
   if (del.meta.changes) await notify("disconnect", me, id);
+}
+
+// ---- Jobs ----
+
+export async function loadJobs(filters: Record<string, unknown>, cursor?: string) {
+  return searchJobs(await viewer(), cleanFilters(filters ?? {}), cursor ? String(cursor) : undefined);
+}
+
+export async function loadMyJobs(tab: MyJobsTab) {
+  const me = await viewer();
+  return myJobs(me, tab === "applied" || tab === "posted" ? tab : "saved");
+}
+
+export async function loadJob(id: string) {
+  return getJob(await viewer(), String(id));
+}
+
+const oneOf = <T extends object>(opts: T, v: unknown, what: string) => {
+  if (typeof v !== "string" || !Object.hasOwn(opts, v)) throw new Fail(`Choose a ${what}`);
+  return v as keyof T;
+};
+
+export async function postJob(input: Record<string, unknown>) {
+  return createJob(input ?? {}).then((job) => ({ job: job! }), failed);
+}
+
+async function createJob(input: Record<string, unknown>) {
+  const me = await writer();
+  const job = {
+    title: text(input.title, LIMITS.title),
+    company: text(input.company, LIMITS.company),
+    location: text(input.location, LIMITS.location),
+    workplace: oneOf(WORKPLACES, input.workplace, "workplace type"),
+    type: oneOf(JOB_TYPES, input.type, "job type"),
+    level: oneOf(LEVELS, input.level, "experience level"),
+    salary: text(input.salary, LIMITS.salary) || null,
+    description: text(input.description, LIMITS.description),
+  };
+  if (!job.title || !job.company) throw new Fail("Add a job title and company");
+  if (job.workplace !== "remote" && !job.location) throw new Fail("Add a location for on-site and hybrid jobs");
+  if (job.description.length < 50) throw new Fail("Describe the role in at least 50 characters");
+
+  await syncUser(me);
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    "INSERT INTO jobs (id, poster_id, title, company, location, workplace, type, level, salary, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  ).bind(id, me, job.title, job.company, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()).run();
+  await broadcast({ t: "job", id, posterId: me });
+  return getJob(me, id);
+}
+
+async function pushJobStats(jobId: string) {
+  const j = await env.DB.prepare("SELECT applicant_count, closed_at FROM jobs WHERE id = ?").bind(jobId).first<{ applicant_count: number; closed_at: number | null }>();
+  if (j) await broadcast({ t: "jobstat", id: jobId, applicants: j.applicant_count, closed: j.closed_at !== null });
+}
+
+/** Close a listing to new applicants (it leaves search), or reopen it. */
+export async function setJobClosed(jobId: string, closed: boolean) {
+  const me = await writer();
+  const upd = await env.DB.prepare("UPDATE jobs SET closed_at = ? WHERE id = ? AND poster_id = ?").bind(closed ? Date.now() : null, String(jobId), me).run();
+  if (!upd.meta.changes) throw new Error("Job not found");
+  await pushJobStats(String(jobId));
+}
+
+export async function toggleSaveJob(jobId: string) {
+  const me = await writer();
+  const id = String(jobId);
+  const del = await env.DB.prepare("DELETE FROM saved_jobs WHERE user_id = ? AND job_id = ?").bind(me, id).run();
+  if (!del.meta.changes) await env.DB.prepare("INSERT INTO saved_jobs (user_id, job_id, created_at) SELECT ?, id, ? FROM jobs WHERE id = ?").bind(me, Date.now(), id).run();
+  return { saved: !del.meta.changes };
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Easy Apply: contact details plus a PDF resume this user uploaded. */
+export async function applyToJob(jobId: string, input: Record<string, unknown>) {
+  return apply(String(jobId), input ?? {}).then((job) => ({ job: job! }), failed);
+}
+
+async function apply(jobId: string, input: Record<string, unknown>) {
+  const me = await writer();
+  const email = text(input.email, LIMITS.email);
+  const phone = text(input.phone, LIMITS.phone) || null;
+  const note = text(input.note, LIMITS.note) || null;
+  const resumeKey = text(input.resumeKey, 200);
+  if (!EMAIL.test(email)) throw new Fail("Enter a valid email");
+  if (phone && !/^[+\d\s().-]{6,}$/.test(phone)) throw new Fail("Enter a valid phone number");
+  if (!resumeKey.startsWith(`${me}/`)) throw new Fail("Upload your resume");
+  const obj = await env.MEDIA.head(resumeKey);
+  if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume");
+
+  await syncUser(me);
+  const now = Date.now();
+  const ins = await env.DB.prepare(
+    `INSERT OR IGNORE INTO applications (job_id, applicant_id, email, phone, resume_key, note, created_at, updated_at)
+     SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2`,
+  ).bind(jobId, me, email, phone, resumeKey, note, now).run();
+  if (!ins.meta.changes) {
+    const job = await getJob(me, jobId);
+    if (job?.application) throw new Fail("You already applied to this job");
+    throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");
+  }
+  const job = await getJob(me, jobId);
+  if (job) await sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
+  await pushJobStats(jobId);
+  return job;
+}
+
+/** The poster's applicant list. Opening it marks new applications as viewed and tells those applicants, like LinkedIn. */
+export async function loadApplicants(jobId: string) {
+  const me = await viewer();
+  const id = String(jobId);
+  const { results } = await env.DB.prepare(
+    `UPDATE applications SET status = 'viewed', updated_at = ?3
+     WHERE job_id = ?1 AND status = 'submitted' AND EXISTS (SELECT 1 FROM jobs WHERE id = ?1 AND poster_id = ?2)
+     RETURNING applicant_id`,
+  ).bind(id, me, Date.now()).all<{ applicant_id: string }>();
+  await Promise.all(results.map((r) => sendTo(r.applicant_id, { t: "app", jobId: id, applicantId: r.applicant_id, status: "viewed" })));
+  return getApplicants(me, id);
+}
+
+export async function setApplicationStatus(jobId: string, applicantId: string, status: AppStatus) {
+  const me = await writer();
+  const s = oneOf(STATUSES, status, "status");
+  const upd = await env.DB.prepare(
+    `UPDATE applications SET status = ?4, updated_at = ?5
+     WHERE job_id = ?1 AND applicant_id = ?2 AND EXISTS (SELECT 1 FROM jobs WHERE id = ?1 AND poster_id = ?3)`,
+  ).bind(String(jobId), String(applicantId), me, s, Date.now()).run();
+  if (!upd.meta.changes) throw new Error("Application not found");
+  await sendTo(String(applicantId), { t: "app", jobId: String(jobId), applicantId: String(applicantId), status: s });
 }
