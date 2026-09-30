@@ -13,6 +13,7 @@ export type FeedPost = {
   body: string;
   media: Media[];
   createdAt: number;
+  editedAt: number | null;
   author: { id: string; name: string; imageUrl: string | null; headline: string | null };
   likes: number;
   comments: number;
@@ -24,7 +25,7 @@ export type FeedPost = {
 
 type Row = {
   entry_id: string; entry_at: number; entry_author: string; reposter_name: string; repost_of: string | null;
-  id: string; body: string; media: string | null; created_at: number; author_id: string;
+  id: string; body: string; media: string | null; created_at: number; edited_at: number | null; author_id: string;
   name: string; image_url: string | null; headline: string | null;
   like_count: number; comment_count: number; repost_count: number;
   liked: number; reposted: number; following: number;
@@ -36,7 +37,7 @@ const DAY = 86_400_000;
 // ?1 is always the viewer. A repost row (p) joins to the original it points at (t).
 const SELECT = `
   SELECT p.id AS entry_id, p.created_at AS entry_at, p.author_id AS entry_author, ru.name AS reposter_name, p.repost_of,
-         t.id, t.body, t.media, t.created_at, t.author_id, u.name, u.image_url, u.headline,
+         t.id, t.body, t.media, t.created_at, t.edited_at, t.author_id, u.name, u.image_url, u.headline,
          t.like_count, t.comment_count, t.repost_count,
          EXISTS (SELECT 1 FROM likes l WHERE l.post_id = t.id AND l.user_id = ?1) AS liked,
          EXISTS (SELECT 1 FROM posts r WHERE r.repost_of = t.id AND r.author_id = ?1) AS reposted,
@@ -54,6 +55,7 @@ const toPost = (r: Row): FeedPost => ({
   body: r.body,
   media: r.media ? JSON.parse(r.media) : [],
   createdAt: r.created_at,
+  editedAt: r.edited_at,
   author: { id: r.author_id, name: r.name, imageUrl: r.image_url, headline: r.headline },
   likes: r.like_count,
   comments: r.comment_count,

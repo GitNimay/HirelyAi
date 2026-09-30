@@ -55,22 +55,28 @@ export async function createPost(input: { body: string; media: string[] }) {
   return publish(input).then((post) => ({ post: post! }), failed);
 }
 
+/** Media must be objects this user uploaded (keys are server-issued and namespaced by user id). */
+async function checkMedia(userId: string, input: unknown): Promise<Media[]> {
+  const keys = Array.isArray(input) ? [...new Set(input.map(String))] : [];
+  if (keys.length > MAX_IMAGES) throw new Fail("A post can have up to 4 images or 1 video");
+  const media = await Promise.all(
+    keys.map(async (key) => {
+      if (!key.startsWith(`${userId}/`)) throw new Fail("Invalid media");
+      const obj = await env.MEDIA.head(key);
+      const type = obj?.httpMetadata?.contentType ?? "";
+      if (!obj || obj.customMetadata?.owner !== userId || !MEDIA_TYPES[type]) throw new Fail("Invalid media");
+      return { key, type };
+    }),
+  );
+  const videos = media.filter((m) => isVideo(m.type)).length;
+  if (videos > 1 || (videos === 1 && media.length > 1)) throw new Fail("A post can have up to 4 images or 1 video");
+  return media;
+}
+
 async function publish(input: { body: string; media: string[] }) {
   const userId = await writer();
   const body = text(input.body, MAX_POST_CHARS);
-  const keys = Array.isArray(input.media) ? [...new Set(input.media.map(String))] : [];
-
-  // Media must be objects this user uploaded (keys are server-issued and namespaced by user id)
-  const media: Media[] = [];
-  for (const key of keys.slice(0, MAX_IMAGES)) {
-    if (!key.startsWith(`${userId}/`)) throw new Fail("Invalid media");
-    const obj = await env.MEDIA.head(key);
-    const type = obj?.httpMetadata?.contentType ?? "";
-    if (!obj || obj.customMetadata?.owner !== userId || !MEDIA_TYPES[type]) throw new Fail("Invalid media");
-    media.push({ key, type });
-  }
-  const videos = media.filter((m) => isVideo(m.type)).length;
-  if (videos > 1 || (videos === 1 && media.length > 1)) throw new Fail("A post can have up to 4 images or 1 video");
+  const media = await checkMedia(userId, input.media);
   if (!body && media.length === 0) throw new Fail("Write something or add media");
 
   await syncUser(userId);
@@ -79,6 +85,34 @@ async function publish(input: { body: string; media: string[] }) {
     .bind(id, userId, body, media.length ? JSON.stringify(media) : null, Date.now()).run();
   await broadcast({ t: "post", id, authorId: userId });
   return getPost(userId, id);
+}
+
+/** Replace a post's text and media (keep, remove, or add newly uploaded files). */
+export async function editPost(id: string, input: { body: string; media: string[] }) {
+  return edit(String(id), input).then((r) => r, failed);
+}
+
+async function edit(id: string, input: { body: string; media: string[] }) {
+  const userId = await writer();
+  const post = await env.DB.prepare("SELECT media FROM posts WHERE id = ? AND author_id = ? AND repost_of IS NULL")
+    .bind(id, userId).first<{ media: string | null }>();
+  if (!post) throw new Fail("Post not found");
+
+  const body = text(input?.body, MAX_POST_CHARS);
+  const media = await checkMedia(userId, input?.media);
+  if (!body && media.length === 0) throw new Fail("Write something or add media");
+
+  const editedAt = Date.now();
+  await env.DB.prepare("UPDATE posts SET body = ?, media = ?, edited_at = ? WHERE id = ? AND author_id = ?")
+    .bind(body, media.length ? JSON.stringify(media) : null, editedAt, id, userId).run();
+
+  // Files dropped in this edit are no longer referenced anywhere
+  const kept = new Set(media.map((m) => m.key));
+  const removed = (post.media ? (JSON.parse(post.media) as Media[]) : []).filter((m) => !kept.has(m.key)).map((m) => m.key);
+  if (removed.length) await env.MEDIA.delete(removed);
+
+  await broadcast({ t: "edit", id, body, media, editedAt });
+  return { body, media, editedAt };
 }
 
 export async function deletePost(id: string) {

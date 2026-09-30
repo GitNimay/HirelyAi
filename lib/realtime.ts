@@ -1,9 +1,11 @@
 import { env } from "cloudflare:workers";
+import type { Media } from "./feed";
 
-/** Messages pushed to every connected feed. Ids and counts only; clients fetch content through authed actions. */
+/** Messages pushed to every connected (signed-in) feed: ids, counts, and edited content of posts they can already read. */
 export type FeedEvent =
   | { t: "post"; id: string; authorId: string }
   | { t: "stats"; id: string; likes: number; comments: number; reposts: number }
+  | { t: "edit"; id: string; body: string; media: Media[]; editedAt: number }
   | { t: "delete"; id: string };
 
 // ponytail: fixed shard count, every event fans out to all shards. Move to per-follower-group shards

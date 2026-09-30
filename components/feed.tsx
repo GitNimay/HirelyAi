@@ -49,6 +49,7 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
 
   const onEvent = useEffectEvent((e: FeedEvent) => {
     if (e.t === "stats") patch(e.id, () => ({ likes: e.likes, comments: e.comments, reposts: e.reposts }));
+    else if (e.t === "edit") patch(e.id, () => ({ body: e.body, media: e.media, editedAt: e.editedAt }));
     else if (e.t === "delete") setPage((pg) => ({ ...pg, posts: pg.posts.filter((p) => p.entryId !== e.id && p.id !== e.id) }));
     else if (!single && e.authorId !== viewer.id && (tab === "for-you" || following.has(e.authorId))) setFresh((n) => n + 1);
   });
@@ -120,6 +121,12 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
       });
       setPage((pg) => ({ ...pg, posts: pg.posts.map((p) => (p.author.id === authorId ? { ...p, following: now } : p)) }));
     },
+    async edit(p: FeedPost, body: string, media: string[]) {
+      const res = await actions.editPost(p.id, { body, media });
+      if ("error" in res) return res.error;
+      patch(p.id, () => ({ body: res.body, media: res.media, editedAt: res.editedAt }));
+      return null;
+    },
     async remove(p: FeedPost) {
       if (!confirm("Delete this post?")) return;
       await actions.deletePost(p.entryId);
@@ -180,60 +187,126 @@ export function Feed({ viewer, initial, followingIds, single }: { viewer: Viewer
   );
 }
 
-function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost) => void }) {
-  const [body, setBody] = useState("");
-  const [files, setFiles] = useState<{ file: File; url: string }[]>([]);
+const mediaUrl = (key: string) => `/api/media/${key}`;
+
+/** A post's media while composing or editing: already-stored files (key) plus new local files (file). */
+type DraftItem = { key?: string; file?: File; type: string; url: string };
+
+function useMediaDraft(initial: FeedPost["media"] = []) {
+  const [items, setItems] = useState<DraftItem[]>(() => initial.map((m) => ({ ...m, url: mediaUrl(m.key) })));
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const imageInput = useRef<HTMLInputElement>(null);
-  const videoInput = useRef<HTMLInputElement>(null);
 
   function add(list: FileList | null) {
     const picked = Array.from(list ?? []);
-    const all = [...files.map((f) => f.file), ...picked];
-    const videos = all.filter((f) => isVideo(f.type)).length;
+    const types = [...items.map((i) => i.type), ...picked.map((f) => f.type)];
+    const videos = types.filter(isVideo).length;
     const bad = picked.find((f) => !MEDIA_TYPES[f.type]);
     const big = picked.find((f) => f.size > maxBytes(f.type));
     if (bad) setError("Only JPEG, PNG, WebP, GIF, MP4 and WebM are supported");
     else if (big) setError(`${big.name} is too large (max ${maxBytes(big.type) / 1024 / 1024} MB)`);
-    else if (videos > 1 || (videos && all.length > 1) || all.length > MAX_IMAGES) setError(`Add up to ${MAX_IMAGES} images or 1 video`);
+    else if (videos > 1 || (videos && types.length > 1) || types.length > MAX_IMAGES) setError(`Add up to ${MAX_IMAGES} images or 1 video`);
     else {
       setError("");
-      setFiles((fs) => [...fs, ...picked.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
+      setItems((xs) => [...xs, ...picked.map((file) => ({ file, type: file.type, url: URL.createObjectURL(file) }))]);
     }
   }
 
-  function removeFile(i: number) {
-    URL.revokeObjectURL(files[i].url);
-    setFiles((fs) => fs.filter((_, j) => j !== i));
+  function remove(i: number) {
+    if (items[i].file) URL.revokeObjectURL(items[i].url);
+    setItems((xs) => xs.filter((_, j) => j !== i));
   }
+
+  /** Upload new files (in order) and return the full key list for the post. */
+  async function upload() {
+    const keys: string[] = [];
+    for (const it of items) {
+      if (it.key) {
+        keys.push(it.key);
+        continue;
+      }
+      const res = await fetch("/api/uploads", { method: "PUT", headers: { "Content-Type": it.type }, body: it.file });
+      const json = (await res.json()) as { key?: string; error?: string };
+      if (!res.ok || !json.key) throw new Error(json.error || "Upload failed");
+      keys.push(json.key);
+    }
+    return keys;
+  }
+
+  function clear() {
+    items.forEach((i) => i.file && URL.revokeObjectURL(i.url));
+    setItems([]);
+  }
+
+  return { items, error, setError, add, remove, upload, clear, hasNew: items.some((i) => i.file) };
+}
+
+type MediaDraft = ReturnType<typeof useMediaDraft>;
+
+function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boolean }) {
+  const { items } = draft;
+  if (items.length === 0) return null;
+  return (
+    <div className={`mt-2 grid gap-2 ${items.length > 1 ? "grid-cols-2" : ""}`}>
+      {items.map((it, i) => (
+        <div key={it.url} className="relative overflow-hidden rounded-xl border border-border bg-surface">
+          {isVideo(it.type) ? (
+            <video src={it.url} controls preload="metadata" className="max-h-[360px] w-full bg-black" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media
+            <img src={it.url} alt="" className={`w-full object-cover ${items.length > 1 ? "aspect-square" : "max-h-[360px]"}`} />
+          )}
+          <button type="button" aria-label="Remove" onClick={() => draft.remove(i)} disabled={disabled} className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white hover:bg-black">
+            <Icon d={icons.close} size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MediaButtons({ draft, disabled }: { draft: MediaDraft; disabled: boolean }) {
+  const imageInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
+  const { items } = draft;
+  const hasVideo = items.some((i) => isVideo(i.type));
+  return (
+    <div className="flex gap-1">
+      <input ref={imageInput} type="file" hidden multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => (draft.add(e.target.files), (e.target.value = ""))} />
+      <input ref={videoInput} type="file" hidden accept="video/mp4,video/webm" onChange={(e) => (draft.add(e.target.files), (e.target.value = ""))} />
+      <button type="button" className={iconBtn} disabled={disabled || hasVideo || items.length >= MAX_IMAGES} onClick={() => imageInput.current?.click()}>
+        <Icon d={icons.photo} size={16} />
+        <span className="hidden sm:inline">Photo</span>
+      </button>
+      <button type="button" className={iconBtn} disabled={disabled || items.length > 0} onClick={() => videoInput.current?.click()}>
+        <Icon d={icons.video} size={16} />
+        <span className="hidden sm:inline">Video</span>
+      </button>
+    </div>
+  );
+}
+
+function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost) => void }) {
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const media = useMediaDraft();
 
   async function submit() {
     setBusy(true);
-    setError("");
+    media.setError("");
     try {
-      const keys: string[] = [];
-      for (const { file } of files) {
-        const res = await fetch("/api/uploads", { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-        const json = (await res.json()) as { key?: string; error?: string };
-        if (!res.ok || !json.key) throw new Error(json.error || "Upload failed");
-        keys.push(json.key);
-      }
-      const res = await actions.createPost({ body, media: keys });
+      const res = await actions.createPost({ body, media: await media.upload() });
       if ("error" in res) throw new Error(res.error);
-      files.forEach((f) => URL.revokeObjectURL(f.url));
-      setFiles([]);
+      media.clear();
       setBody("");
       onPosted(res.post);
     } catch (e) {
-      setError(errMsg(e));
+      media.setError(errMsg(e));
     } finally {
       setBusy(false);
     }
   }
 
-  const canPost = !busy && (body.trim().length > 0 || files.length > 0);
-  const hasVideo = files.some((f) => isVideo(f.file.type));
+  const canPost = !busy && (body.trim().length > 0 || media.items.length > 0);
 
   return (
     <section className="flex gap-3 border-b border-border p-4">
@@ -249,41 +322,14 @@ function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost
           aria-label="Write a post"
           className="w-full resize-none bg-transparent pt-2 text-[15px] placeholder:text-muted outline-none"
         />
-        {files.length > 0 && (
-          <div className={`mt-2 grid gap-2 ${files.length > 1 ? "grid-cols-2" : ""}`}>
-            {files.map((f, i) => (
-              <div key={f.url} className="relative overflow-hidden rounded-xl border border-border bg-surface">
-                {isVideo(f.file.type) ? (
-                  <video src={f.url} controls className="max-h-[360px] w-full" />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element -- local blob preview
-                  <img src={f.url} alt="" className={`w-full object-cover ${files.length > 1 ? "aspect-square" : "max-h-[360px]"}`} />
-                )}
-                <button type="button" aria-label="Remove" onClick={() => removeFile(i)} disabled={busy} className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white hover:bg-black">
-                  <Icon d={icons.close} size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
+        <MediaPreviews draft={media} disabled={busy} />
+        {media.error && <p role="alert" className="mt-2 text-sm text-danger">{media.error}</p>}
         <div className="mt-2 flex items-center justify-between">
-          <div className="flex gap-1">
-            <input ref={imageInput} type="file" hidden multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => (add(e.target.files), (e.target.value = ""))} />
-            <input ref={videoInput} type="file" hidden accept="video/mp4,video/webm" onChange={(e) => (add(e.target.files), (e.target.value = ""))} />
-            <button type="button" className={iconBtn} disabled={busy || hasVideo || files.length >= MAX_IMAGES} onClick={() => imageInput.current?.click()}>
-              <Icon d={icons.photo} size={16} />
-              <span className="hidden sm:inline">Photo</span>
-            </button>
-            <button type="button" className={iconBtn} disabled={busy || files.length > 0} onClick={() => videoInput.current?.click()}>
-              <Icon d={icons.video} size={16} />
-              <span className="hidden sm:inline">Video</span>
-            </button>
-          </div>
+          <MediaButtons draft={media} disabled={busy} />
           <div className="flex items-center gap-3">
             {body.length > MAX_POST_CHARS - 200 && <span className="text-xs tabular-nums text-muted">{MAX_POST_CHARS - body.length}</span>}
             <button type="button" disabled={!canPost} onClick={submit} className="h-8 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
-              {busy ? (files.length ? "Uploading…" : "Posting…") : "Post"}
+              {busy ? (media.hasNew ? "Uploading…" : "Posting…") : "Post"}
             </button>
           </div>
         </div>
@@ -292,15 +338,75 @@ function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost
   );
 }
 
+/** Inline editor for an own post: text plus keep/remove/add photos or a video. */
+function PostEditor({ post, save, onDone }: { post: FeedPost; save: Handlers["edit"]; onDone: () => void }) {
+  const [body, setBody] = useState(post.body);
+  const [busy, setBusy] = useState(false);
+  const media = useMediaDraft(post.media);
+  const changed = body.trim() !== post.body || media.hasNew || media.items.map((i) => i.key).join() !== post.media.map((m) => m.key).join();
+  const canSave = !busy && changed && (body.trim().length > 0 || media.items.length > 0);
+
+  function close() {
+    media.clear();
+    onDone();
+  }
+
+  async function submit() {
+    setBusy(true);
+    media.setError("");
+    try {
+      const err = await save(post, body, await media.upload());
+      if (err) throw new Error(err);
+      close();
+    } catch (e) {
+      media.setError(errMsg(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2">
+      <textarea
+        autoFocus
+        rows={Math.min(10, Math.max(3, body.split("\n").length))}
+        value={body}
+        maxLength={MAX_POST_CHARS}
+        onChange={(e) => setBody(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && !busy) close();
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSave) submit();
+        }}
+        aria-label="Edit post"
+        className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-[15px] leading-relaxed outline-none focus:border-ring"
+      />
+      <MediaPreviews draft={media} disabled={busy} />
+      {media.error && <p role="alert" className="mt-2 text-sm text-danger">{media.error}</p>}
+      <div className="mt-2 flex items-center justify-between">
+        <MediaButtons draft={media} disabled={busy} />
+        <div className="flex gap-2">
+          <button type="button" onClick={close} disabled={busy} className="h-8 rounded-md px-3 text-sm text-muted hover:bg-surface-hover hover:text-foreground">
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={!canSave} className="h-8 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
+            {busy ? (media.hasNew ? "Uploading…" : "Saving…") : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type Handlers = {
   like: (p: FeedPost) => void;
   repost: (p: FeedPost) => void;
   follow: (authorId: string) => void;
+  edit: (p: FeedPost, body: string, media: string[]) => Promise<string | null>;
   remove: (p: FeedPost) => void;
 };
 
-function PostCard({ post: p, viewerId, openComments, like, repost, follow, remove }: { post: FeedPost; viewerId: string; openComments?: boolean } & Handlers) {
+function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit, remove }: { post: FeedPost; viewerId: string; openComments?: boolean } & Handlers) {
   const [menu, setMenu] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [showComments, setShowComments] = useState(!!openComments);
   const [copied, setCopied] = useState(false);
   const mine = p.author.id === viewerId;
@@ -335,6 +441,7 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, remov
                 <Link href={`/dashboard/post/${p.id}`} className="shrink-0 text-muted hover:underline" suppressHydrationWarning>
                   · {ago(p.createdAt)}
                 </Link>
+                {p.editedAt && <span className="shrink-0 text-muted" title={new Date(p.editedAt).toLocaleString()}>· Edited</span>}
                 {!mine && !p.following && (
                   <button type="button" onClick={() => follow(p.author.id)} className="ml-1 shrink-0 text-sm font-medium text-link hover:underline">
                     Follow
@@ -350,6 +457,11 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, remov
                 </button>
                 {menu && (
                   <div role="menu" className="absolute right-0 top-8 z-20 w-48 overflow-hidden rounded-lg border border-border bg-surface py-1 text-sm shadow-xl">
+                    {ownEntry && !p.repostedBy && (
+                      <button type="button" role="menuitem" onClick={() => (setMenu(false), setEditing(true))} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-hover">
+                        <Icon d={icons.edit} size={14} /> Edit post
+                      </button>
+                    )}
                     {ownEntry && !p.repostedBy && (
                       <button type="button" role="menuitem" onClick={() => (setMenu(false), remove(p))} className="flex w-full items-center gap-2 px-3 py-2 text-danger hover:bg-surface-hover">
                         <Icon d={icons.trash} size={14} /> Delete post
@@ -371,8 +483,14 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, remov
             )}
           </div>
 
-          {p.body && <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{p.body}</p>}
-          <MediaGrid media={p.media} />
+          {editing ? (
+            <PostEditor post={p} save={edit} onDone={() => setEditing(false)} />
+          ) : (
+            <>
+              {p.body && <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{p.body}</p>}
+              <MediaGrid media={p.media} />
+            </>
+          )}
 
           <div className="-ml-2 mt-2 flex justify-between sm:max-w-[420px]">
             <button type="button" aria-label="Like" aria-pressed={p.liked} onClick={() => like(p)} className={`${iconBtn} ${p.liked ? "text-danger hover:text-danger" : ""}`}>
@@ -410,7 +528,7 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, remov
 
 function MediaGrid({ media }: { media: FeedPost["media"] }) {
   if (media.length === 0) return null;
-  const src = (key: string) => `/api/media/${key}`;
+  const src = mediaUrl;
   if (isVideo(media[0].type)) {
     return <video src={src(media[0].key)} controls playsInline preload="metadata" className="mt-3 max-h-[520px] w-full rounded-xl border border-border bg-black" />;
   }
