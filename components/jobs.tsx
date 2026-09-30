@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
+import type { InterviewResult, SessionStatus } from "@/lib/interview";
+import { FITS, INTERVIEW, NOTICE, type Fit } from "@/lib/interview-fields";
 import type { Applicant, Job, JobPage } from "@/lib/jobs";
 import { JobRowsSkeleton, Line, Loading, Skeleton, times } from "./skeleton";
 import { ago, Avatar, btn, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
@@ -382,7 +384,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
           </p>
         </div>
         <ul className="flex flex-wrap gap-2 text-xs">
-          {[WORKPLACES[j.workplace], JOB_TYPES[j.type], LEVELS[j.level], j.salary].filter(Boolean).map((t) => (
+          {[WORKPLACES[j.workplace], JOB_TYPES[j.type], LEVELS[j.level], j.salary, j.interview && "AI voice interview"].filter(Boolean).map((t) => (
             <li key={t} className="rounded-full border border-border px-2.5 py-1 text-muted">{t}</li>
           ))}
         </ul>
@@ -416,6 +418,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
             {copied ? "Link copied" : "Share"}
           </button>
         </div>
+        {j.interview && (mine || j.application) && <InterviewPanel interview={j.interview} mine={mine} />}
       </div>
 
       {mine && (
@@ -437,7 +440,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
       )}
 
       {view === "applicants" ? (
-        <Applicants list={applicants} onStatus={onStatus} />
+        <Applicants jobId={j.id} list={applicants} onStatus={onStatus} />
       ) : (
         <>
           <section className="border-b border-border p-4">
@@ -460,7 +463,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
   );
 }
 
-function Applicants({ list, onStatus }: { list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
+function Applicants({ jobId, list, onStatus }: { jobId: string; list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
   if (!list)
     return (
       <Loading label="Loading applicants…" className="divide-y divide-border">
@@ -512,6 +515,7 @@ function Applicants({ list, onStatus }: { list?: Applicant[]; onStatus: (a: Appl
               <Icon d={icons.file} size={14} />
               Download resume
             </a>
+            {a.interview && <InterviewRow key={a.interview.status} jobId={jobId} applicant={a} />}
           </div>
         </li>
       ))}
@@ -642,13 +646,18 @@ export function PostJobForm() {
   const [error, setError] = useState("");
   const [workplace, setWorkplace] = useState("onsite");
   const [chars, setChars] = useState(0);
+  const [interview, setInterview] = useState(false);
+  const [now] = useState(Date.now);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const r = await actions.postJob(Object.fromEntries(new FormData(e.currentTarget)));
+      const input = Object.fromEntries(new FormData(e.currentTarget));
+      // datetime-local is the poster's local time; the server gets an instant
+      if (input.deadlineLocal) input.deadline = String(new Date(String(input.deadlineLocal)).getTime());
+      const r = await actions.postJob(input);
       if ("error" in r) throw new Error(r.error);
       router.push(`/dashboard/jobs?tab=posted&id=${r.job.id}`);
     } catch (err) {
@@ -717,6 +726,30 @@ export function PostJobForm() {
           <p className="text-right text-xs tabular-nums text-muted">{chars < 50 ? `${50 - chars} more characters needed` : `${chars} / ${LIMITS.description}`}</p>
         </FormSection>
 
+        <FormSection title="Voice interview" hint={`Optional. Applicants get a link and password by email and take a ${INTERVIEW.seconds / 60}-minute AI voice interview before the deadline.`}>
+          <label className="flex items-center gap-2.5 text-sm">
+            <input type="checkbox" name="interview" checked={interview} onChange={(e) => setInterview(e.target.checked)} className="size-4 accent-foreground" />
+            Add a voice interview
+          </label>
+          {interview && (
+            <>
+              <Field label="Questions" hint={`one per line, up to ${INTERVIEW.maxQuestions}`}>
+                <textarea
+                  name="questions"
+                  required
+                  rows={5}
+                  maxLength={INTERVIEW.maxQuestions * (INTERVIEW.questionChars + 1)}
+                  placeholder={"Walk me through a project you're proud of.\nHow do you debug a slow page?\nWhy are you interested in this role?"}
+                  className={`${field} h-auto resize-y py-2 leading-relaxed`}
+                />
+              </Field>
+              <Field label="Deadline" hint="the job closes after this">
+                <input name="deadlineLocal" type="datetime-local" required min={localInput(now + 3_600_000)} max={localInput(now + 90 * 86_400_000)} className={`${field} sm:w-64`} />
+              </Field>
+            </>
+          )}
+        </FormSection>
+
         <div className="sticky bottom-12 flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
           {error && <p role="alert" className="mr-auto text-sm text-danger">{error}</p>}
           <Link href="/dashboard/jobs" className={btnGhost}>Cancel</Link>
@@ -736,5 +769,177 @@ function FormSection({ title, hint, children }: { title: string; hint?: string; 
       </div>
       {children}
     </section>
+  );
+}
+
+/** "YYYY-MM-DDTHH:mm" in local time, for datetime-local min/max. */
+const localInput = (ms: number) => new Date(ms - new Date(ms).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+const dateTime = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+/** Poster: the shared link and password to hand out (applicants also get them by email). Applicant: their way in. */
+function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["interview"]>; mine: boolean }) {
+  const [copied, setCopied] = useState("");
+  const link = iv.slug ? `${typeof location === "undefined" ? "" : location.origin}/interview/${iv.slug}` : "";
+  const [now] = useState(Date.now);
+  const closed = iv.deadline <= now;
+  const finished = iv.status === "processing" || iv.status === "done" || iv.status === "failed";
+  const copy = async (what: string, v: string) => {
+    await navigator.clipboard.writeText(v);
+    setCopied(what);
+    setTimeout(() => setCopied(""), 2000);
+  };
+  return (
+    <section className="space-y-3 rounded-lg border border-border p-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">Voice interview</p>
+          <p className="text-xs text-muted" suppressHydrationWarning>
+            {iv.questions} question{iv.questions === 1 ? "" : "s"} · {INTERVIEW.seconds / 60} min · {closed ? "Closed" : "Open until"} {dateTime(iv.deadline)}
+          </p>
+        </div>
+        {!mine && (finished ? (
+          <span className="inline-flex items-center gap-1 text-xs text-success"><Icon d={icons.check} size={14} />Completed</span>
+        ) : !closed && iv.slug && (
+          <a href={`/interview/${iv.slug}`} target="_blank" rel="noopener" className={btnPrimary}>Start interview</a>
+        ))}
+      </div>
+      {iv.slug && iv.password && (mine || (!finished && !closed)) && (
+        <dl className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
+          {mine && (
+            <>
+              <dt className="text-muted">Link</dt>
+              <dd className="truncate font-mono" suppressHydrationWarning>{link}</dd>
+              <button type="button" className={`${btnGhost} h-7`} onClick={() => copy("link", link)}>{copied === "link" ? "Copied" : "Copy"}</button>
+            </>
+          )}
+          <dt className="text-muted">Password</dt>
+          <dd className="font-mono">{iv.password}</dd>
+          <button type="button" className={`${btnGhost} h-7`} onClick={() => copy("password", iv.password!)}>{copied === "password" ? "Copied" : "Copy"}</button>
+        </dl>
+      )}
+      {mine && <p className="text-xs text-muted">Every applicant is emailed the link and password when they apply. Results show under Applicants.</p>}
+    </section>
+  );
+}
+
+const IV_STATUS: Record<SessionStatus, string> = {
+  verified: "Signed in, not started",
+  onboarded: "Not started yet",
+  live: "In progress",
+  processing: "Evaluating…",
+  done: "Completed",
+  failed: "Evaluation failed",
+};
+const FIT_TONE: Record<Fit, string> = { strong: "text-success", moderate: "text-foreground", weak: "text-danger" };
+
+/** One applicant's interview line, expanding into the full report. Keyed by status, so it refetches when that changes. */
+function InterviewRow({ jobId, applicant: a }: { jobId: string; applicant: Applicant }) {
+  const iv = a.interview!;
+  const [open, setOpen] = useState(false);
+  const [result, setResult] = useState<InterviewResult | null | undefined>();
+  const [retrying, setRetrying] = useState(false);
+
+  function toggle() {
+    setOpen(!open);
+    if (!open && result === undefined) actions.loadInterview(jobId, a.id).then(setResult, () => setResult(null));
+  }
+
+  return (
+    <div className="pt-1">
+      <button type="button" onClick={toggle} aria-expanded={open} className="flex items-center gap-1.5 text-xs">
+        <span className="font-medium">Voice interview:</span>
+        {iv.status === "done" && iv.score !== null ? (
+          <span>
+            <span className="font-medium tabular-nums">{iv.score}/100</span>
+            {iv.fit && <span className={FIT_TONE[iv.fit]}> · {FITS[iv.fit]}</span>}
+          </span>
+        ) : (
+          <span className="text-muted">{IV_STATUS[iv.status]}</span>
+        )}
+        <Icon d="m6 9 6 6 6-6" size={14} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-3 rounded-lg border border-border p-3">
+          {result === undefined ? (
+            <Loading label="Loading interview…" className="space-y-2"><Line className="text-sm" w="60%" /><Line className="text-xs" w="90%" /><Line className="text-xs" w="80%" /></Loading>
+          ) : !result ? (
+            <p className="text-sm text-muted">Couldn&apos;t load this interview.</p>
+          ) : (
+            <InterviewReport
+              result={result}
+              retrying={retrying}
+              onRetry={async () => {
+                setRetrying(true);
+                setResult(await actions.retryInterview(jobId, a.id).catch(() => result));
+                setRetrying(false);
+              }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InterviewReport({ result: r, retrying, onRetry }: { result: InterviewResult; retrying: boolean; onRetry: () => void }) {
+  const p = r.profile;
+  const rep = r.report;
+  return (
+    <div className="space-y-4 text-sm">
+      {p && (
+        <p className="text-xs text-muted">
+          {[p.role, `${p.years} yr${p.years === 1 ? "" : "s"} experience`, p.city, `Notice: ${NOTICE[p.notice]}`, p.phone].filter(Boolean).join(" · ")}
+          {p.link && <> · <a href={p.link} target="_blank" rel="noopener noreferrer" className="text-link hover:underline">Profile link</a></>}
+        </p>
+      )}
+
+      {rep ? (
+        <>
+          <div className="flex items-center gap-4">
+            <p className="text-3xl font-semibold tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
+            <p className={`rounded-full border border-border px-2.5 py-1 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
+          </div>
+          {rep.summary && <p className="leading-relaxed text-foreground/90">{rep.summary}</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {([["Strengths", rep.strengths], ["Concerns", rep.concerns]] as const).map(([title, list]) => list.length > 0 && (
+              <div key={title}>
+                <p className="mb-1 text-xs font-medium">{title}</p>
+                <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted">{list.map((x) => <li key={x}>{x}</li>)}</ul>
+              </div>
+            ))}
+          </div>
+          <ol className="space-y-3">
+            {rep.questions.map((q, i) => (
+              <li key={i} className="space-y-1 border-t border-border pt-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium">{i + 1}. {q.question}</p>
+                  <span className="shrink-0 text-xs tabular-nums text-muted">{q.score}/10</span>
+                </div>
+                <p className="whitespace-pre-wrap text-foreground/90">&ldquo;{q.answer}&rdquo;</p>
+                {q.feedback && <p className="text-xs text-muted">{q.feedback}</p>}
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : r.status === "failed" ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-muted">The AI evaluation didn&apos;t finish. The transcript is saved.</p>
+          <button type="button" className={btnOutline} onClick={onRetry} disabled={retrying}>{retrying ? "Evaluating…" : "Retry evaluation"}</button>
+        </div>
+      ) : (
+        <p className="text-muted">{IV_STATUS[r.status]}</p>
+      )}
+
+      {r.transcript.length > 0 && (
+        <details className="border-t border-border pt-3">
+          <summary className="cursor-pointer text-xs font-medium text-link">Full transcript</summary>
+          <ul className="mt-2 space-y-1.5 text-xs">
+            {r.transcript.map((l, i) => (
+              <li key={i}><span className="font-medium">{l.role === "agent" ? "Interviewer" : "Candidate"}:</span> <span className="text-foreground/90">{l.text}</span></li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }

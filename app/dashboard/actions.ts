@@ -2,7 +2,10 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
+import { headers } from "next/headers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
+import { Fail, failed } from "@/lib/guard";
+import { insertInterview, interviewResult, parseInterview, retryEvaluation, sendInvite } from "@/lib/interview";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
 import { inFolder, isVideo, newKey, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
@@ -12,12 +15,6 @@ import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
 import { getResume } from "@/lib/resume";
 import { resumePdf } from "@/lib/resume-pdf";
 
-/** A message safe to show the user. Other errors get redacted by the framework in production. */
-class Fail extends Error {}
-const failed = (e: unknown) => {
-  if (e instanceof Fail) return { error: e.message };
-  throw e;
-};
 
 // Every action re-checks auth: server actions are public POST endpoints.
 async function viewer() {
@@ -348,12 +345,16 @@ async function createJob(input: Record<string, unknown>) {
   if (!job.title || !job.company) throw new Fail("Add a job title and company");
   if (job.workplace !== "remote" && !job.location) throw new Fail("Add a location for on-site and hybrid jobs");
   if (job.description.length < 50) throw new Fail("Describe the role in at least 50 characters");
+  const interview = parseInterview(input);
 
   await syncUser(me);
   const id = crypto.randomUUID();
-  await env.DB.prepare(
-    "INSERT INTO jobs (id, poster_id, title, company, location, workplace, type, level, salary, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-  ).bind(id, me, job.title, job.company, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()).run();
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO jobs (id, poster_id, title, company, location, workplace, type, level, salary, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).bind(id, me, job.title, job.company, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()),
+    ...(interview ? [insertInterview(id, interview)] : []),
+  ]);
   await broadcast({ t: "job", id, posterId: me });
   await notifyUsers(await followersOf(me), { type: "job", actor: me, ref: id, link: `/dashboard/jobs?id=${id}`, body: job.title });
   return getJob(me, id);
@@ -367,8 +368,11 @@ async function pushJobStats(jobId: string) {
 /** Close a listing to new applicants (it leaves search), or reopen it. */
 export async function setJobClosed(jobId: string, closed: boolean) {
   const me = await writer();
-  const upd = await env.DB.prepare("UPDATE jobs SET closed_at = ? WHERE id = ? AND poster_id = ?").bind(closed ? Date.now() : null, String(jobId), me).run();
-  if (!upd.meta.changes) throw new Error("Job not found");
+  // A job whose interview deadline has passed stays closed (the cron would close it again anyway)
+  const upd = await env.DB.prepare(
+    "UPDATE jobs SET closed_at = ?1 WHERE id = ?2 AND poster_id = ?3 AND (?1 IS NOT NULL OR NOT EXISTS (SELECT 1 FROM interviews WHERE job_id = ?2 AND deadline <= ?4))",
+  ).bind(closed ? Date.now() : null, String(jobId), me, Date.now()).run();
+  if (!upd.meta.changes) throw new Error("Job not found, or its interview deadline has passed");
   await pushJobStats(String(jobId));
   if (closed) {
     const { results } = await env.DB.prepare("SELECT applicant_id FROM applications WHERE job_id = ? LIMIT 200").bind(String(jobId)).all<{ applicant_id: string }>();
@@ -418,7 +422,8 @@ async function apply(jobId: string, input: Record<string, unknown>) {
   const now = Date.now();
   const ins = await env.DB.prepare(
     `INSERT OR IGNORE INTO applications (job_id, applicant_id, email, phone, resume_key, note, created_at, updated_at)
-     SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2`,
+     SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2
+       AND NOT EXISTS (SELECT 1 FROM interviews WHERE job_id = ?1 AND deadline <= ?7)`,
   ).bind(jobId, me, email, phone, resumeKey, note, now).run();
   if (!ins.meta.changes) {
     if (generated) await env.MEDIA.delete(resumeKey);
@@ -427,6 +432,7 @@ async function apply(jobId: string, input: Record<string, unknown>) {
     throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");
   }
   const job = await getJob(me, jobId);
+  if (job?.interview) await sendInvite(jobId, email, (await headers()).get("origin") ?? "https://hire-excellence.n1m35h.in");
   if (job) {
     await sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
     await notifyUsers([job.poster.id], { type: "applicant", actor: me, ref: jobId, link: `/dashboard/jobs?tab=posted&id=${jobId}`, body: job.title });
@@ -502,3 +508,14 @@ export async function deleteNotification(id: string) {
 }
 
 export const loadUnseen = async () => unseenCount(await viewer());
+
+/** The poster's view of one applicant's voice interview: onboarding answers, transcript and AI evaluation. */
+export async function loadInterview(jobId: string, applicantId: string) {
+  return interviewResult(await viewer(), String(jobId), String(applicantId));
+}
+
+export async function retryInterview(jobId: string, applicantId: string) {
+  const me = await writer();
+  await retryEvaluation(me, String(jobId), String(applicantId));
+  return interviewResult(me, String(jobId), String(applicantId));
+}

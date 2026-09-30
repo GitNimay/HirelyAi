@@ -19,7 +19,7 @@ const STEPS: { id: Step; label: string }[] = [
 ];
 const order = (s: Step) => (s === "reading" ? 1 : STEPS.findIndex((x) => x.id === s));
 
-const primary = "inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+export const primary = "inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 const upload = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12";
 const chevron = "m9 18 6-6-6-6";
 
@@ -195,51 +195,66 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
   };
 
   return (
+    <StepFrame
+      title="Set up your profile"
+      steps={STEPS.map((s) => s.label)}
+      current={current}
+      stepKey={step}
+      action={<SignOutButton><button type="button" className={btnGhost}>Sign out</button></SignOutButton>}
+    >
+      {card[step]}
+    </StepFrame>
+  );
+}
+
+/** Title left, card centre, steps right; the faint rules frame the card column, like the reference. Also used by the interview flow. */
+export function StepFrame({ title, steps, current, stepKey, action, children }: { title: string; steps: string[]; current: number; stepKey: string; action?: ReactNode; children: ReactNode }) {
+  const reduce = useReducedMotion();
+  return (
     <div className="flex min-h-screen flex-1 flex-col">
       <header className="flex h-16 items-center justify-between px-5 sm:px-8">
         <span className="flex items-center gap-2.5">
           <Logo size={28} />
           <span className="text-sm font-semibold tracking-tight">Hire Excellence</span>
         </span>
-        <SignOutButton><button type="button" className={btnGhost}>Sign out</button></SignOutButton>
+        {action}
       </header>
 
-      {/* Title | card | steps. The faint rules frame the card column, like the reference. */}
       <div className="grid flex-1 border-t border-dashed border-border lg:grid-cols-[1fr_minmax(0,680px)_1fr]">
         <aside className="hidden justify-end px-8 pt-10 lg:flex">
-          <p className="text-sm font-medium">Set up your profile</p>
+          <p className="text-sm font-medium">{title}</p>
         </aside>
 
         <main className="border-dashed border-border px-4 py-8 sm:py-10 lg:border-x lg:px-6">
           <ol className="mb-6 flex items-center gap-2 lg:hidden" aria-label="Progress">
-            {STEPS.map((s, i) => (
-              <li key={s.id} className={`h-1 flex-1 rounded-full transition-colors ${i <= current ? "bg-foreground" : "bg-border"}`}><span className="sr-only">{s.label}</span></li>
+            {steps.map((label, i) => (
+              <li key={label} className={`h-1 flex-1 rounded-full transition-colors ${i <= current ? "bg-foreground" : "bg-border"}`}><span className="sr-only">{label}</span></li>
             ))}
           </ol>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
-              key={step}
+              key={stepKey}
               initial={reduce ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={reduce ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
               className="rounded-xl border border-border bg-surface px-6 pt-6 pb-6 sm:px-8 sm:pt-8"
             >
-              {card[step]}
+              {children}
             </motion.div>
           </AnimatePresence>
         </main>
 
         <aside className="hidden px-8 pt-10 lg:block">
           <ol className="space-y-3 text-sm" aria-label="Progress">
-            {STEPS.map((s, i) => (
-              <li key={s.id} aria-current={i === current ? "step" : undefined} className={`flex items-center gap-2.5 ${i === current ? "font-medium text-foreground" : "text-muted"}`}>
+            {steps.map((label, i) => (
+              <li key={label} aria-current={i === current ? "step" : undefined} className={`flex items-center gap-2.5 ${i === current ? "font-medium text-foreground" : "text-muted"}`}>
                 {i < current ? (
                   <Icon d={icons.check} size={14} className="text-success" />
                 ) : (
                   <span className={`mx-[4px] size-1.5 rounded-full ${i === current ? "bg-foreground" : "bg-border"}`} />
                 )}
-                {s.label}
+                {label}
               </li>
             ))}
           </ol>
@@ -251,7 +266,7 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
 
 const option = "flex w-full items-center gap-4 rounded-lg border border-border bg-background px-4 py-4 text-left transition-colors outline-none hover:border-muted/50 hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring";
 
-function Head({ title, sub }: { title: string; sub: string }) {
+export function Head({ title, sub }: { title: string; sub: string }) {
   return (
     <div>
       <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
