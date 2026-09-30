@@ -1,0 +1,79 @@
+import type { ReactNode } from "react";
+import { fmtRange, STATUSES, type Resume } from "@/lib/resume-fields";
+import { Icon, icons } from "./ui";
+
+const cap = "M22 10 12 5 2 10l10 5 10-5zM6 12v5c3 3 9 3 12 0v-5";
+
+/**
+ * A resume as read-only sections. `own` is the private Resume tab (contact details, preferences, empty sections
+ * say so); otherwise it's the public About tab: no contact details, and empty sections are left out.
+ */
+export function ResumeSections({ r, own }: { r: Resume; own?: boolean }) {
+  const show = (has: boolean) => own || has;
+  return (
+    <>
+      {own && (
+        <Block title="Contact">
+          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+            {[["Email", r.email], ["Phone", r.phone], ["City", r.city], ["Status", STATUSES[r.status]]].map(([k, v]) => (
+              <div key={k}><dt className="text-xs text-muted">{k}</dt><dd className="truncate">{v || "—"}</dd></div>
+            ))}
+          </dl>
+        </Block>
+      )}
+      {r.summary && <Block title="About"><p className="whitespace-pre-line text-sm text-muted">{r.summary}</p></Block>}
+      {show(r.experience.length > 0) && (
+        <Block title="Experience" empty={!r.experience.length}>
+          {r.experience.map((e, i) => (
+            <Item key={i} title={e.title} sub={[e.company, e.location].filter(Boolean).join(" · ")} when={fmtRange(e.start, e.end, e.current)} body={e.description} />
+          ))}
+        </Block>
+      )}
+      {show(r.education.length > 0) && (
+        <Block title="Education" empty={!r.education.length}>
+          {r.education.map((e, i) => (
+            <Item key={i} title={e.school} sub={[[e.degree, e.field].filter(Boolean).join(", "), e.grade].filter(Boolean).join(" · ")} when={fmtRange(e.start, e.end)} icon={cap} />
+          ))}
+        </Block>
+      )}
+      {show(r.projects.length > 0) && (
+        <Block title="Projects" empty={!r.projects.length}>
+          {r.projects.map((p, i) => <Item key={i} title={p.name} sub={p.link} body={p.description} icon={icons.file} />)}
+        </Block>
+      )}
+      {show(r.skills.length > 0) && <Block title="Skills"><Chips items={r.skills} /></Block>}
+      {own && <Block title="Preferred locations"><Chips items={r.preferredLocations} /></Block>}
+    </>
+  );
+}
+
+function Block({ title, empty, children }: { title: string; empty?: boolean; children: ReactNode }) {
+  return (
+    <section className="space-y-3 border-t border-border pt-5 first:border-0">
+      <h2 className="text-sm font-semibold">{title}</h2>
+      {empty ? <p className="text-sm text-muted">Nothing added yet.</p> : children}
+    </section>
+  );
+}
+
+function Item({ title, sub, when, body, icon = icons.jobs }: { title: string; sub?: string; when?: string; body?: string; icon?: string }) {
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-muted"><Icon d={icon} size={16} /></span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <h3 className="text-sm font-medium">{title}</h3>
+          {when && <span className="text-xs text-muted">{when}</span>}
+        </div>
+        {sub && <p className="text-[13px] text-muted">{sub}</p>}
+        {body && <p className="mt-1.5 whitespace-pre-line text-[13px] text-muted">{body}</p>}
+      </div>
+    </div>
+  );
+}
+
+const Chips = ({ items }: { items: string[] }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {items.map((t) => <span key={t} className="rounded-full border border-border px-2.5 py-0.5 text-xs">{t}</span>)}
+  </div>
+);

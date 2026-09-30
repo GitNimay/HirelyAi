@@ -112,6 +112,11 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
   const ignore = (p: Person) => act(p, "uninvite", "out", actions.ignoreInvite);
   const invite = (p: Person) => act(p, "invite", "out", actions.connect);
   const withdraw = (p: Person) => act(p, "uninvite", "out", actions.withdrawInvite);
+  /** "Not interested": gone from suggestions now and on every later visit. */
+  const dismiss = (p: Person) => {
+    setNet((n) => ({ ...n, suggestions: without(n.suggestions, p.id) }));
+    actions.dismissSuggestion(p.id).catch(() => (toast("Couldn't update. Try again."), refresh()));
+  };
   const remove = async (p: Person) =>
     (await ask({ title: `Remove ${p.name}?`, body: "They won't be notified. You can send a new invitation later.", confirm: "Remove connection", danger: true })) &&
     act(p, "disconnect", "out", actions.removeConnection);
@@ -238,6 +243,9 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
                 {net.suggestions.map((p) => (
                   <Row key={p.id} person={p} meta={why(p) ?? ""}>
                     {personAction(p)}
+                    <button type="button" title="Not interested" aria-label={`Dismiss ${p.name}`} className={`${btnGhost} px-2`} onClick={() => dismiss(p)}>
+                      <Icon d={icons.close} size={16} />
+                    </button>
                   </Row>
                 ))}
               </ul>

@@ -51,6 +51,7 @@ const SUGGESTIONS = `
     AND s.id NOT IN (SELECT peer_id FROM connections WHERE user_id = ?1)
     AND s.id NOT IN (SELECT to_id FROM invitations WHERE from_id = ?1)
     AND s.id NOT IN (SELECT from_id FROM invitations WHERE to_id = ?1)
+    AND s.id NOT IN (SELECT peer_id FROM suggestion_dismissals WHERE user_id = ?1)
   GROUP BY u.id ORDER BY SUM(s.w) DESC, u.updated_at DESC LIMIT 24`;
 
 export async function getNetwork(viewerId: string): Promise<Network> {
@@ -144,4 +145,22 @@ export async function syncDirectory() {
   } catch (e) {
     console.error("syncDirectory failed", e); // next cron run retries; the app works with what D1 has
   }
+}
+
+export type FollowDir = "followers" | "following";
+/** A row in a followers / following list, plus whether the viewer follows them. */
+export type FollowPerson = Person & { iFollow: boolean };
+const FOLLOW_PAGE = 50;
+
+/** Who follows `userId` (followers) or whom they follow (following), newest first. Cursor = rows already seen. */
+export async function listFollows(viewerId: string, userId: string, dir: FollowDir, cursor?: string) {
+  const offset = Number(cursor) || 0;
+  const [them, owner] = dir === "followers" ? ["f.follower_id", "f.followee_id"] : ["f.followee_id", "f.follower_id"];
+  const { results } = await env.DB.prepare(
+    `SELECT ${PERSON}, f.created_at AS at, EXISTS (SELECT 1 FROM follows x WHERE x.follower_id = ?1 AND x.followee_id = u.id) AS i_follow
+     FROM follows f JOIN users u ON u.id = ${them}
+     WHERE ${owner} = ?2 ORDER BY f.created_at DESC LIMIT ${FOLLOW_PAGE} OFFSET ?3`,
+  ).bind(viewerId, userId, offset).all<Row & { i_follow: number }>();
+  const people: FollowPerson[] = results.map((r) => ({ ...toPerson(r), iFollow: !!r.i_follow }));
+  return { people, next: results.length === FOLLOW_PAGE ? String(offset + FOLLOW_PAGE) : null };
 }

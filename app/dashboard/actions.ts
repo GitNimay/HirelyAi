@@ -6,7 +6,7 @@ import { Fail, failed, text, viewer, writer } from "@/lib/guard";
 import { insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
-import { inFolder, isVideo, newKey, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
+import { inFolder, isVideo, newKey, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
 import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
 import { followersOf, listNotifications, notifyUsers, unseenCount } from "@/lib/notifications";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
@@ -33,21 +33,30 @@ export async function loadFeed(tab: FeedTab, cursor?: string) {
   return getFeed(await viewer(), tab === "following" ? "following" : "for-you", cursor);
 }
 
-export async function createPost(input: { body: string; media: string[] }) {
+/** A post's media from the client: a stored key, optionally with an image description. */
+export type MediaInput = { key: string; alt?: string };
+
+export async function createPost(input: { body: string; media: MediaInput[] }) {
   return publish(input).then((post) => ({ post: post! }), failed);
 }
 
 /** Media must be objects this user uploaded (keys are server-issued and namespaced by user id). */
 async function checkMedia(userId: string, input: unknown): Promise<Media[]> {
-  const keys = Array.isArray(input) ? [...new Set(input.map(String))] : [];
+  // Plain key strings are still accepted (older clients); alt text is trimmed and capped
+  const items = (Array.isArray(input) ? input : []).map((m) =>
+    typeof m === "string" ? { key: m, alt: "" } : { key: String(m?.key ?? ""), alt: text(m?.alt, MAX_ALT_CHARS) },
+  );
+  const alts = new Map(items.map((m) => [m.key, m.alt]));
+  const keys = [...alts.keys()];
   if (keys.length > MAX_IMAGES) throw new Fail("A post can have up to 4 images or 1 video");
   const media = await Promise.all(
-    keys.map(async (key) => {
+    keys.map(async (key): Promise<Media> => {
       if (!inFolder(key, "posts", userId)) throw new Fail("Invalid media");
       const obj = await env.MEDIA.head(key);
       const type = obj?.httpMetadata?.contentType ?? "";
       if (!obj || obj.customMetadata?.owner !== userId || !MEDIA_TYPES[type]) throw new Fail("Invalid media");
-      return { key, type };
+      const alt = isVideo(type) ? "" : alts.get(key);
+      return alt ? { key, type, alt } : { key, type };
     }),
   );
   const videos = media.filter((m) => isVideo(m.type)).length;
@@ -55,7 +64,7 @@ async function checkMedia(userId: string, input: unknown): Promise<Media[]> {
   return media;
 }
 
-async function publish(input: { body: string; media: string[] }) {
+async function publish(input: { body: string; media: MediaInput[] }) {
   const userId = await writer();
   const body = text(input.body, MAX_POST_CHARS);
   const media = await checkMedia(userId, input.media);
@@ -70,11 +79,11 @@ async function publish(input: { body: string; media: string[] }) {
 }
 
 /** Replace a post's text and media (keep, remove, or add newly uploaded files). */
-export async function editPost(id: string, input: { body: string; media: string[] }) {
+export async function editPost(id: string, input: { body: string; media: MediaInput[] }) {
   return edit(String(id), input).then((r) => r, failed);
 }
 
-async function edit(id: string, input: { body: string; media: string[] }) {
+async function edit(id: string, input: { body: string; media: MediaInput[] }) {
   const userId = await writer();
   const post = await env.DB.prepare("SELECT media FROM posts WHERE id = ? AND author_id = ? AND repost_of IS NULL")
     .bind(id, userId).first<{ media: string | null }>();
@@ -224,6 +233,13 @@ export async function findPeople(query: string) {
 }
 
 /** Send a connection request, or accept theirs if they already invited you. */
+/** Hide someone from your "People you may know" for good. */
+export async function dismissSuggestion(peerId: string) {
+  const me = await writer();
+  await env.DB.prepare("INSERT OR IGNORE INTO suggestion_dismissals (user_id, peer_id, created_at) SELECT ?1, id, ?3 FROM users WHERE id = ?2 AND id <> ?1")
+    .bind(me, String(peerId), Date.now()).run();
+}
+
 export async function connect(targetId: string) {
   const me = await writer();
   const id = String(targetId);
