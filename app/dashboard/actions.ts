@@ -5,6 +5,7 @@ import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
 import { Fail, failed, text, viewer, writer } from "@/lib/guard";
 import { insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
+import { canPostJobs, roleOf } from "@/lib/companies";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
 import { inFolder, isVideo, newKey, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
 import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
@@ -36,7 +37,8 @@ export async function loadFeed(tab: FeedTab, cursor?: string) {
 /** A post's media from the client: a stored key, optionally with an image description. */
 export type MediaInput = { key: string; alt?: string };
 
-export async function createPost(input: { body: string; media: MediaInput[] }) {
+/** `companyId`: post as that company page (admins only). */
+export async function createPost(input: { body: string; media: MediaInput[]; companyId?: string }) {
   return publish(input).then((post) => ({ post: post! }), failed);
 }
 
@@ -64,17 +66,20 @@ async function checkMedia(userId: string, input: unknown): Promise<Media[]> {
   return media;
 }
 
-async function publish(input: { body: string; media: MediaInput[] }) {
+async function publish(input: { body: string; media: MediaInput[]; companyId?: string }) {
   const userId = await writer();
   const body = text(input.body, MAX_POST_CHARS);
   const media = await checkMedia(userId, input.media);
   if (!body && media.length === 0) throw new Fail("Write something or add media");
+  const companyId = input.companyId ? String(input.companyId) : null;
+  if (companyId && !(await roleOf(userId, companyId))) throw new Fail("Only page admins can post as this company");
 
   const id = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO posts (id, author_id, body, media, created_at) VALUES (?, ?, ?, ?, ?)")
-    .bind(id, userId, body, media.length ? JSON.stringify(media) : null, Date.now()).run();
+  await env.DB.prepare("INSERT INTO posts (id, author_id, body, media, company_id, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(id, userId, body, media.length ? JSON.stringify(media) : null, companyId, Date.now()).run();
   broadcast({ t: "post", id, authorId: userId });
-  await notifyUsers(await followersOf(userId), { type: "post", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(body) });
+  // ponytail: company posts reach followers through their Following feed, not notifications; add a fan-out when pages get big audiences
+  if (!companyId) await notifyUsers(await followersOf(userId), { type: "post", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(body) });
   return getPost(userId, id);
 }
 
@@ -321,9 +326,14 @@ export async function postJob(input: Record<string, unknown>) {
 
 async function createJob(input: Record<string, unknown>) {
   const me = await writer();
+  const companyId = text(input.companyId, 40);
+  const company = companyId && (await canPostJobs(me, companyId))
+    ? await env.DB.prepare("SELECT name FROM companies WHERE id = ?").bind(companyId).first<string>("name")
+    : null;
+  if (!company) throw new Fail("Only employees who verified their work email on the company page can post its jobs");
   const job = {
     title: text(input.title, LIMITS.title),
-    company: text(input.company, LIMITS.company),
+    company,
     location: text(input.location, LIMITS.location),
     workplace: oneOf(WORKPLACES, input.workplace, "workplace type"),
     type: oneOf(JOB_TYPES, input.type, "job type"),
@@ -339,8 +349,8 @@ async function createJob(input: Record<string, unknown>) {
   const id = crypto.randomUUID();
   await env.DB.batch([
     env.DB.prepare(
-      "INSERT INTO jobs (id, poster_id, title, company, location, workplace, type, level, salary, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(id, me, job.title, job.company, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()),
+      "INSERT INTO jobs (id, poster_id, title, company, company_id, location, workplace, type, level, salary, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).bind(id, me, job.title, job.company, companyId, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()),
     ...(interview ? [insertInterview(id, interview)] : []),
   ]);
   broadcast({ t: "job", id, posterId: me });

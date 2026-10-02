@@ -18,7 +18,7 @@ export const isVideo = (type: string) => type.startsWith("video/");
 export const maxBytes = (type: string) => (isVideo(type) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES);
 
 /** R2 layout: `<folder>/<userId>/<uuid>.<ext>`, one top-level folder per kind of file. */
-export type Folder = "posts" | "profiles" | "resumes";
+export type Folder = "posts" | "profiles" | "resumes" | "companies";
 export const newKey = (folder: Folder, userId: string, ext: string) => `${folder}/${userId}/${crypto.randomUUID()}.${ext}`;
 
 // ponytail: keys uploaded before folders are `<userId>/<uuid>.<ext>` (profile images `<userId>/pf-…`). They are still
@@ -27,7 +27,7 @@ const legacy = (key: string, userId: string) => key.startsWith(`${userId}/`) && 
 
 /** Whether `key` is `userId`'s file in `folder`. The server still checks the object's owner metadata. */
 export const inFolder = (key: string, folder: Folder, userId: string) =>
-  key.startsWith(`${folder}/${userId}/`) || (folder !== "profiles" && legacy(key, userId));
+  key.startsWith(`${folder}/${userId}/`) || ((folder === "posts" || folder === "resumes") && legacy(key, userId));
 
 /** Who uploaded `key`, from its path. */
 export const keyOwner = (key: string) => {

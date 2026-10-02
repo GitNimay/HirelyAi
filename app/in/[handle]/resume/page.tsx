@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ProfileVisibility } from "@/components/profile";
 import { ResumeSections } from "@/components/resume-view";
 import { btnOutline, btnPrimary, Icon, icons } from "@/components/ui";
+import { companiesByIds } from "@/lib/companies";
 import { getResume } from "@/lib/resume";
 import { profileFor, refOf } from "../data";
 
@@ -14,6 +15,7 @@ export default async function ResumeTab({ params }: { params: Promise<{ handle: 
   const { userId } = await auth.protect();
   const [profile, r] = await Promise.all([profileFor(userId, await refOf(params)), getResume(userId)]);
   if (!profile || profile.id !== userId || !r) notFound();
+  const companies = await companiesByIds(r.experience.flatMap((e) => e.companyId ?? []));
 
   return (
     <div className="space-y-6 px-4 py-5">
@@ -25,7 +27,7 @@ export default async function ResumeTab({ params }: { params: Promise<{ handle: 
         </div>
       </div>
       <ProfileVisibility resumePublic={profile.resumePublic} openToWork={profile.openToWork} />
-      <ResumeSections r={r} own />
+      <ResumeSections r={r} own companies={companies} />
     </div>
   );
 }

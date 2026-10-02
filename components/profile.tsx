@@ -40,7 +40,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
   const base = profileHref(profile);
   const tabs = [
     { href: base, label: "Posts" },
-    ...(!own && profile.resumePublic ? [{ href: `${base}/about`, label: "About" }] : []),
+    ...(own || profile.resumePublic ? [{ href: `${base}/about`, label: "About" }] : []),
     { href: `${base}/replies`, label: "Replies" },
     { href: `${base}/media`, label: "Media" },
     ...(own ? [{ href: `${base}/likes`, label: "Likes" }, { href: `${base}/resume`, label: "Resume" }] : []),
@@ -232,8 +232,9 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
 
 type Picked = { blob: Blob; url: string };
 
-async function upload(blob: Blob) {
-  const res = await fetch("/api/uploads?for=profile", { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
+/** Upload a cropped JPEG for a profile (avatar, cover) or a company page (logo, cover); returns its R2 key. */
+export async function uploadImage(blob: Blob, kind: "profile" | "company" = "profile") {
+  const res = await fetch(`/api/uploads?for=${kind}`, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
   const json = (await res.json()) as { key?: string; error?: string };
   if (!res.ok || !json.key) throw new Error(json.error || "Upload failed");
   return json.key;
@@ -284,7 +285,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     setBusy(true);
     setError("");
     try {
-      const [avatarKey, coverKey] = await Promise.all([avatar && upload(avatar.blob), cover && upload(cover.blob)]);
+      const [avatarKey, coverKey] = await Promise.all([avatar && uploadImage(avatar.blob), cover && uploadImage(cover.blob)]);
       const res = await saveProfile({
         name: val("name"), handle: val("handle"), headline: val("headline"), bio, location: val("location"), website: val("website"),
         avatarKey: avatarKey || undefined, coverKey: coverKey || undefined, removeCover: coverRemoved && !cover,
@@ -593,7 +594,7 @@ export function ProfileVisibility({ resumePublic, openToWork }: { resumePublic: 
   }
 
   const options = [
-    { key: "resumePublic", label: "Show my experience on my profile", hint: "Members see your summary, experience, education, projects and skills in an About tab. Contact details stay private." },
+    { key: "resumePublic", label: "Show my experience on my profile", hint: "Members see your summary, experience, education, projects and skills in your About tab, and you're listed on your companies' pages. Contact details stay private." },
     { key: "openToWork", label: "Open to work", hint: "Adds an \"Open to work\" badge next to your name so recruiters know you're looking." },
   ] as const;
 

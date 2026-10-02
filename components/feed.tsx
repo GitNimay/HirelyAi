@@ -10,7 +10,7 @@ import { isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, 
 import { profileHref } from "@/lib/profile-fields";
 import { ask, Clamp, Menu, Modal, scrollToTop, setParam, Tabs, toast } from "./kit";
 import { CommentsSkeleton, PostsSkeleton } from "./skeleton";
-import { ago, Avatar, btnGhost, btnLg, btnPrimary, Icon, icons, menuItem } from "./ui";
+import { ago, Avatar, btnGhost, btnLg, btnPrimary, CompanyLogo, Icon, icons, menuItem } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Viewer = { id: string; name: string; imageUrl?: string };
@@ -23,7 +23,10 @@ const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "S
  * Home timeline, a single post when `single` (share links), or one member's posts / likes when `list` (profile tabs:
  * no header or composer, same cards and live updates). Live via /api/realtime.
  */
-export function Feed({ viewer, initial, initialTab = "for-you", followingIds, single, list }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string } }) {
+/** `list.compose`: a company page's Posts tab for its admins: a composer that posts as the company. */
+type AsCompany = { id: string; name: string; logoUrl: string | null };
+
+export function Feed({ viewer, initial, initialTab = "for-you", followingIds, single, list }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string; compose?: AsCompany } }) {
   const [tab, setTab] = useState<FeedTab>(initialTab);
   const [page, setPage] = useState(initial);
   const [fresh, setFresh] = useState(0);
@@ -143,6 +146,8 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
           <Composer viewer={viewer} onPosted={(p) => setPage((pg) => ({ ...pg, posts: [p, ...pg.posts] }))} />
         </>
       )}
+
+      {list?.compose && <Composer viewer={viewer} company={list.compose} onPosted={(p) => setPage((pg) => ({ ...pg, posts: [p, ...pg.posts] }))} />}
 
       {fresh > 0 && (
         <div className="sticky top-16 z-10 flex justify-center" aria-live="polite">
@@ -333,7 +338,7 @@ function MediaButtons({ draft, disabled }: { draft: MediaDraft; disabled: boolea
   );
 }
 
-function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost) => void }) {
+function Composer({ viewer, company, onPosted }: { viewer: Viewer; company?: AsCompany; onPosted: (p: FeedPost) => void }) {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -343,7 +348,7 @@ function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost
     setBusy(true);
     media.setError("");
     try {
-      const res = await actions.createPost({ body, media: await media.upload() });
+      const res = await actions.createPost({ body, media: await media.upload(), companyId: company?.id });
       if ("error" in res) throw new Error(res.error);
       media.clear();
       setBody("");
@@ -360,7 +365,7 @@ function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost
 
   return (
     <section className="flex gap-3 border-b border-border p-4">
-      <Avatar name={viewer.name} src={viewer.imageUrl} />
+      {company ? <CompanyLogo name={company.name} src={company.logoUrl} size={40} /> : <Avatar name={viewer.name} src={viewer.imageUrl} />}
       <div className="min-w-0 flex-1">
         <textarea
           rows={Math.min(8, Math.max(2, body.split("\n").length))}
@@ -370,7 +375,7 @@ function Composer({ viewer, onPosted }: { viewer: Viewer; onPosted: (p: FeedPost
           onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && canPost && submit()}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Share an update or opportunity"
+          placeholder={company ? `Post as ${company.name}` : "Share an update or opportunity"}
           aria-label="Write a post"
           className="w-full resize-none bg-transparent pt-2 text-sm leading-relaxed placeholder:text-muted outline-none"
         />
@@ -463,11 +468,15 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
   const [showComments, setShowComments] = useState(!!openComments);
   const mine = p.author.id === viewerId;
   const ownEntry = p.repostedBy ? p.repostedBy.id === viewerId : mine;
+  // A company post shows as the page; its admin author stays behind the scenes
+  const who = p.company
+    ? { name: p.company.name, href: `/company/${p.company.slug}`, avatar: <CompanyLogo name={p.company.name} src={p.company.logoUrl} size={40} />, sub: "Company page" }
+    : { name: p.author.name, href: profileHref(p.author), avatar: <Avatar name={p.author.name} src={p.author.imageUrl ?? undefined} />, sub: p.author.headline };
 
   async function share() {
     const url = `${location.origin}/post/${p.id}`; // public page; members are sent on to the app
     if (navigator.share) {
-      await navigator.share({ url, title: `Post by ${p.author.name}` }).catch(() => {});
+      await navigator.share({ url, title: `Post by ${who.name}` }).catch(() => {});
     } else {
       await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link"));
     }
@@ -486,29 +495,29 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
         </p>
       )}
       <div className="flex gap-3">
-        <Link href={profileHref(p.author)} aria-label={p.author.name} className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Avatar name={p.author.name} src={p.author.imageUrl ?? undefined} />
+        <Link href={who.href} aria-label={who.name} className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {who.avatar}
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="flex items-center gap-1 truncate text-sm">
-                <Link href={profileHref(p.author)} className="truncate font-medium hover:underline">{p.author.name}</Link>
+                <Link href={who.href} className="truncate font-medium hover:underline">{who.name}</Link>
                 <Link href={`/dashboard/post/${p.id}`} className="shrink-0 text-muted hover:underline">
                   · <Time ms={p.createdAt} />
                 </Link>
                 {p.editedAt && <span className="shrink-0 text-muted" title={new Date(p.editedAt).toLocaleString()} suppressHydrationWarning>· Edited</span>}
               </p>
-              {p.author.headline && <p className="truncate text-xs text-muted">{p.author.headline}</p>}
+              {who.sub && <p className="truncate text-xs text-muted">{who.sub}</p>}
             </div>
             <div className="-mt-1 flex shrink-0 items-center gap-1">
-              {!mine && !p.following && (
+              {!mine && !p.following && !p.company && (
                 <button type="button" onClick={() => follow(p.author.id)} className={`${btnGhost} px-2 text-link hover:text-link`}>
                   <Icon d={icons.plus} size={14} />
                   Follow
                 </button>
               )}
-              {(ownEntry || (!mine && p.following)) && (
+              {(ownEntry || (!mine && p.following && !p.company)) && (
                 <Menu
                   label="More options"
                   button={<Icon d={icons.more} size={18} />}

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { bedrockJson } from "./bedrock";
 import { Fail } from "./guard";
 import { broadcast } from "./realtime";
+import { linkExperience, memberRows } from "./company-fields";
 import { autoHeadline, cleanResume, missingFields, type Resume } from "./resume-fields";
 
 type Row = { data: string | null; name: string; location: string | null; headline: string | null };
@@ -13,11 +14,19 @@ export async function getResume(userId: string): Promise<Resume | null> {
   return r && cleanResume({ ...JSON.parse(r.data ?? "{}"), name: r.name, city: r.location ?? "", headline: r.headline ?? "" });
 }
 
-/** Validate and store; also updates the profile's name, location and headline (and marks it member-edited so Clerk won't overwrite it). */
+/**
+ * Validate and store; also updates the profile's name, location and headline (and marks it member-edited so Clerk won't overwrite it).
+ * Experience is linked to company pages (by id, or by exact name) and the company People index is rebuilt from it.
+ */
 export async function saveResume(userId: string, input: unknown) {
   const r = cleanResume(input);
   const miss = missingFields(r);
   if (miss.length) throw new Fail("Some required details are missing. Check the highlighted fields.");
+  const { results: pages } = await env.DB.prepare(
+    "SELECT id, name FROM companies WHERE id IN (SELECT value FROM json_each(?1)) OR lower(name) IN (SELECT value FROM json_each(?2))",
+  ).bind(JSON.stringify(r.experience.flatMap((e) => e.companyId ?? [])), JSON.stringify(r.experience.map((e) => e.company.toLowerCase())))
+    .all<{ id: string; name: string }>();
+  r.experience = linkExperience(r.experience, pages);
   const { name, city, headline, ...data } = { ...r, headline: autoHeadline(r) || null };
   const now = Date.now();
   const [, , row] = await env.DB.batch<{ handle: string; bio: string | null; image_url: string | null }>([
@@ -25,6 +34,9 @@ export async function saveResume(userId: string, input: unknown) {
     env.DB.prepare("INSERT INTO resumes (user_id, data, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT (user_id) DO UPDATE SET data = ?2, updated_at = ?3")
       .bind(userId, JSON.stringify(data), now),
     env.DB.prepare("SELECT handle, bio, image_url FROM users WHERE id = ?").bind(userId),
+    env.DB.prepare("DELETE FROM company_members WHERE user_id = ?").bind(userId),
+    ...memberRows(r.experience).map((m) =>
+      env.DB.prepare("INSERT INTO company_members (company_id, user_id, title, current) VALUES (?, ?, ?, ?)").bind(m.companyId, userId, m.title, m.current ? 1 : 0)),
   ]);
   const u = row.results[0];
   if (u) broadcast({ t: "profile", id: userId, name, handle: u.handle, headline, bio: u.bio && u.bio.slice(0, 120), imageUrl: u.image_url });

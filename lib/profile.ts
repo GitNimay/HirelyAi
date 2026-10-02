@@ -35,7 +35,7 @@ type Row = {
 export async function getProfile(viewerId: string, ref: string): Promise<Profile | null> {
   const r = await env.DB.prepare(
     `SELECT u.id, u.handle, u.name, u.headline, u.bio, u.location, u.website, u.image_url, u.cover_key, u.joined_at, u.resume_public, u.open_to_work,
-       (SELECT COUNT(*) FROM posts WHERE author_id = u.id) AS posts,
+       (SELECT COUNT(*) FROM posts WHERE author_id = u.id AND company_id IS NULL) AS posts,
        (SELECT COUNT(*) FROM connections WHERE user_id = u.id) AS connections,
        (SELECT COUNT(*) FROM follows WHERE follower_id = u.id) AS following,
        (SELECT COUNT(*) FROM follows WHERE followee_id = u.id) AS followers,

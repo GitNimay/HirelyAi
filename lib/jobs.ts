@@ -8,6 +8,8 @@ export type Job = {
   id: string;
   title: string;
   company: string;
+  /** The company page, for jobs posted since pages exist. `verified`: the poster proved a work email there. */
+  page: { slug: string; logoUrl: string | null; verified: boolean } | null;
   location: string;
   workplace: Workplace;
   type: JobType;
@@ -40,7 +42,7 @@ export type Applicant = {
 };
 
 type Row = {
-  id: string; poster_id: string; title: string; company: string; location: string; workplace: Workplace; type: JobType; level: Level;
+  id: string; poster_id: string; title: string; company: string; co_slug: string | null; co_logo: string | null; co_verified: number; location: string; workplace: Workplace; type: JobType; level: Level;
   salary: string | null; description: string; applicant_count: number; closed_at: number | null; created_at: number;
   name: string; image_url: string | null; headline: string | null; saved: number; app_status: AppStatus | null; applied_at: number | null;
   iv_deadline: number | null; iv_questions: number | null; iv_slug: string | null; iv_password: string | null; iv_status: SessionStatus | null;
@@ -54,17 +56,22 @@ const POSTED_DAYS = { day: 1, week: 7, month: 30 };
 const SELECT = `
   SELECT j.*, u.name, u.image_url, u.headline, a.status AS app_status, a.created_at AS applied_at,
          EXISTS (SELECT 1 FROM saved_jobs s WHERE s.user_id = ?1 AND s.job_id = j.id) AS saved,
+         co.slug AS co_slug, co.logo_key AS co_logo,
+         EXISTS (SELECT 1 FROM company_verifications v WHERE v.company_id = j.company_id AND v.user_id = j.poster_id) AS co_verified,
          i.deadline AS iv_deadline, json_array_length(i.questions) AS iv_questions, ivs.status AS iv_status,
          CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.slug END AS iv_slug,
          CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.password END AS iv_password
   FROM jobs j
   JOIN users u ON u.id = j.poster_id
+  LEFT JOIN companies co ON co.id = j.company_id
   LEFT JOIN applications a ON a.job_id = j.id AND a.applicant_id = ?1
   LEFT JOIN interviews i ON i.job_id = j.id
   LEFT JOIN interview_sessions ivs ON ivs.job_id = j.id AND ivs.applicant_id = ?1`;
 
 const toJob = (r: Row): Job => ({
-  id: r.id, title: r.title, company: r.company, location: r.location, workplace: r.workplace, type: r.type, level: r.level,
+  id: r.id, title: r.title, company: r.company,
+  page: r.co_slug ? { slug: r.co_slug, logoUrl: r.co_logo ? `/api/media/${r.co_logo}` : null, verified: !!r.co_verified } : null,
+  location: r.location, workplace: r.workplace, type: r.type, level: r.level,
   salary: r.salary, description: r.description, applicants: r.applicant_count, createdAt: r.created_at, closedAt: r.closed_at,
   poster: { id: r.poster_id, name: r.name, imageUrl: r.image_url, headline: r.headline },
   saved: !!r.saved,
@@ -117,6 +124,13 @@ export async function getJob(viewerId: string, id: string) {
   return row && toJob(row);
 }
 
+/** A company page's open jobs, newest first. ponytail: newest 50; page when a company gets there. */
+export async function companyJobs(viewerId: string, companyId: string): Promise<Job[]> {
+  const { results } = await env.DB.prepare(`${SELECT} WHERE j.company_id = ?2 AND j.closed_at IS NULL ORDER BY j.created_at DESC LIMIT 50`)
+    .bind(viewerId, companyId).all<Row>();
+  return results.map(toJob);
+}
+
 /** Only the poster sees applicants. */
 export async function getApplicants(posterId: string, jobId: string): Promise<Applicant[]> {
   const { results } = await env.DB.prepare(
@@ -145,13 +159,13 @@ export async function lastApplication(viewerId: string) {
 }
 
 /** What the signed-out share page (/job/<id>) may show: the listing and who posted it, never interview credentials or applicant data. */
-export type PublicJob = Pick<Job, "id" | "title" | "company" | "location" | "workplace" | "type" | "level" | "salary" | "description" | "createdAt" | "closedAt"> & {
+export type PublicJob = Pick<Job, "id" | "title" | "company" | "page" | "location" | "workplace" | "type" | "level" | "salary" | "description" | "createdAt" | "closedAt"> & {
   poster: { name: string; headline: string | null };
 };
 
 export async function getPublicJob(id: string): Promise<PublicJob | null> {
   const j = await getJob("", id);
   if (!j) return null;
-  const { title, company, location, workplace, type, level, salary, description, createdAt, closedAt } = j;
-  return { id: j.id, title, company, location, workplace, type, level, salary, description, createdAt, closedAt, poster: { name: j.poster.name, headline: j.poster.headline } };
+  const { title, company, page, location, workplace, type, level, salary, description, createdAt, closedAt } = j;
+  return { id: j.id, title, company, page, location, workplace, type, level, salary, description, createdAt, closedAt, poster: { name: j.poster.name, headline: j.poster.headline } };
 }

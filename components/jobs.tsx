@@ -10,7 +10,7 @@ import { FITS, INTERVIEW, NOTICE, type Fit } from "@/lib/interview-fields";
 import type { Applicant, Job, JobPage } from "@/lib/jobs";
 import { ask, Clamp, leaveIfClean, Modal, Tabs, toast, useUnsavedGuard } from "./kit";
 import { JobRowsSkeleton, Line, Loading, Skeleton, times } from "./skeleton";
-import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, Icon, icons } from "./ui";
+import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Tab = "search" | MyJobsTab;
@@ -302,14 +302,6 @@ function SearchForm({ filters, onChange, hasFilters }: { filters: JobFilters; on
   );
 }
 
-function CompanyMark({ name, size = 48 }: { name: string; size?: number }) {
-  return (
-    <span className="flex shrink-0 items-center justify-center rounded-md border border-border bg-surface font-semibold text-muted" style={{ width: size, height: size, fontSize: size / 2.6 }}>
-      {name.trim()[0]?.toUpperCase() ?? "?"}
-    </span>
-  );
-}
-
 /** A real link (Ctrl/⌘-click opens the job in a new tab); a plain click opens it in place. Save sits on the row, like LinkedIn. */
 function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onOpen: () => void; onSave: () => void }) {
   const tag = j.closedAt ? "Closed" : j.application ? (j.application.status === "submitted" ? "Applied" : STATUSES[j.application.status]) : mine ? "Your job" : j.saved ? "Saved" : null;
@@ -336,7 +328,7 @@ function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onO
         }}
         className={`flex w-full gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${mine ? "" : "pr-14"}`}
       >
-        <CompanyMark name={j.company} />
+        <CompanyLogo name={j.company} src={j.page?.logoUrl} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-link">{j.title}</p>
           <p className="truncate text-sm">{j.company}</p>
@@ -393,8 +385,14 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
     <article className="border-b border-border">
       <div className="space-y-4 border-b border-border p-4">
         <div className="flex items-center gap-2 text-sm">
-          <CompanyMark name={j.company} size={28} />
-          <span className="font-medium">{j.company}</span>
+          <CompanyLogo name={j.company} src={j.page?.logoUrl} size={28} />
+          {j.page ? <Link href={`/company/${j.page.slug}`} className="font-medium hover:underline">{j.company}</Link> : <span className="font-medium">{j.company}</span>}
+          {j.page?.verified && (
+            <span title="The poster verified they work here" className="flex items-center gap-1 text-xs text-success">
+              <Icon d={icons.verified} size={14} />
+              Verified
+            </span>
+          )}
         </div>
         <div>
           <h2 className="text-xl font-semibold tracking-tight text-balance">{j.title}</h2>
@@ -710,8 +708,11 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
   );
 }
 
-/** Dedicated Post a job page in the feed column: grouped sections, then straight to the new listing. */
-export function PostJobForm() {
+/**
+ * Dedicated Post a job page in the feed column: grouped sections, then straight to the new listing.
+ * `companies`: pages the member verified they work at; only those can be posted for. `initialCompany` preselects one.
+ */
+export function PostJobForm({ companies, initialCompany }: { companies: { id: string; name: string }[]; initialCompany?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -764,8 +765,10 @@ export function PostJobForm() {
           <Field label="Job title">
             <input name="title" required autoFocus maxLength={LIMITS.title} placeholder="Senior Frontend Engineer" className={field} />
           </Field>
-          <Field label="Company">
-            <input name="company" required maxLength={LIMITS.company} className={field} />
+          <Field label="Company" hint="pages where you verified your work email">
+            <select name="companyId" required defaultValue={companies.some((c) => c.id === initialCompany) ? initialCompany : undefined} className={select}>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </Field>
         </FormSection>
 

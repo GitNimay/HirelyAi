@@ -2,16 +2,16 @@
 
 import { env } from "cloudflare:workers";
 import { getUserPosts, type ProfileTab } from "@/lib/feed";
-import { failed, Fail, text, viewer, writer } from "@/lib/guard";
+import { failed, Fail, ownImage, text, viewer, writer } from "@/lib/guard";
 import { inFolder } from "@/lib/media";
 import { listFollows, type FollowDir } from "@/lib/network";
 import { getReplies } from "@/lib/profile";
-import { cleanHandle, LIMITS, normalizeWebsite, PROFILE_IMAGE_TYPES, validHandle } from "@/lib/profile-fields";
+import { cleanHandle, LIMITS, normalizeWebsite, validHandle } from "@/lib/profile-fields";
 import { broadcast } from "@/lib/realtime";
 
 export async function loadUserPosts(userId: string, tab: ProfileTab, cursor?: string) {
   const me = await viewer();
-  const t: ProfileTab = tab === "media" || tab === "likes" ? tab : "posts";
+  const t: ProfileTab = tab === "media" || tab === "likes" || tab === "company" ? tab : "posts";
   // Likes are private, like on X: only their owner may list them
   if (t === "likes" && String(userId) !== me) return { posts: [], next: null };
   return getUserPosts(me, String(userId), t, cursor ? String(cursor) : undefined);
@@ -44,14 +44,6 @@ export async function saveProfile(input: ProfileInput) {
   return save(input ?? ({} as ProfileInput)).then((r) => r, failed);
 }
 
-/** Only this member's own, freshly uploaded profile images qualify. */
-async function checkImage(me: string, key: unknown) {
-  const k = typeof key === "string" ? key : "";
-  const obj = inFolder(k, "profiles", me) ? await env.MEDIA.head(k) : null;
-  if (!obj || obj.customMetadata?.owner !== me || !PROFILE_IMAGE_TYPES.includes(obj.httpMetadata?.contentType ?? "")) throw new Fail("Image upload failed. Try again.");
-  return k;
-}
-
 async function save(input: ProfileInput) {
   const me = await writer();
   const name = text(input.name, LIMITS.name);
@@ -66,8 +58,8 @@ async function save(input: ProfileInput) {
 
   const old = await env.DB.prepare("SELECT image_url, cover_key FROM users WHERE id = ?").bind(me).first<{ image_url: string | null; cover_key: string | null }>();
   if (!old) throw new Fail("Profile not found");
-  const avatar = input.avatarKey ? await checkImage(me, input.avatarKey) : null;
-  const cover = input.coverKey ? await checkImage(me, input.coverKey) : null;
+  const avatar = input.avatarKey ? await ownImage(me, input.avatarKey, "profiles") : null;
+  const cover = input.coverKey ? await ownImage(me, input.coverKey, "profiles") : null;
   const imageUrl = avatar ? `/api/media/${avatar}` : old.image_url;
   const coverKey = input.removeCover ? null : (cover ?? old.cover_key);
 

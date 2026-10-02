@@ -27,6 +27,8 @@ export const icons = {
   plus: "M12 5v14M5 12h14",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
   trash: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+  company: "M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h4a2 2 0 0 1 2 2v10M9 7h2M9 11h2M9 15h2",
+  verified: "M12 2 15 5h4v4l3 3-3 3v4h-4l-3 3-3-3H5v-4l-3-3 3-3V5h4zM8.5 12l2.5 2.5 4.5-5",
 };
 
 export const btn = "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
@@ -63,6 +65,7 @@ export const navItems = [
   { slug: "", label: "Home", icon: icons.home },
   { slug: "network", label: "My Network", icon: icons.network },
   { slug: "jobs", label: "Jobs", icon: icons.jobs },
+  { slug: "companies", label: "Companies", icon: icons.company },
   { slug: "notifications", label: "Notifications", icon: icons.notifications },
   { slug: "me", label: "Me", icon: icons.settings }, // links to /in/<your handle>, see Nav
 ];
@@ -76,6 +79,18 @@ export function Avatar({ name, src, size = 40 }: { name: string; src?: string; s
   ) : (
     <span className="flex shrink-0 items-center justify-center rounded-full bg-surface-hover text-xs font-medium text-muted" style={{ width: size, height: size }}>
       {initials}
+    </span>
+  );
+}
+
+/** A company's square logo, or its initial on a grey tile when it has no page or no logo (LinkedIn's placeholder). */
+export function CompanyLogo({ name, src, size = 48 }: { name: string; src?: string | null; size?: number }) {
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media
+    <img src={src} alt="" width={size} height={size} className="shrink-0 rounded-md border border-border bg-background object-cover" style={{ width: size, height: size }} />
+  ) : (
+    <span className="flex shrink-0 items-center justify-center rounded-md border border-border bg-surface font-semibold text-muted" style={{ width: size, height: size, fontSize: size / 2.6 }}>
+      {name.trim()[0]?.toUpperCase() ?? "?"}
     </span>
   );
 }
