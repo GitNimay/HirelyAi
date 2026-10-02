@@ -61,12 +61,13 @@ export function Icon({ d, size = 20, className }: { d: string; size?: number; cl
   );
 }
 
-export const navItems = [
+// `short` is the bottom tab bar label on phones, where six tabs leave ~55px each
+export const navItems: { slug: string; label: string; short?: string; icon: string }[] = [
   { slug: "", label: "Home", icon: icons.home },
-  { slug: "network", label: "My Network", icon: icons.network },
+  { slug: "network", label: "My Network", short: "Network", icon: icons.network },
   { slug: "jobs", label: "Jobs", icon: icons.jobs },
-  { slug: "companies", label: "Companies", icon: icons.company },
-  { slug: "notifications", label: "Notifications", icon: icons.notifications },
+  { slug: "companies", label: "Companies", short: "Company", icon: icons.company },
+  { slug: "notifications", label: "Notifications", short: "Alerts", icon: icons.notifications },
   { slug: "me", label: "Me", icon: icons.settings }, // links to /in/<your handle>, see Nav
 ];
 

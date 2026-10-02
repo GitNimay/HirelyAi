@@ -50,7 +50,7 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
 
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background pb-[env(safe-area-inset-bottom)] sm:static sm:flex-col sm:justify-start sm:gap-1 sm:border-0 sm:pb-0">
-      {navItems.map(({ slug, label, icon }) => {
+      {navItems.map(({ slug, label, short, icon }) => {
         const href = slug === "me" ? `/in/${me}` : slug ? `/dashboard/${slug}` : "/dashboard";
         const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && pathname.startsWith("/settings/")) || (slug === "companies" && pathname.startsWith("/company/"));
         const badge = slug === "notifications" && !active ? count : 0;
@@ -60,7 +60,7 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
               href={href}
               aria-current={pathname === href ? "page" : undefined}
               title={label}
-              className={`flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
+              className={`flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
                 active ? "font-medium text-foreground sm:bg-surface" : "text-muted hover:bg-surface hover:text-foreground"
               }`}
             >
@@ -73,7 +73,8 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
                   </span>
                 )}
               </span>
-              <span className="sm:hidden xl:inline">{label}</span>
+              <span className="max-w-full truncate px-0.5 sm:hidden">{short ?? label}</span>
+              <span className="hidden xl:inline">{label}</span>
             </Link>
             {active && subNav[slug] && <HookSidebar items={subNav[slug]} aria-label={label} color="var(--link)" className="ml-[21px] hidden xl:flex" />}
           </Fragment>
