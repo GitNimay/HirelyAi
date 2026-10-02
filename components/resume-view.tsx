@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { CompanyCard } from "@/lib/companies";
 import { fmtRange, STATUSES, type Experience, type Resume } from "@/lib/resume-fields";
-import { CompanyLogo, Icon, icons } from "./ui";
+import { CompanyLogo, Icon, icons, type IconDef } from "./ui";
 
 const cap = "M22 10 12 5 2 10l10 5 10-5zM6 12v5c3 3 9 3 12 0v-5";
 
@@ -76,7 +76,7 @@ export function Block({ title, empty, action, children }: { title: string; empty
   );
 }
 
-function Item({ title, sub, when, body, icon = icons.jobs, lead, action }: { title: string; sub?: ReactNode; when?: string; body?: string; icon?: string; lead?: ReactNode; action?: ReactNode }) {
+function Item({ title, sub, when, body, icon = icons.jobs, lead, action }: { title: string; sub?: ReactNode; when?: string; body?: string; icon?: IconDef; lead?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex gap-3">
       {lead ?? <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-muted"><Icon d={icon} size={16} /></span>}

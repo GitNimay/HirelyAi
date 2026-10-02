@@ -10,6 +10,7 @@ import { validPhone } from "@/lib/resume-fields";
 import { errorText, providerIcons, providers } from "./auth";
 import { field, Field } from "./jobs";
 import { Modal } from "./kit";
+import { CodeField } from "./input-otp";
 import { Line, Loading, Skeleton, times } from "./skeleton";
 import { ago, btnDanger, btnGhost, btnOutline, btnPrimary } from "./ui";
 
@@ -212,7 +213,7 @@ function Phones() {
           </Field>
           <Alert text={error} />
           <div className="flex gap-2">
-            <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
             <button type="button" className={btnGhost} disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
           </div>
         </form>
@@ -281,23 +282,13 @@ function AddContact({ run, onVerified }: { run: Run; onVerified: (r: EmailAddres
         </Field>
       ) : (
         <Field label="Verification code" hint={`sent to ${value.trim()}`}>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            placeholder="000000"
-            autoFocus
-            required
-            className={`${field} font-mono tracking-[0.4em]`}
-          />
+          <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         </Field>
       )}
       <Alert text={error} />
       <div className="flex gap-2">
-        <button type="submit" className={btnPrimary} disabled={busy || (step === "code" && code.length !== 6)}>
-          {busy ? "Please wait…" : step === "value" ? "Send code" : "Verify"}
+        <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || (step === "code" && code.length !== 6)}>
+          {step === "value" ? "Send code" : "Verify"}
         </button>
         <button type="button" className={btnGhost} disabled={busy} onClick={() => (pending.current?.destroy().catch(() => {}), reset())}>
           Cancel
@@ -447,8 +438,8 @@ function DeleteAccount({ run }: { run: Run }) {
               <button type="button" className={btnGhost} disabled={busy} onClick={() => (setOpen(false), setTyped(""))}>
                 Cancel
               </button>
-              <button type="submit" className={btnDanger} disabled={busy || typed !== "DELETE"}>
-                {busy ? "Deleting…" : "Delete my account"}
+              <button aria-busy={busy} type="submit" className={btnDanger} disabled={busy || typed !== "DELETE"}>
+                Delete my account
               </button>
             </div>
           </form>
@@ -512,17 +503,7 @@ function Reverify({ level, complete, cancel, onDone }: NeedsReverification & { o
         <p className="text-sm text-muted">
           {sentTo ? <>For your security, enter the 6-digit code we sent to <span className="text-foreground">{sentTo}</span>.</> : "Sending a verification code…"}
         </p>
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          placeholder="000000"
-          aria-label="Verification code"
-          autoFocus
-          className={`${field} text-center font-mono tracking-[0.5em]`}
-        />
+        <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         <Alert text={error} />
         <div className="flex items-center justify-between">
           <button type="button" className="text-sm text-link hover:underline disabled:opacity-60" disabled={busy} onClick={start}>
@@ -530,7 +511,7 @@ function Reverify({ level, complete, cancel, onDone }: NeedsReverification & { o
           </button>
           <div className="flex gap-2">
             <button type="button" className={btnGhost} onClick={close}>Cancel</button>
-            <button type="submit" className={btnPrimary} disabled={busy || code.length !== 6}>{busy ? "Verifying…" : "Continue"}</button>
+            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || code.length !== 6}>Continue</button>
           </div>
         </div>
       </form>

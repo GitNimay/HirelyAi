@@ -39,7 +39,7 @@ export function CompanyHeader({ company: c }: { company: Company }) {
       setFollowing((await toggleCompanyFollow(c.id)).following);
     } catch {
       setFollowing(following);
-      toast("Couldn't update. Try again.");
+      toast("Couldn't update. Try again.", "error");
     } finally {
       setBusy(false);
     }
@@ -201,7 +201,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
         <Link href={back} onClick={leave} aria-label="Back" className={backBtn}><Icon d={icons.back} size={18} /></Link>
         <h1 className="flex-1 text-sm font-semibold">{c ? "Edit page" : "Create a company page"}</h1>
-        <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : c ? "Save" : "Create page"}</button>
+        <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{c ? "Save" : "Create page"}</button>
       </header>
 
       <div className="relative aspect-[4/1] bg-gradient-to-br from-surface-hover to-surface">
@@ -280,7 +280,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
-          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : c ? "Save" : "Create page"}</button>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{c ? "Save" : "Create page"}</button>
         </div>
       </div>
     </form>
@@ -298,7 +298,7 @@ export function AdminList({ company, admins, viewerId }: { company: Company; adm
     setBusy(true);
     const r = await call().catch(() => ({ error: "Couldn't update. Try again." }));
     setBusy(false);
-    if ("error" in r) return toast(r.error);
+    if ("error" in r) return toast(r.error, "error");
     toast(done);
     setHandle("");
     router.refresh();

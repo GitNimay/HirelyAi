@@ -92,9 +92,146 @@ body {
   }
 }
 
+/* Texture buttons: the look of cult-ui's texture-button (a dark rim, a vertical gradient face and a lit top edge),
+   as single-element utilities so they work on <button>, <Link> and <label> alike. light-dark() follows the
+   color-scheme each theme block sets above, so they track data-theme, not just the OS. */
+@utility tx-primary {
+  color: light-dark(rgb(255 255 255 / 0.92), rgb(0 0 0 / 0.82));
+  background-image: linear-gradient(light-dark(#2a2a2a, #fafafa), light-dark(#000, #e5e5e5));
+  box-shadow: 0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a), inset 0 1px 0 light-dark(rgb(255 255 255 / 0.16), #fff), 0 1px 2px rgb(0 0 0 / 0.25);
+  &:hover { background-image: linear-gradient(light-dark(#3a3a3a, #f5f5f4), light-dark(#1a1a1a, #d6d3d1)); }
+  &:active { background-image: linear-gradient(light-dark(#000, #d6d3d1), light-dark(#000, #d4d4d4)); box-shadow: 0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a), inset 0 1px 2px rgb(0 0 0 / 0.3); }
+}
+@utility tx-secondary {
+  color: var(--foreground);
+  background-image: linear-gradient(light-dark(#fff, #2a2a2a), light-dark(#f7f7f7, #1f1f1f));
+  box-shadow: 0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a), inset 0 1px 0 light-dark(#fff, rgb(255 255 255 / 0.08)), 0 1px 2px rgb(0 0 0 / 0.15);
+  &:hover { background-image: linear-gradient(light-dark(#fafafa, #363636), light-dark(#efefef, #262626)); }
+  &:active { background-image: linear-gradient(light-dark(#ececec, #1f1f1f), light-dark(#f2f2f2, #222)); box-shadow: 0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a), inset 0 1px 2px rgb(0 0 0 / 0.2); }
+}
+@utility tx-danger {
+  color: #fff;
+  background-image: linear-gradient(#f87171, #e5484d);
+  box-shadow: 0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a), inset 0 1px 0 rgb(255 255 255 / 0.28), 0 1px 2px rgb(0 0 0 / 0.25);
+  &:hover { background-image: linear-gradient(#fb8a8a, #ef5257); }
+  &:active { background-image: linear-gradient(#e5484d, #dc3a3f); box-shadow: 0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a), inset 0 1px 2px rgb(0 0 0 / 0.3); }
+}
+
+/* Processing state for any button: set aria-busy={busy}. The label keeps its width (text goes clear, children hide)
+   and a spinner in the button's own text color turns over it. Unlayered, so it beats disabled:opacity-50. */
+button[aria-busy="true"] {
+  position: relative;
+  pointer-events: none;
+  opacity: 1;
+  -webkit-text-fill-color: transparent;
+  & > * { visibility: hidden; }
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.05em;
+    height: 1.05em;
+    border-radius: 50%;
+    background: conic-gradient(from 90deg, transparent 10%, currentColor);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+    animation: btn-spin 0.7s linear infinite;
+  }
+}
+@keyframes btn-spin {
+  to { transform: rotate(1turn); }
+}
+
+/* Input OTP motion (from @kobra/input-otp): a dim wave while the code is checked, a trail on paste, a lift on success */
+:root {
+  --otp-wave-duration: 1150ms;
+  --otp-wave-stagger: 70ms;
+  --otp-wave-dim: 0.28;
+  --otp-trail-duration: 400ms;
+  --otp-trail-stagger: 45ms;
+  --otp-trail-width: 3px;
+  --otp-trail-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --otp-success-duration: 340ms;
+  --otp-success-stagger: 48ms;
+  --otp-success-width: 3px;
+  --otp-bounce-duration: 420ms;
+  --otp-bounce-lift: 8px;
+  --otp-trail-color: light-dark(rgb(0 0 0 / 45%), rgb(255 255 255 / 55%));
+  --otp-success-color: var(--link);
+}
+.otp-processing {
+  animation: otp-processing var(--otp-wave-duration) ease-in-out calc(var(--otp-wave-index) * var(--otp-wave-stagger)) infinite both;
+  will-change: opacity;
+}
+@keyframes otp-processing {
+  0%, 40%, 100% { opacity: 1; }
+  16% { opacity: var(--otp-wave-dim); }
+}
+.otp-trail {
+  animation: otp-trail var(--otp-trail-duration) var(--otp-trail-ease) calc(var(--otp-trail-index) * var(--otp-trail-stagger)) forwards;
+}
+@keyframes otp-trail {
+  from { box-shadow: 0 0 0 var(--otp-trail-width) var(--otp-trail-color); }
+  to { box-shadow: 0 0 0 0 transparent; }
+}
+.otp-trail-success {
+  animation: otp-trail-success var(--otp-success-duration) cubic-bezier(0.33, 0, 0.67, 1) calc(var(--otp-trail-index) * var(--otp-success-stagger)) forwards;
+}
+@keyframes otp-trail-success {
+  0%, 24% { box-shadow: 0 0 0 var(--otp-success-width) var(--otp-success-color); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.otp-bounce {
+  animation: otp-bounce var(--otp-bounce-duration) linear calc(var(--otp-trail-index) * var(--otp-success-stagger)) forwards;
+  will-change: transform;
+}
+@keyframes otp-bounce {
+  0% { transform: translateY(0); animation-timing-function: var(--otp-trail-ease); }
+  22% { transform: translateY(calc(var(--otp-bounce-lift) * -1)); animation-timing-function: linear; }
+  38% { transform: translateY(calc(var(--otp-bounce-lift) * -1)); animation-timing-function: cubic-bezier(0.4, 0, 0.5, 1); }
+  60% { transform: translateY(calc(var(--otp-bounce-lift) * 0.3)); animation-timing-function: cubic-bezier(0.33, 0, 0.67, 1); }
+  78% { transform: translateY(calc(var(--otp-bounce-lift) * -0.15)); animation-timing-function: cubic-bezier(0.33, 0, 0.67, 1); }
+  92% { transform: translateY(calc(var(--otp-bounce-lift) * 0.06)); animation-timing-function: cubic-bezier(0.33, 0, 0.67, 1); }
+  100% { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .otp-processing, .otp-trail, .otp-trail-success, .otp-bounce { animation: none; }
+  button[aria-busy="true"]::after { animation-duration: 1.6s; }
+}
+
+/* Dropdown items fade up in sequence (Menu sets --i per item); a trigger's .menu-chevron flips while its menu is open */
+.menu-item-in {
+  animation: menu-item-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 28ms + 30ms);
+}
+@keyframes menu-item-in {
+  from { opacity: 0; transform: translateY(3px); }
+}
+.menu-chevron { transition: rotate 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+[aria-expanded="true"] .menu-chevron { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) {
+  .menu-item-in { animation: none; }
+}
+
+/* Duotone icons (<Icon>): the second tone is a softer currentColor. `fill-current` (liked, saved) fills the soft fill in. */
+.icon-tone { opacity: 0.45; }
+.icon-tone-fill { opacity: 0.18; transition: opacity 150ms ease-out; }
+.fill-current .icon-tone-fill { opacity: 1; }
+
 button:not(:disabled),
 [role="button"] {
   cursor: pointer;
+}
+
+/* Selects draw their own chevron: the native one hugs the edge and indents the text past the inputs' px-3.
+   Unlayered so the right padding beats the px-3 utility; the mid grey reads on both themes. */
+select:not([multiple]) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f8f8f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.25rem;
 }
 
 /* Native dropdown lists: Windows paints them white, so match the dark theme explicitly */

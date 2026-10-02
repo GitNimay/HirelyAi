@@ -97,7 +97,7 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
     try {
       await call(p.id);
     } catch {
-      toast("Couldn't update. Try again.");
+      toast("Couldn't update. Try again.", "error");
       await refresh();
     } finally {
       setBusy((s) => {
@@ -115,7 +115,7 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
   /** "Not interested": gone from suggestions now and on every later visit. */
   const dismiss = (p: Person) => {
     setNet((n) => ({ ...n, suggestions: without(n.suggestions, p.id) }));
-    actions.dismissSuggestion(p.id).catch(() => (toast("Couldn't update. Try again."), refresh()));
+    actions.dismissSuggestion(p.id).catch(() => (toast("Couldn't update. Try again.", "error"), refresh()));
   };
   const remove = async (p: Person) =>
     (await ask({ title: `Remove ${p.name}?`, body: "They won't be notified. You can send a new invitation later.", confirm: "Remove connection", danger: true })) &&

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createMyProfile, extractFromPdf } from "@/app/onboarding/actions";
 import { emptyResume, MAX_RESUME_PDF_BYTES, mergeResume, missingFields, validPhone, type Resume } from "@/lib/resume-fields";
 import { errorText, Logo } from "./auth";
+import { CodeField } from "./input-otp";
 import { F, input, ResumeEditor, StatusPicker } from "./resume-editor";
 import { btnGhost, Icon, icons } from "./ui";
 
@@ -21,7 +22,7 @@ const STEPS: { id: Step; label: string }[] = [
 const order = (s: Step) => (s === "reading" ? 1 : STEPS.findIndex((x) => x.id === s));
 
 export const primary = "inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-const upload = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12";
+const upload = icons.upload;
 const chevron = "m9 18 6-6-6-6";
 
 /**
@@ -216,23 +217,13 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
     verify: (
       <form onSubmit={verify} className="space-y-5">
         <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email || "your email"}. This confirms the address recruiters will use to reach you, even if you signed in with Google, GitHub or X.`} />
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          placeholder="000000"
-          aria-label="Verification code"
-          autoFocus
-          className={`${input} h-10 border-border text-center font-mono tracking-[0.5em]`}
-        />
+        <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex items-center justify-between gap-3">
           <button type="button" onClick={() => go("review")} className={btnGhost} disabled={busy}><Icon d={icons.back} size={14} />Back</button>
           <span className="flex items-center gap-4">
             <button type="button" onClick={sendCode} className="text-sm text-link hover:underline disabled:opacity-60" disabled={busy}>Resend code</button>
-            <button type="submit" className={primary} disabled={busy || code.length !== 6}>{busy ? "Verifying…" : "Verify & create profile"}</button>
+            <button aria-busy={busy} type="submit" className={primary} disabled={busy || code.length !== 6}>Verify & create profile</button>
           </span>
         </div>
       </form>

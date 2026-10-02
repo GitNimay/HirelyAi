@@ -18,7 +18,7 @@ const INDEX: Record<Step, number> = { gate: 0, details: 1, mic: 2, live: 3, done
 const STATE_LABEL: Record<AgentState, string> = {
   connecting: "Connecting…", initializing: "Your interviewer is joining…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking",
 };
-const mic = "M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3";
+const mic = icons.mic;
 const chevron = "m9 18 6-6-6-6";
 const field = (bad: boolean) => `${input} h-10 ${bad ? "border-danger" : "border-border"}`;
 const date = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -127,7 +127,7 @@ export function Interview({ view }: { view: CandidateView }) {
         {error && <Alert>{error}</Alert>}
         <p className="text-[13px] text-muted" suppressHydrationWarning>Open until {date(view.deadline)}.</p>
         <div className="flex justify-end">
-          <button type="submit" className={primary} disabled={busy}>{busy ? "Checking…" : "Continue"}<Icon d={chevron} size={16} /></button>
+          <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
         </div>
       </form>
     ),
@@ -151,8 +151,8 @@ export function Interview({ view }: { view: CandidateView }) {
               {error && <Alert>{error}</Alert>}
               <div className="flex items-center justify-end gap-3">
                 {!heard && <span className="text-[13px] text-muted">Waiting to hear you…</span>}
-                <button type="button" className={primary} disabled={!heard || busy} onClick={begin}>
-                  {busy ? "Connecting…" : view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
+                <button aria-busy={busy} type="button" className={primary} disabled={!heard || busy} onClick={begin}>
+                  {view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
                 </button>
               </div>
             </>
@@ -255,7 +255,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
       </F>
       {error && <Alert>{error}</Alert>}
       <div className="flex justify-end pt-1">
-        <button type="submit" className={primary} disabled={busy}>{busy ? "Saving…" : "Continue"}<Icon d={chevron} size={16} /></button>
+        <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
       </div>
     </form>
   );

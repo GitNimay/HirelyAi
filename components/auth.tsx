@@ -5,6 +5,7 @@ import type { OAuthStrategy, SetActiveNavigate } from "@clerk/nextjs/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { CodeField } from "./input-otp";
 import { useClientValue } from "./kit";
 import { Loading, Skeleton, times } from "./skeleton";
 
@@ -27,9 +28,10 @@ function useNavigateToApp(): SetActiveNavigate {
 /* ---------- Shared UI ---------- */
 
 const btn =
-  "flex h-10 w-full items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";
-const btnSecondary = `${btn} relative border border-border bg-surface text-foreground hover:bg-surface-hover`;
-const btnPrimary = `${btn} bg-foreground text-background hover:bg-primary-hover`;
+  "flex h-10 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-[box-shadow,transform] duration-150 motion-safe:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60";
+// Texture look, same tx-* utilities as the app's buttons (globals.css)
+const btnSecondary = `${btn} relative tx-secondary`;
+const btnPrimary = `${btn} tx-primary`;
 const input =
   "h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring";
 
@@ -165,28 +167,17 @@ function AuthBody({
         <p className="text-center text-sm text-muted">
           We sent a 6-digit code to <span className="text-foreground">{email}</span>
         </p>
-        <input
-          className={`${input} text-center font-mono tracking-[0.5em]`}
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          placeholder="000000"
-          aria-label="Verification code"
-          autoFocus
-          required
-        />
+        <CodeField value={code} onChange={setCode} processing={pending === "code"} invalid={!!error} />
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        <button type="submit" className={btnPrimary} disabled={disabled || code.length !== 6}>
-          {pending === "code" ? "Verifying…" : "Verify"}
+        <button aria-busy={pending === "code"} type="submit" className={btnPrimary} disabled={disabled || code.length !== 6}>
+          Verify
         </button>
         <div className="flex justify-between text-sm">
           <button type="button" className="text-muted hover:text-foreground" onClick={() => { setStep("email"); setCode(""); setError(""); }}>
             Use a different email
           </button>
-          <button type="button" className="text-link hover:underline disabled:opacity-60" disabled={disabled} onClick={() => run("resend", () => sendCode(email.trim()))}>
-            {pending === "resend" ? "Sending…" : "Resend code"}
+          <button aria-busy={pending === "resend"} type="button" className="text-link hover:underline disabled:opacity-60" disabled={disabled} onClick={() => run("resend", () => sendCode(email.trim()))}>
+            Resend code
           </button>
         </div>
       </form>
@@ -197,9 +188,9 @@ function AuthBody({
     <>
       <div className="space-y-3">
         {providers.map(({ strategy, label }) => (
-          <button key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => (remember(strategy), run(strategy, () => sso(strategy)))}>
+          <button aria-busy={pending === strategy} key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => (remember(strategy), run(strategy, () => sso(strategy)))}>
             <span className="absolute left-4">{providerIcons[strategy]}</span>
-            {pending === strategy ? "Redirecting…" : `Continue with ${label}`}
+            {`Continue with ${label}`}
             {last === strategy && <LastUsed />}
           </button>
         ))}
@@ -224,8 +215,8 @@ function AuthBody({
           required
         />
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        <button type="submit" className={`${btnPrimary} relative`} disabled={disabled}>
-          {pending === "email" ? "Sending code…" : cta}
+        <button aria-busy={pending === "email"} type="submit" className={`${btnPrimary} relative`} disabled={disabled}>
+          {cta}
           {last === "email" && <LastUsed />}
         </button>
       </form>

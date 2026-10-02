@@ -372,7 +372,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
     const url = `${location.origin}/job/${j.id}`; // public page; members are sent on to the app
     if (navigator.share) await navigator.share({ url, title: `${j.title} at ${j.company}` }).catch(() => {});
     else {
-      await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link"));
+      await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link", "error"));
     }
   }
 
@@ -701,7 +701,7 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className={btnGhost} onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? (file ? "Uploading…" : "Submitting…") : "Submit application"}</button>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Submit application</button>
         </div>
       </form>
     </Modal>
@@ -838,7 +838,7 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
         <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
           {error && <p role="alert" className="mr-auto text-sm text-danger">{error}</p>}
           <Link href="/dashboard/jobs" onClick={leave} className={btnGhost}>Cancel</Link>
-          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Posting…" : "Post job"}</button>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Post job</button>
         </div>
       </form>
     </>
@@ -1009,7 +1009,7 @@ function InterviewReport({ result: r, retrying, onRetry }: { result: InterviewRe
       ) : r.status === "failed" ? (
         <div className="flex items-center justify-between gap-3">
           <p className="text-muted">The AI evaluation didn&apos;t finish. The transcript is saved.</p>
-          <button type="button" className={btnOutline} onClick={onRetry} disabled={retrying}>{retrying ? "Evaluating…" : "Retry evaluation"}</button>
+          <button aria-busy={retrying} type="button" className={btnOutline} onClick={onRetry} disabled={retrying}>Retry evaluation</button>
         </div>
       ) : (
         <p className="text-muted">{IV_STATUS[r.status]}</p>

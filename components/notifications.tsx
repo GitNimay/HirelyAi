@@ -6,8 +6,9 @@ import * as actions from "@/app/dashboard/actions";
 import { categoryOf, hasPreview, verb, who, type Category, type NotificationType } from "@/lib/notification-format";
 import type { Notification } from "@/lib/notifications";
 import { setParam, Tabs, useClientValue } from "./kit";
+import { ActivityDropdown } from "./ui/activity-dropdown";
 import { NotificationRowsSkeleton } from "./skeleton";
-import { ago, Avatar, btnGhost, Icon, icons } from "./ui";
+import { ago, Avatar, btnGhost, Icon, icons, type IconDef } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Page = { items: Notification[]; next: string | null };
@@ -21,13 +22,29 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "jobs", label: "Jobs" },
 ];
 
-const ICON: Record<NotificationType, string> = {
+const ICON: Record<NotificationType, IconDef> = {
   like: icons.like, repost: icons.repost, comment: icons.comment, thread: icons.comment, post: icons.article,
   follow: icons.connect, invite: icons.connect, accept: icons.check,
   applicant: icons.file, app_viewed: icons.jobs, app_shortlisted: icons.check, app_rejected: icons.close, job: icons.jobs, job_closed: icons.jobs,
 };
 
 const newestFirst = (a: Notification, b: Notification) => b.at - a.at;
+
+/** Home feed card: your unread notifications, collapsed until you open it. Nothing when you're caught up. */
+export function RecentActivity({ items }: { items: Notification[] }) {
+  const unread = items.filter((n) => !n.read);
+  if (!unread.length) return null;
+  return (
+    <ActivityDropdown
+      className="m-3"
+      icon={icons.notifications}
+      title={`${unread.length}${unread.length === 30 ? "+" : ""} new ${unread.length === 1 ? "activity" : "activities"}`}
+      subtitle="What's happening around you"
+      items={unread.slice(0, 5).map((n) => ({ id: n.id, icon: ICON[n.type], title: who(n.actors, n.count), description: verb(n.type, n.body), time: ago(n.at), href: n.link }))}
+      footer={<Link href="/dashboard/notifications" className="text-sm text-link hover:underline">See all notifications</Link>}
+    />
+  );
+}
 
 /** Split a newest-first list into Today / Earlier, dropping empty groups. `midnight` is null until mounted
     (the server doesn't know the viewer's time zone), so the first render is one plain list. */
