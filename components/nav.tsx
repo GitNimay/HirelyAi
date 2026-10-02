@@ -25,7 +25,7 @@ const subNav: Record<string, { label: string; href: string }[]> = {
   ],
 };
 
-/** Vertical rail on sm+, bottom tab bar on phones. Labels show from xl. `me` is your profile handle. `unseen` is the server-rendered notification badge, kept live after that. */
+/** Vertical rail on sm+, icon-only bottom tab bar on phones. Labels show from xl. `me` is your profile handle. `unseen` is the server-rendered notification badge, kept live after that. */
 export function Nav({ unseen, me }: { unseen: number; me: string }) {
   const pathname = usePathname();
   const [count, setCount] = useState(unseen);
@@ -73,7 +73,7 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
                   </span>
                 )}
               </span>
-              <span className="sm:hidden xl:inline">{label}</span>
+              <span className="hidden xl:inline">{label}</span>
             </Link>
             {active && subNav[slug] && <HookSidebar items={subNav[slug]} aria-label={label} color="var(--link)" className="ml-[21px] hidden xl:flex" />}
           </Fragment>
