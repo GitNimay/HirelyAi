@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { loadUserPosts } from "@/app/in/actions";
 import type { Comment, MediaInput } from "@/app/dashboard/actions";
@@ -26,8 +26,7 @@ const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "S
 /** `list.compose`: a company page's Posts tab for its admins: a composer that posts as the company. */
 type AsCompany = { id: string; name: string; logoUrl: string | null };
 
-/** `top` sits under the home tabs, above the composer (the unread-activity card). */
-export function Feed({ viewer, initial, initialTab = "for-you", followingIds, single, list, top }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string; compose?: AsCompany }; top?: ReactNode }) {
+export function Feed({ viewer, initial, initialTab = "for-you", followingIds, single, list }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string; compose?: AsCompany } }) {
   const [tab, setTab] = useState<FeedTab>(initialTab);
   const [page, setPage] = useState(initial);
   const [fresh, setFresh] = useState(0);
@@ -144,7 +143,6 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
               }}
             />
           </header>
-          {top}
           <Composer viewer={viewer} onPosted={(p) => setPage((pg) => ({ ...pg, posts: [p, ...pg.posts] }))} />
         </>
       )}

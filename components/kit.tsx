@@ -132,10 +132,9 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const hover = useFluidHover(panel, { selector: '[role^="menuitem"]' });
-  const reduce = useReducedMotion();
   const items = () => Array.from(box.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? []);
 
-  // Items fade up one after another: each gets its index before first paint, the stagger itself is CSS (.menu-item-in)
+  // Items fade up one after another: each gets its index before first paint, the stagger itself is CSS (.dd / .dd-item)
   useLayoutEffect(() => {
     if (open) panel.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]').forEach((el, i) => el.style.setProperty("--i", String(i)));
   }, [open]);
@@ -144,9 +143,6 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
     if (open) items()[0]?.focus();
   }, [open]);
 
-  // Grow from the corner the panel hangs off (panelClassName says where it sits)
-  const up = panelClassName.includes("bottom-full");
-  const origin = `${up ? "bottom" : "top"} ${panelClassName.includes("right-0") ? "right" : "left"}`;
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!open) return;
@@ -186,27 +182,151 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
       >
         {button}
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
+      {/* Always mounted so it can grow open and shut; inert while closed keeps its items out of the tab order */}
+      <div
+        data-open={open || undefined}
+        inert={!open}
+        className={cn("dd absolute z-20 rounded-xl border border-border bg-surface text-sm shadow-[0_12px_32px_rgb(0_0_0/0.35)]", panelClassName)}
+      >
+        <div>
+          <div
             ref={panel}
             role="menu"
             aria-label={label}
             {...hover.handlers}
             // the highlight follows keyboard focus too, so arrows glide like the pointer does
             onFocus={(e) => e.target.matches('[role^="menuitem"]') && hover.show(e.target)}
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: up ? 4 : -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, ...(reduce ? {} : { scale: 0.97 }), transition: spring.moderate.exit }}
-            transition={reduce ? { duration: 0.1 } : spring.moderate}
-            style={{ transformOrigin: origin }}
-            className={cn("menu-panel absolute z-20 overflow-hidden rounded-xl border border-border bg-surface p-1 text-sm shadow-[0_12px_32px_rgb(0_0_0/0.35)]", panelClassName)}
+            className="relative p-1"
           >
             <FluidHoverHighlight hover={hover} className="rounded-lg" />
             {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Dropdown select (WAI-ARIA listbox) that opens like Menu. A hidden native <select> carries `name`/`required`/the
+ * form value and fires a real change event, so FormData, validation and form-level onChange keep working.
+ * Uncontrolled like a native select: no value/defaultValue means the first option.
+ */
+export function Select({ options, value, defaultValue, onChange, name, required, className, panelClassName, "aria-label": ariaLabel }: {
+  options: { value: string; label: string }[];
+  value?: string;
+  defaultValue?: string;
+  onChange?: (value: string) => void;
+  name?: string;
+  required?: boolean;
+  className: string;
+  panelClassName?: string;
+  "aria-label"?: string;
+}) {
+  const [own, setOwn] = useState(defaultValue ?? options[0]?.value ?? "");
+  const current = value ?? own;
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const native = useRef<HTMLSelectElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const id = useId();
+  const at = Math.max(0, options.findIndex((o) => o.value === current));
+
+  function show() {
+    setActive(at);
+    setOpen(true);
+    requestAnimationFrame(() => list.current?.focus());
+  }
+  function close() {
+    setOpen(false);
+    trigger.current?.focus();
+  }
+  function pick(v: string) {
+    const el = native.current;
+    if (el && el.value !== v) {
+      el.value = v;
+      el.dispatchEvent(new Event("change", { bubbles: true })); // so a form-level onChange (dirty tracking) sees it
+    }
+    if (value === undefined) setOwn(v);
+    onChange?.(v);
+    close();
+  }
+  function onKeyDown(e: React.KeyboardEvent) {
+    const to = ({ ArrowDown: active + 1, ArrowUp: active - 1, Home: 0, End: options.length - 1 } as Record<string, number>)[e.key];
+    if (to !== undefined) setActive(Math.min(options.length - 1, Math.max(0, to)));
+    else if (e.key === "Enter" || e.key === " ") {
+      if (options[active]) pick(options[active].value);
+    } else if (e.key === "Escape") close();
+    else if (e.key === "Tab") return setOpen(false);
+    else {
+      // typeahead: the next option starting with the typed letter
+      const k = e.key.toLowerCase();
+      if (k.length !== 1) return;
+      const after = options.findIndex((o, j) => j > active && o.label.toLowerCase().startsWith(k));
+      const j = after >= 0 ? after : options.findIndex((o) => o.label.toLowerCase().startsWith(k));
+      if (j < 0) return;
+      setActive(j);
+    }
+    e.preventDefault();
+  }
+
+  return (
+    <div className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}>
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        onClick={() => (open ? close() : show())}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          e.preventDefault();
+          show();
+        }}
+        className={cn("flex items-center justify-between gap-2 text-left", className)}
+      >
+        <span className="truncate">{options[at]?.label}</span>
+        <Icon d="m6 9 6 6 6-6" size={16} className="menu-chevron shrink-0 text-muted" />
+      </button>
+      {/* after the button: a wrapping <label> names (and clicks) its first labelable child */}
+      <select ref={native} name={name} required={required} value={current} onChange={() => {}} tabIndex={-1} aria-hidden className="sr-only">
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <div
+        data-open={open || undefined}
+        inert={!open}
+        className={cn("dd absolute left-0 top-full z-30 mt-1 w-full min-w-max rounded-xl border border-border bg-surface text-sm text-foreground shadow-[0_12px_32px_rgb(0_0_0/0.35)]", panelClassName)}
+      >
+        <div>
+          <ul
+            ref={list}
+            role="listbox"
+            tabIndex={-1}
+            aria-label={ariaLabel}
+            aria-activedescendant={open ? `${id}-${active}` : undefined}
+            onKeyDown={onKeyDown}
+            className="max-h-72 overflow-y-auto p-1 outline-none"
+          >
+            {options.map((o, i) => (
+              <li
+                key={o.value}
+                id={`${id}-${i}`}
+                role="option"
+                aria-selected={o.value === current}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => pick(o.value)}
+                style={{ "--i": Math.min(i, 8) } as CSSProperties}
+                className={cn("dd-item flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-2", i === active && "bg-surface-hover")}
+              >
+                {o.label}
+                {o.value === current && <Icon d={icons.check} size={14} className="shrink-0" />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }

@@ -8,7 +8,7 @@ import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, NOTICE, type Profile } from "@/lib/interview-fields";
 import { Head, primary, StepFrame } from "./onboarding";
 import { F, input } from "./resume-editor";
-import { ask } from "./kit";
+import { ask, Select } from "./kit";
 import { btnGhost, Icon, icons } from "./ui";
 
 type Step = "gate" | "details" | "mic" | "live" | "done" | "closed";
@@ -245,9 +245,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
           <input value={p.years} onChange={set("years")} type="number" min={0} max={50} inputMode="numeric" className={field(false)} />
         </F>
         <F label="Notice period">
-          <select value={p.notice} onChange={set("notice")} className={`${field(false)} bg-surface`}>
-            {Object.entries(NOTICE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+          <Select value={p.notice} onChange={(notice) => setP({ ...p, notice })} className={`${field(false)} bg-surface`} options={Object.entries(NOTICE).map(([value, label]) => ({ value, label }))} />
         </F>
       </div>
       <F label="LinkedIn or portfolio" hint="optional">
@@ -331,10 +329,13 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
           </div>
         </div>
         {devices.length > 1 && (
-          <select aria-label="Microphone" value={deviceId} onChange={(e) => onDevice(e.target.value)} className={`${field(false)} bg-surface`}>
-            <option value="">System default</option>
-            {devices.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>)}
-          </select>
+          <Select
+            aria-label="Microphone"
+            value={deviceId}
+            onChange={onDevice}
+            className={`${field(false)} bg-surface`}
+            options={[{ value: "", label: "System default" }, ...devices.map((d, i) => ({ value: d.deviceId, label: d.label || `Microphone ${i + 1}` }))]}
+          />
         )}
         {heard && <p className="text-[13px] text-success">We can hear you.</p>}
         {blocked && <button type="button" className={btnGhost} onClick={() => setAttempt((n) => n + 1)}>Try again</button>}

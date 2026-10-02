@@ -8,7 +8,7 @@ import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATU
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
 import { FITS, INTERVIEW, NOTICE, type Fit } from "@/lib/interview-fields";
 import type { Applicant, Job, JobPage } from "@/lib/jobs";
-import { ask, Clamp, leaveIfClean, Modal, Tabs, toast, useUnsavedGuard } from "./kit";
+import { ask, Clamp, leaveIfClean, Modal, Select, Tabs, toast, useUnsavedGuard } from "./kit";
 import { JobRowsSkeleton, Line, Loading, Skeleton, times } from "./skeleton";
 import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
 import { useRealtime } from "./use-realtime";
@@ -271,18 +271,14 @@ function SearchForm({ filters, onChange, hasFilters }: { filters: JobFilters; on
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {selects.map(({ key, label, opts }) => (
-          <select
+          <Select
             key={key}
             aria-label={label}
             value={filters[key] ?? ""}
-            onChange={(e) => onChange({ ...filters, [key]: e.target.value || undefined })}
+            onChange={(v) => onChange({ ...filters, [key]: v || undefined })}
+            options={[{ value: "", label }, ...Object.entries(opts).map(([value, l]) => ({ value, label: l }))]}
             className={`h-8 rounded-full border px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${filters[key] ? "border-link bg-link/10 text-foreground" : "border-border bg-background text-muted hover:text-foreground"}`}
-          >
-            <option value="">{label}</option>
-            {Object.entries(opts).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
+          />
         ))}
         {hasFilters && (
           <button
@@ -585,16 +581,14 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
                 <p className="truncate text-sm font-medium">{a.name}</p>
                 {a.headline && <p className="truncate text-xs text-muted">{a.headline}</p>}
               </div>
-              <select
+              <Select
                 aria-label={`Status for ${a.name}`}
                 value={a.status === "submitted" ? "viewed" : a.status}
-                onChange={(e) => onStatus(a, e.target.value as AppStatus)}
+                onChange={(v) => onStatus(a, v as AppStatus)}
+                options={(["viewed", "shortlisted", "rejected"] as const).map((s) => ({ value: s, label: s === "viewed" ? "Under review" : STATUSES[s] }))}
                 className="h-8 shrink-0 rounded-md border border-border bg-surface px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {(["viewed", "shortlisted", "rejected"] as const).map((s) => (
-                  <option key={s} value={s}>{s === "viewed" ? "Under review" : STATUSES[s]}</option>
-                ))}
-              </select>
+                panelClassName="left-auto right-0"
+              />
             </div>
             <p className="flex flex-wrap gap-x-3 text-xs text-muted" suppressHydrationWarning>
               <a href={`mailto:${a.email}`} className="text-link hover:underline">{a.email}</a>
@@ -749,7 +743,7 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
     }
   }
 
-  const options = (opts: Record<string, string>) => Object.entries(opts).map(([v, l]) => <option key={v} value={v}>{l}</option>);
+  const options = (opts: Record<string, string>) => Object.entries(opts).map(([value, label]) => ({ value, label }));
 
   return (
     <>
@@ -766,16 +760,20 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
             <input name="title" required autoFocus maxLength={LIMITS.title} placeholder="Senior Frontend Engineer" className={field} />
           </Field>
           <Field label="Company" hint="pages where you verified your work email">
-            <select name="companyId" required defaultValue={companies.some((c) => c.id === initialCompany) ? initialCompany : undefined} className={select}>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <Select
+              name="companyId"
+              required
+              defaultValue={companies.some((c) => c.id === initialCompany) ? initialCompany : undefined}
+              className={select}
+              options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </Field>
         </FormSection>
 
         <FormSection title="Workplace">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Workplace type">
-              <select name="workplace" value={workplace} onChange={(e) => setWorkplace(e.target.value)} className={select}>{options(WORKPLACES)}</select>
+              <Select name="workplace" value={workplace} onChange={setWorkplace} className={select} options={options(WORKPLACES)} />
             </Field>
             <Field label="Location" hint={workplace === "remote" ? "optional" : undefined}>
               <input name="location" required={workplace !== "remote"} maxLength={LIMITS.location} placeholder="City, country" className={field} />
@@ -786,10 +784,10 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
         <FormSection title="Details">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Job type">
-              <select name="type" defaultValue="full-time" className={select}>{options(JOB_TYPES)}</select>
+              <Select name="type" defaultValue="full-time" className={select} options={options(JOB_TYPES)} />
             </Field>
             <Field label="Experience level">
-              <select name="level" defaultValue="mid-senior" className={select}>{options(LEVELS)}</select>
+              <Select name="level" defaultValue="mid-senior" className={select} options={options(LEVELS)} />
             </Field>
           </div>
           <Field label="Salary" hint="optional">

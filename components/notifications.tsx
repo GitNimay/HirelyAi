@@ -6,7 +6,6 @@ import * as actions from "@/app/dashboard/actions";
 import { categoryOf, hasPreview, verb, who, type Category, type NotificationType } from "@/lib/notification-format";
 import type { Notification } from "@/lib/notifications";
 import { setParam, Tabs, useClientValue } from "./kit";
-import { ActivityDropdown } from "./ui/activity-dropdown";
 import { NotificationRowsSkeleton } from "./skeleton";
 import { ago, Avatar, btnGhost, Icon, icons, type IconDef } from "./ui";
 import { useRealtime } from "./use-realtime";
@@ -29,22 +28,6 @@ const ICON: Record<NotificationType, IconDef> = {
 };
 
 const newestFirst = (a: Notification, b: Notification) => b.at - a.at;
-
-/** Home feed card: your unread notifications, collapsed until you open it. Nothing when you're caught up. */
-export function RecentActivity({ items }: { items: Notification[] }) {
-  const unread = items.filter((n) => !n.read);
-  if (!unread.length) return null;
-  return (
-    <ActivityDropdown
-      className="m-3"
-      icon={icons.notifications}
-      title={`${unread.length}${unread.length === 30 ? "+" : ""} new ${unread.length === 1 ? "activity" : "activities"}`}
-      subtitle="What's happening around you"
-      items={unread.slice(0, 5).map((n) => ({ id: n.id, icon: ICON[n.type], title: who(n.actors, n.count), description: verb(n.type, n.body), time: ago(n.at), href: n.link }))}
-      footer={<Link href="/dashboard/notifications" className="text-sm text-link hover:underline">See all notifications</Link>}
-    />
-  );
-}
 
 /** Split a newest-first list into Today / Earlier, dropping empty groups. `midnight` is null until mounted
     (the server doesn't know the viewer's time zone), so the first render is one plain list. */

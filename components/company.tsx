@@ -9,7 +9,7 @@ import { INDUSTRIES, LIMITS, SIZES, TYPES } from "@/lib/company-fields";
 import { cropImage } from "@/lib/crop-image";
 import { AVATAR_PX, COVER_PX, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl, slugify } from "@/lib/profile-fields";
 import { field, Field } from "./jobs";
-import { ask, BackButton, leaveIfClean, TabLabel, toast, useUnsavedGuard } from "./kit";
+import { ask, BackButton, leaveIfClean, Select, TabLabel, toast, useUnsavedGuard } from "./kit";
 import { uploadImage } from "./profile";
 import { Avatar, backBtn, btnGhost, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
 
@@ -194,7 +194,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
 
   const coverSrc = cover?.url ?? (coverRemoved ? null : c?.coverUrl);
   const overlay = "flex size-9 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:opacity-50";
-  const options = (list: string[]) => [<option key="" value="">Choose…</option>, ...list.map((v) => <option key={v} value={v}>{v}</option>)];
+  const options = (list: string[]) => [{ value: "", label: "Choose…" }, ...list.map((v) => ({ value: v, label: v }))];
 
   return (
     <form onSubmit={submit} onChange={() => setDirty(true)} className="space-y-4 pb-8">
@@ -258,9 +258,9 @@ export function CompanyForm({ company: c }: { company?: Company }) {
           <input name="website" maxLength={LIMITS.website} defaultValue={c?.website ?? ""} placeholder="acme.com" inputMode="url" className={field} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Industry"><select name="industry" defaultValue={c?.industry ?? ""} className={select}>{options(INDUSTRIES)}</select></Field>
-          <Field label="Company size"><select name="size" defaultValue={c?.size ?? ""} className={select}>{options(SIZES.map((s) => s))}</select></Field>
-          <Field label="Type"><select name="type" defaultValue={c?.type ?? ""} className={select}>{options(TYPES)}</select></Field>
+          <Field label="Industry"><Select name="industry" defaultValue={c?.industry ?? ""} className={select} options={options(INDUSTRIES)} /></Field>
+          <Field label="Company size"><Select name="size" defaultValue={c?.size ?? ""} className={select} options={options(SIZES.map((s) => s))} /></Field>
+          <Field label="Type"><Select name="type" defaultValue={c?.type ?? ""} className={select} options={options(TYPES)} /></Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Headquarters" hint="optional">

@@ -62,7 +62,7 @@ export const btnLg = "h-10 px-4";
 export const backBtn = "-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:transition-[stroke-width] hover:[&_svg]:stroke-[2.25]";
 /** One row in a dropdown menu (see Menu in kit.tsx). */
 // No hover fill: Menu's fluid highlight slides under the rows (hence `relative`, to paint above it)
-export const menuItem = "menu-item-in relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none";
+export const menuItem = "dd-item relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none";
 
 /** Compact relative time: now, 5m, 3h, 2d, then a date. */
 export function ago(ms: number) {

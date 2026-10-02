@@ -199,18 +199,32 @@ button[aria-busy="true"] {
   button[aria-busy="true"]::after { animation-duration: 1.6s; }
 }
 
-/* Dropdown items fade up in sequence (Menu sets --i per item); a trigger's .menu-chevron flips while its menu is open */
-.menu-item-in {
-  animation: menu-item-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  animation-delay: calc(var(--i, 0) * 28ms + 30ms);
+/* Dropdowns (Menu, Select): the panel grows open (0fr -> 1fr rows, so no fixed height), rows rise in one after
+   another (--i per row, set by the component), and a trigger's .menu-chevron turns while it's open. The panel stays
+   mounted so closing runs the same transition backwards; components mark it `inert` while closed. */
+.dd {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transition: grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 240ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-@keyframes menu-item-in {
-  from { opacity: 0; transform: translateY(3px); }
+.dd[data-open] { grid-template-rows: 1fr; opacity: 1; pointer-events: auto; }
+.dd > * { min-height: 0; overflow: hidden; }
+.dd-item {
+  opacity: 0;
+  translate: 0 8px;
+  transition: opacity 320ms cubic-bezier(0.4, 0, 0.2, 1), translate 320ms cubic-bezier(0.4, 0, 0.2, 1), background-color 120ms ease-out;
 }
-.menu-chevron { transition: rotate 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+.dd[data-open] .dd-item {
+  opacity: 1;
+  translate: 0 0;
+  transition-delay: calc(var(--i, 0) * 40ms), calc(var(--i, 0) * 40ms), 0s;
+}
+.menu-chevron { transition: rotate 320ms cubic-bezier(0.4, 0, 0.2, 1); }
 [aria-expanded="true"] .menu-chevron { rotate: 180deg; }
 @media (prefers-reduced-motion: reduce) {
-  .menu-item-in { animation: none; }
+  .dd, .dd-item, .menu-chevron { transition-duration: 0s !important; transition-delay: 0s !important; }
 }
 
 /* Duotone icons (<Icon>): the second tone is a softer currentColor. `fill-current` (liked, saved) fills the soft fill in. */
@@ -221,17 +235,6 @@ button[aria-busy="true"] {
 button:not(:disabled),
 [role="button"] {
   cursor: pointer;
-}
-
-/* Selects draw their own chevron: the native one hugs the edge and indents the text past the inputs' px-3.
-   Unlayered so the right padding beats the px-3 utility; the mid grey reads on both themes. */
-select:not([multiple]) {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f8f8f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 1rem;
-  padding-right: 2.25rem;
 }
 
 /* Native dropdown lists: Windows paints them white, so match the dark theme explicitly */
