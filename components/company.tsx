@@ -9,7 +9,7 @@ import { INDUSTRIES, LIMITS, SIZES, TYPES } from "@/lib/company-fields";
 import { cropImage } from "@/lib/crop-image";
 import { AVATAR_PX, COVER_PX, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl, slugify } from "@/lib/profile-fields";
 import { field, Field } from "./jobs";
-import { ask, BackButton, leaveIfClean, TabLabel, toast, useUnsavedGuard } from "./kit";
+import { ask, BackButton, leaveIfClean, Select, TabLabel, toast, useUnsavedGuard } from "./kit";
 import { uploadImage } from "./profile";
 import { Avatar, backBtn, btnGhost, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
 
@@ -39,7 +39,7 @@ export function CompanyHeader({ company: c }: { company: Company }) {
       setFollowing((await toggleCompanyFollow(c.id)).following);
     } catch {
       setFollowing(following);
-      toast("Couldn't update. Try again.");
+      toast("Couldn't update. Try again.", "error");
     } finally {
       setBusy(false);
     }
@@ -194,14 +194,14 @@ export function CompanyForm({ company: c }: { company?: Company }) {
 
   const coverSrc = cover?.url ?? (coverRemoved ? null : c?.coverUrl);
   const overlay = "flex size-9 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:opacity-50";
-  const options = (list: string[]) => [<option key="" value="">Choose…</option>, ...list.map((v) => <option key={v} value={v}>{v}</option>)];
+  const options = (list: string[]) => [{ value: "", label: "Choose…" }, ...list.map((v) => ({ value: v, label: v }))];
 
   return (
     <form onSubmit={submit} onChange={() => setDirty(true)} className="space-y-4 pb-8">
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
         <Link href={back} onClick={leave} aria-label="Back" className={backBtn}><Icon d={icons.back} size={18} /></Link>
         <h1 className="flex-1 text-sm font-semibold">{c ? "Edit page" : "Create a company page"}</h1>
-        <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : c ? "Save" : "Create page"}</button>
+        <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{c ? "Save" : "Create page"}</button>
       </header>
 
       <div className="relative aspect-[4/1] bg-gradient-to-br from-surface-hover to-surface">
@@ -258,9 +258,9 @@ export function CompanyForm({ company: c }: { company?: Company }) {
           <input name="website" maxLength={LIMITS.website} defaultValue={c?.website ?? ""} placeholder="acme.com" inputMode="url" className={field} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Industry"><select name="industry" defaultValue={c?.industry ?? ""} className={select}>{options(INDUSTRIES)}</select></Field>
-          <Field label="Company size"><select name="size" defaultValue={c?.size ?? ""} className={select}>{options(SIZES.map((s) => s))}</select></Field>
-          <Field label="Type"><select name="type" defaultValue={c?.type ?? ""} className={select}>{options(TYPES)}</select></Field>
+          <Field label="Industry"><Select name="industry" defaultValue={c?.industry ?? ""} className={select} options={options(INDUSTRIES)} /></Field>
+          <Field label="Company size"><Select name="size" defaultValue={c?.size ?? ""} className={select} options={options(SIZES.map((s) => s))} /></Field>
+          <Field label="Type"><Select name="type" defaultValue={c?.type ?? ""} className={select} options={options(TYPES)} /></Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Headquarters" hint="optional">
@@ -280,7 +280,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
-          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : c ? "Save" : "Create page"}</button>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{c ? "Save" : "Create page"}</button>
         </div>
       </div>
     </form>
@@ -298,7 +298,7 @@ export function AdminList({ company, admins, viewerId }: { company: Company; adm
     setBusy(true);
     const r = await call().catch(() => ({ error: "Couldn't update. Try again." }));
     setBusy(false);
-    if ("error" in r) return toast(r.error);
+    if ("error" in r) return toast(r.error, "error");
     toast(done);
     setHandle("");
     router.refresh();

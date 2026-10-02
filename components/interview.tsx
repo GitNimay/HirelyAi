@@ -8,7 +8,7 @@ import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, NOTICE, type Profile } from "@/lib/interview-fields";
 import { Head, primary, StepFrame } from "./onboarding";
 import { F, input } from "./resume-editor";
-import { ask } from "./kit";
+import { ask, Select } from "./kit";
 import { btnGhost, Icon, icons } from "./ui";
 
 type Step = "gate" | "details" | "mic" | "live" | "done" | "closed";
@@ -18,7 +18,7 @@ const INDEX: Record<Step, number> = { gate: 0, details: 1, mic: 2, live: 3, done
 const STATE_LABEL: Record<AgentState, string> = {
   connecting: "Connecting…", initializing: "Your interviewer is joining…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking",
 };
-const mic = "M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3";
+const mic = icons.mic;
 const chevron = "m9 18 6-6-6-6";
 const field = (bad: boolean) => `${input} h-10 ${bad ? "border-danger" : "border-border"}`;
 const date = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -127,7 +127,7 @@ export function Interview({ view }: { view: CandidateView }) {
         {error && <Alert>{error}</Alert>}
         <p className="text-[13px] text-muted" suppressHydrationWarning>Open until {date(view.deadline)}.</p>
         <div className="flex justify-end">
-          <button type="submit" className={primary} disabled={busy}>{busy ? "Checking…" : "Continue"}<Icon d={chevron} size={16} /></button>
+          <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
         </div>
       </form>
     ),
@@ -151,8 +151,8 @@ export function Interview({ view }: { view: CandidateView }) {
               {error && <Alert>{error}</Alert>}
               <div className="flex items-center justify-end gap-3">
                 {!heard && <span className="text-[13px] text-muted">Waiting to hear you…</span>}
-                <button type="button" className={primary} disabled={!heard || busy} onClick={begin}>
-                  {busy ? "Connecting…" : view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
+                <button aria-busy={busy} type="button" className={primary} disabled={!heard || busy} onClick={begin}>
+                  {view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
                 </button>
               </div>
             </>
@@ -245,9 +245,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
           <input value={p.years} onChange={set("years")} type="number" min={0} max={50} inputMode="numeric" className={field(false)} />
         </F>
         <F label="Notice period">
-          <select value={p.notice} onChange={set("notice")} className={`${field(false)} bg-surface`}>
-            {Object.entries(NOTICE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+          <Select value={p.notice} onChange={(notice) => setP({ ...p, notice })} className={`${field(false)} bg-surface`} options={Object.entries(NOTICE).map(([value, label]) => ({ value, label }))} />
         </F>
       </div>
       <F label="LinkedIn or portfolio" hint="optional">
@@ -255,7 +253,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
       </F>
       {error && <Alert>{error}</Alert>}
       <div className="flex justify-end pt-1">
-        <button type="submit" className={primary} disabled={busy}>{busy ? "Saving…" : "Continue"}<Icon d={chevron} size={16} /></button>
+        <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
       </div>
     </form>
   );
@@ -331,10 +329,13 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
           </div>
         </div>
         {devices.length > 1 && (
-          <select aria-label="Microphone" value={deviceId} onChange={(e) => onDevice(e.target.value)} className={`${field(false)} bg-surface`}>
-            <option value="">System default</option>
-            {devices.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>)}
-          </select>
+          <Select
+            aria-label="Microphone"
+            value={deviceId}
+            onChange={onDevice}
+            className={`${field(false)} bg-surface`}
+            options={[{ value: "", label: "System default" }, ...devices.map((d, i) => ({ value: d.deviceId, label: d.label || `Microphone ${i + 1}` }))]}
+          />
         )}
         {heard && <p className="text-[13px] text-success">We can hear you.</p>}
         {blocked && <button type="button" className={btnGhost} onClick={() => setAttempt((n) => n + 1)}>Try again</button>}

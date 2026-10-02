@@ -82,7 +82,7 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
         await actions.toggleLike(p.id);
       } catch {
         patch(p.id, (q) => ({ liked: !q.liked, likes: q.likes + (q.liked ? -1 : 1) }));
-        toast("Couldn't update the like. Try again.");
+        toast("Couldn't update the like. Try again.", "error");
       }
     },
     async repost(p: FeedPost) {
@@ -91,12 +91,12 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
         await actions.toggleRepost(p.id);
       } catch {
         patch(p.id, (q) => ({ reposted: !q.reposted, reposts: q.reposts + (q.reposted ? -1 : 1) }));
-        toast("Couldn't update the repost. Try again.");
+        toast("Couldn't update the repost. Try again.", "error");
       }
     },
     async follow(authorId: string) {
       const res = await actions.toggleFollow(authorId).catch(() => null);
-      if (!res) return toast("Couldn't update. Try again.");
+      if (!res) return toast("Couldn't update. Try again.", "error");
       const now = res.following;
       setFollowing((s) => {
         const n = new Set(s);
@@ -117,7 +117,7 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
       try {
         await actions.deletePost(p.entryId);
       } catch {
-        return toast("Couldn't delete the post. Try again.");
+        return toast("Couldn't delete the post. Try again.", "error");
       }
       setPage((pg) => ({ ...pg, posts: pg.posts.filter((q) => q.entryId !== p.entryId && q.id !== p.entryId) }));
       toast("Post deleted");
@@ -386,8 +386,8 @@ function Composer({ viewer, company, onPosted }: { viewer: Viewer; company?: AsC
           <div className="flex items-center gap-3">
             {focused && canPost && <span className="hidden text-xs text-muted sm:inline">Ctrl / ⌘ + Enter to post</span>}
             {body.length > MAX_POST_CHARS - 200 && <span className="text-xs tabular-nums text-muted">{MAX_POST_CHARS - body.length}</span>}
-            <button type="button" disabled={!canPost} onClick={submit} className={`${btnPrimary} px-4`}>
-              {busy ? (media.hasNew ? "Uploading…" : "Posting…") : "Post"}
+            <button aria-busy={busy} type="button" disabled={!canPost} onClick={submit} className={`${btnPrimary} px-4`}>
+              Post
             </button>
           </div>
         </div>
@@ -446,8 +446,8 @@ function PostEditor({ post, save, onDone }: { post: FeedPost; save: Handlers["ed
           <button type="button" onClick={close} disabled={busy} className={btnGhost}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={!canSave} className={`${btnPrimary} px-4`}>
-            {busy ? (media.hasNew ? "Uploading…" : "Saving…") : "Save"}
+          <button aria-busy={busy} type="button" onClick={submit} disabled={!canSave} className={`${btnPrimary} px-4`}>
+            Save
           </button>
         </div>
       </div>
@@ -478,7 +478,7 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
     if (navigator.share) {
       await navigator.share({ url, title: `Post by ${who.name}` }).catch(() => {});
     } else {
-      await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link"));
+      await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link", "error"));
     }
   }
 

@@ -21,8 +21,8 @@ import { useRealtime } from "./use-realtime";
 
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 const camera = "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8";
-const link = "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71";
-const calendar = "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z";
+const link = icons.link;
+const calendar = icons.calendar;
 
 /** Top bar, cover, identity, actions and tabs. The tab pages render below it. Live: another tab or member editing this profile refreshes it. */
 export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean }) {
@@ -62,7 +62,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
       await call();
     } catch {
       setRel(profile.rel);
-      toast("Couldn't update. Try again.");
+      toast("Couldn't update. Try again.", "error");
     } finally {
       setBusy(false);
       if (reload) router.refresh();
@@ -314,7 +314,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
             <Icon d={icons.back} size={18} />
           </Link>
           <h1 className="flex-1 text-sm font-semibold">Edit profile</h1>
-          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
         </header>
         <div className="relative aspect-[3/1] bg-gradient-to-br from-surface-hover to-surface">
           {/* eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media */}
@@ -385,7 +385,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
             <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
-            <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
           </div>
         </div>
     </form>
@@ -529,7 +529,7 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
       flip(following);
     } catch {
       flip(p.iFollow);
-      toast("Couldn't update. Try again.");
+      toast("Couldn't update. Try again.", "error");
     } finally {
       setBusy(null);
     }
@@ -564,8 +564,8 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
         </ul>
       )}
       {page.next && (
-        <button type="button" onClick={more} disabled={loading} className={`${btn} h-12 w-full rounded-none border-t border-border text-muted hover:bg-surface hover:text-foreground`}>
-          {loading ? "Loading…" : "Load more"}
+        <button aria-busy={loading} type="button" onClick={more} disabled={loading} className={`${btn} h-12 w-full rounded-none border-t border-border text-muted hover:bg-surface hover:text-foreground`}>
+          Load more
         </button>
       )}
     </section>
@@ -587,7 +587,7 @@ export function ProfileVisibility({ resumePublic, openToWork }: { resumePublic: 
       router.refresh();
     } catch {
       setV(v);
-      toast("Couldn't save. Try again.");
+      toast("Couldn't save. Try again.", "error");
     } finally {
       setBusy(false);
     }

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
+import { FluidHoverHighlight, useFluidHover } from "@/lib/fluid-hover";
 import { HookSidebar } from "./hook-sidebar";
 import { Icon, navItems } from "./ui";
 import { useRealtime } from "./use-realtime";
@@ -29,6 +30,8 @@ const subNav: Record<string, { label: string; href: string }[]> = {
 export function Nav({ unseen, me }: { unseen: number; me: string }) {
   const pathname = usePathname();
   const [count, setCount] = useState(unseen);
+  const rail = useRef<HTMLElement>(null);
+  const hover = useFluidHover(rail, { selector: "[data-rail]", gapClick: false });
 
   // Unread count in the tab title, like X and LinkedIn: "(3) Jobs | Hire Excellence"
   useEffect(() => {
@@ -49,7 +52,15 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
   }, []);
 
   return (
-    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background pb-[env(safe-area-inset-bottom)] sm:static sm:flex-col sm:justify-start sm:gap-1 sm:border-0 sm:pb-0">
+    <nav
+      ref={rail}
+      aria-label="Main"
+      {...hover.handlers}
+      // the section's sub-nav (its own <nav>) has its own hook rail, so the fluid highlight steps aside there
+      onMouseMove={(e) => ((e.target as Element).closest("nav") === e.currentTarget ? hover.handlers.onMouseMove(e) : hover.clear())}
+      className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background pb-[env(safe-area-inset-bottom)] sm:relative sm:flex-col sm:justify-start sm:gap-1 sm:border-0 sm:pb-0"
+    >
+      <FluidHoverHighlight hover={hover} className="hidden rounded-md bg-surface sm:block" />
       {navItems.map(({ slug, label, icon }) => {
         const href = slug === "me" ? `/in/${me}` : slug ? `/dashboard/${slug}` : "/dashboard";
         const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && pathname.startsWith("/settings/")) || (slug === "companies" && pathname.startsWith("/company/"));
@@ -60,8 +71,9 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
               href={href}
               aria-current={pathname === href ? "page" : undefined}
               title={label}
-              className={`flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
-                active ? "font-medium text-foreground sm:bg-surface" : "text-muted hover:bg-surface hover:text-foreground"
+              data-rail
+              className={`relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
+                active ? "font-medium text-foreground sm:bg-surface" : "text-muted hover:text-foreground"
               }`}
             >
               <span className="relative">

@@ -7,7 +7,7 @@ import { categoryOf, hasPreview, verb, who, type Category, type NotificationType
 import type { Notification } from "@/lib/notifications";
 import { setParam, Tabs, useClientValue } from "./kit";
 import { NotificationRowsSkeleton } from "./skeleton";
-import { ago, Avatar, btnGhost, Icon, icons } from "./ui";
+import { ago, Avatar, btnGhost, Icon, icons, type IconDef } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Page = { items: Notification[]; next: string | null };
@@ -21,7 +21,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "jobs", label: "Jobs" },
 ];
 
-const ICON: Record<NotificationType, string> = {
+const ICON: Record<NotificationType, IconDef> = {
   like: icons.like, repost: icons.repost, comment: icons.comment, thread: icons.comment, post: icons.article,
   follow: icons.connect, invite: icons.connect, accept: icons.check,
   applicant: icons.file, app_viewed: icons.jobs, app_shortlisted: icons.check, app_rejected: icons.close, job: icons.jobs, job_closed: icons.jobs,

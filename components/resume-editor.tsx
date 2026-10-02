@@ -278,7 +278,7 @@ export function ResumeForm({ initial }: { initial: Resume }) {
           <Icon d={icons.back} size={18} />
         </button>
         <h1 className="flex-1 text-sm font-semibold">Edit resume</h1>
-        <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+        <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
       </header>
       <div className="space-y-4 px-5 pt-5">
         <ResumeEditor value={r} onChange={setR} missing={missing} show={show} />
@@ -396,7 +396,7 @@ function ExperienceDialog({ initial, logoUrl: initialLogo, onClose, onSave, onDe
           {onDelete && <button type="button" disabled={busy} onClick={() => run(onDelete)} className={`${btnGhost} text-danger hover:text-danger`}><Icon d={icons.trash} size={14} />Delete</button>}
           <span className="flex-1" />
           <button type="button" className={btnGhost} onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
         </div>
       </form>
     </Modal>
