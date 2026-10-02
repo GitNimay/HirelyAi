@@ -3,7 +3,8 @@
 export const STATUSES = { student: "Student", fresher: "Fresher", working: "Working professional" } as const;
 export type Status = keyof typeof STATUSES;
 
-export type Experience = { title: string; company: string; location: string; start: string; end: string; current: boolean; description: string };
+/** `companyId`: the company page this links to (shows its logo); without one, `company` is just text. */
+export type Experience = { title: string; company: string; companyId?: string; location: string; start: string; end: string; current: boolean; description: string };
 export type Education = { school: string; degree: string; field: string; start: string; end: string; grade: string };
 export type Project = { name: string; link: string; description: string };
 
@@ -62,8 +63,9 @@ export function cleanResume(input: unknown): Resume {
   const status = typeof o.status === "string" && Object.hasOwn(STATUSES, o.status) ? (o.status as Status) : "fresher";
   const experience = arr(o.experience).slice(0, LIMITS.list).map((e): Experience => {
     const current = e?.current === true || /present|current|now/i.test(String(e?.end ?? ""));
+    const companyId = line(e?.companyId, 40);
     return {
-      title: line(e?.title), company: line(e?.company), location: line(e?.location),
+      title: line(e?.title), company: line(e?.company), ...(companyId && { companyId }), location: line(e?.location),
       start: month(e?.start), end: current ? "" : month(e?.end), current, description: str(e?.description, LIMITS.description),
     };
   }).filter(filled);

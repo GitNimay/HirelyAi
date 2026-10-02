@@ -3,7 +3,7 @@ import { Icon, navItems } from "@/components/ui";
 
 // ponytail: one placeholder route for every section; split into real pages as each gets built
 export const dynamicParams = false;
-export const generateStaticParams = () => navItems.filter((n) => !["", "network", "jobs", "notifications", "me"].includes(n.slug)).map((n) => ({ section: n.slug }));
+export const generateStaticParams = () => navItems.filter((n) => !["", "network", "jobs", "companies", "notifications", "me"].includes(n.slug)).map((n) => ({ section: n.slug }));
 
 export default async function SectionPage({ params }: PageProps<"/dashboard/[section]">) {
   const { section } = await params;

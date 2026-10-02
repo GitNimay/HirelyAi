@@ -3,11 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { saveMyResume } from "@/app/onboarding/actions";
+import type { CompanyCard } from "@/lib/companies";
 import {
   emptyEducation, emptyExperience, emptyProject, LIMITS, missingFields, STATUSES,
   type Education, type Experience, type Project, type Resume, type Status,
 } from "@/lib/resume-fields";
-import { leaveIfClean, toast, useUnsavedGuard } from "./kit";
+import { CompanyPicker } from "./company";
+import { ask, leaveIfClean, Modal, toast, useUnsavedGuard } from "./kit";
+import { Block, ExperienceItem } from "./resume-view";
 import { backBtn, btnGhost, btnPrimary, Icon, icons } from "./ui";
 
 export const input = "h-10 w-full rounded-md border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none transition-colors focus:border-ring disabled:opacity-50";
@@ -176,7 +179,7 @@ export function ResumeEditor({ value: r, onChange, missing, show, basics = true 
           return (
             <Entry key={i} label="experience" onRemove={() => drop("experience", i)}>
               <F label="Title" bad={p("title")}><input value={e.title} onChange={(ev) => setAt("experience", i, { title: ev.target.value })} maxLength={LIMITS.short} placeholder="Software engineer" className={`${input} ${ring(p("title"))}`} /></F>
-              <F label="Company" bad={p("company")}><input value={e.company} onChange={(ev) => setAt("experience", i, { company: ev.target.value })} maxLength={LIMITS.short} className={`${input} ${ring(p("company"))}`} /></F>
+              <F label="Company" bad={p("company")}><input value={e.company} onChange={(ev) => setAt("experience", i, { company: ev.target.value, companyId: undefined })} maxLength={LIMITS.short} className={`${input} ${ring(p("company"))}`} /></F>
               <F label="Start" bad={p("start")}><input type="month" value={e.start} onChange={(ev) => setAt("experience", i, { start: ev.target.value })} className={`${input} ${ring(p("start"))}`} /></F>
               <F label="End" bad={p("end")} hint={e.current ? "present" : undefined}>
                 <input type="month" value={e.current ? "" : e.end} disabled={e.current} onChange={(ev) => setAt("experience", i, { end: ev.target.value })} className={`${input} ${ring(p("end"))}`} />
@@ -282,5 +285,120 @@ export function ResumeForm({ initial }: { initial: Resume }) {
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       </div>
     </form>
+  );
+}
+
+/**
+ * Experience on your own About tab, edited in place (LinkedIn style). It's the same resume the Resume tab and PDF use,
+ * so every save shows up there too. `companies`: pages already linked, for logos.
+ */
+export function ExperienceManager({ resume, companies }: { resume: Resume; companies: Record<string, CompanyCard> }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState<{ i: number; e: Experience } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save(experience: Experience[], done: string) {
+    setBusy(true);
+    const res = await saveMyResume({ ...resume, experience }).catch(() => ({ error: "Couldn't save. Try again." }));
+    setBusy(false);
+    if ("error" in res) return res.error;
+    toast(done);
+    setEditing(null);
+    router.refresh();
+    return null;
+  }
+
+  const edit = (i: number) => (
+    <button type="button" aria-label="Edit experience" title="Edit" disabled={busy} onClick={() => setEditing({ i, e: resume.experience[i] })} className="rounded-md p-1 text-muted hover:bg-surface-hover hover:text-foreground">
+      <Icon d={icons.edit} size={14} />
+    </button>
+  );
+
+  return (
+    <Block
+      title="Experience"
+      empty={!resume.experience.length}
+      action={
+        <button type="button" disabled={busy} onClick={() => setEditing({ i: -1, e: { ...emptyExperience(), current: !resume.experience.length } })} className={btnGhost}>
+          <Icon d={icons.plus} size={14} />Add
+        </button>
+      }
+    >
+      {resume.experience.map((e, i) => <ExperienceItem key={i} e={e} page={e.companyId ? companies[e.companyId] : undefined} action={edit(i)} />)}
+      {editing && (
+        <ExperienceDialog
+          initial={editing.e}
+          logoUrl={editing.e.companyId ? companies[editing.e.companyId]?.logoUrl : null}
+          onClose={() => setEditing(null)}
+          onSave={(e) => save(editing.i < 0 ? [e, ...resume.experience] : resume.experience.map((x, j) => (j === editing.i ? e : x)), "Experience saved")}
+          onDelete={
+            editing.i < 0 ? undefined
+            : async () => (await ask({ title: "Delete this experience?", body: "It's removed from your profile and resume.", confirm: "Delete", danger: true }))
+              ? save(resume.experience.filter((_, j) => j !== editing.i), "Experience deleted") : null
+          }
+        />
+      )}
+    </Block>
+  );
+}
+
+function ExperienceDialog({ initial, logoUrl: initialLogo, onClose, onSave, onDelete }: {
+  initial: Experience; logoUrl?: string | null; onClose: () => void; onSave: (e: Experience) => Promise<string | null>; onDelete?: () => Promise<string | null>;
+}) {
+  const [e, setE] = useState(initial);
+  const [logoUrl, setLogoUrl] = useState(initialLogo);
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const set = (patch: Partial<Experience>) => setE((x) => ({ ...x, ...patch }));
+  const bad = { title: !e.title.trim(), company: !e.company.trim(), start: !e.start, end: !!e.end && !!e.start && e.end < e.start };
+  const p = (k: keyof typeof bad) => show && bad[k];
+
+  async function run(call: () => Promise<string | null>) {
+    setBusy(true);
+    setError((await call()) ?? "");
+    setBusy(false);
+  }
+
+  return (
+    <Modal title={initial.title ? "Edit experience" : "Add experience"} onClose={onClose}>
+      <form
+        noValidate
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          setShow(true);
+          if (!Object.values(bad).some(Boolean)) run(() => onSave(e));
+        }}
+        className="grid gap-3 p-5 sm:grid-cols-2"
+      >
+        <F label="Title" bad={p("title")} className="sm:col-span-2"><input data-autofocus value={e.title} onChange={(ev) => set({ title: ev.target.value })} maxLength={LIMITS.short} placeholder="Software engineer" className={`${input} ${ring(p("title"))}`} /></F>
+        <div className="space-y-1.5 sm:col-span-2">
+          <span className="flex items-baseline justify-between text-[13px] font-medium">
+            Company
+            {p("company") ? <span className="text-xs font-normal text-danger">Required</span> : <span className="text-xs font-normal text-muted">pick a page to show its logo</span>}
+          </span>
+          <CompanyPicker value={e.company} companyId={e.companyId} logoUrl={logoUrl} invalid={p("company")} onChange={(company, companyId, logo) => (set({ company, companyId }), setLogoUrl(logo))} />
+        </div>
+        <F label="Start" bad={p("start")}><input type="month" value={e.start} onChange={(ev) => set({ start: ev.target.value })} className={`${input} ${ring(p("start"))}`} /></F>
+        <F label="End" bad={p("end")} hint={e.current ? "present" : undefined}>
+          <input type="month" value={e.current ? "" : e.end} disabled={e.current} onChange={(ev) => set({ end: ev.target.value })} className={`${input} ${ring(p("end"))}`} />
+        </F>
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" checked={e.current} onChange={(ev) => set({ current: ev.target.checked, end: "" })} className="size-4 accent-[var(--foreground)]" />
+          I currently work here
+        </label>
+        <F label="Location" hint="optional" className="sm:col-span-2"><input value={e.location} onChange={(ev) => set({ location: ev.target.value })} maxLength={LIMITS.short} className={`${input} ${ring(false)}`} /></F>
+        <F label="What you did" hint="one point per line" className="sm:col-span-2">
+          <textarea value={e.description} onChange={(ev) => set({ description: ev.target.value })} rows={4} maxLength={LIMITS.description} className={`${area} ${ring(false)}`} />
+        </F>
+        {error && <p role="alert" className="text-sm text-danger sm:col-span-2">{error}</p>}
+        <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+          {onDelete && <button type="button" disabled={busy} onClick={() => run(onDelete)} className={`${btnGhost} text-danger hover:text-danger`}><Icon d={icons.trash} size={14} />Delete</button>}
+          <span className="flex-1" />
+          <button type="button" className={btnGhost} onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="submit" className={btnPrimary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
+import { inFolder, type Folder } from "./media";
+import { PROFILE_IMAGE_TYPES } from "./profile-fields";
 
 /** A message safe to show the user. Other errors get redacted by the framework in production. */
 export class Fail extends Error {}
@@ -23,3 +25,11 @@ export async function writer() {
 }
 
 export const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim() : "").slice(0, max);
+
+/** A JPEG/PNG/WebP this member just uploaded to `folder` (avatars, covers, company logos). */
+export async function ownImage(me: string, key: unknown, folder: Folder) {
+  const k = typeof key === "string" ? key : "";
+  const obj = inFolder(k, folder, me) ? await env.MEDIA.head(k) : null;
+  if (!obj || obj.customMetadata?.owner !== me || !PROFILE_IMAGE_TYPES.includes(obj.httpMetadata?.contentType ?? "")) throw new Fail("Image upload failed. Try again.");
+  return k;
+}
