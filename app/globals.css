@@ -227,11 +227,6 @@ button[aria-busy="true"] {
   .dd, .dd-item, .menu-chevron { transition-duration: 0s !important; transition-delay: 0s !important; }
 }
 
-/* Duotone icons (<Icon>): the second tone is a softer currentColor. `fill-current` (liked, saved) fills the soft fill in. */
-.icon-tone { opacity: 0.45; }
-.icon-tone-fill { opacity: 0.18; transition: opacity 150ms ease-out; }
-.fill-current .icon-tone-fill { opacity: 1; }
-
 button:not(:disabled),
 [role="button"] {
   cursor: pointer;
