@@ -2,6 +2,13 @@
 
 import { auth, clerkClient, reverificationError } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
+import { viewer } from "@/lib/guard";
+import { forgetMember } from "@/lib/profile";
+
+/** After a change made straight in Clerk (email, phone): the next page load re-reads the member instead of the KV copy. */
+export async function refreshMember() {
+  await forgetMember(await viewer());
+}
 
 /**
  * Delete the caller's account: Clerk first (so the directory sync can't re-add them), then their D1 rows and R2 files.
@@ -13,6 +20,7 @@ export async function deleteAccount() {
   if (!has({ reverification: "strict" })) return reverificationError("strict");
 
   await (await clerkClient()).users.deleteUser(userId);
+  await forgetMember(userId);
 
   // One transaction. Deleting posts/jobs cascades to others' likes, comments, reposts and applications on them.
   const sql = [

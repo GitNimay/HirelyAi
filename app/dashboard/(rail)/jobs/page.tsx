@@ -24,7 +24,6 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
     getResume(userId),
   ]);
 
-  const user = session?.user;
   return (
     <Jobs
       viewerId={userId}
@@ -33,8 +32,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
       initialFilters={filters}
       initialSelected={selected ?? null}
       contact={{
-        email: last?.email || resume?.email || user?.primaryEmailAddress?.emailAddress || "",
-        phone: last?.phone || resume?.phone || (user?.unsafeMetadata.phone as string | undefined) || user?.primaryPhoneNumber?.phoneNumber || "",
+        email: last?.email || resume?.email || session?.account.email || "",
+        phone: last?.phone || resume?.phone || session?.account.phone || "",
         resumeKey: "", // empty = attach the profile resume; uploading a PDF is optional
       }}
     />

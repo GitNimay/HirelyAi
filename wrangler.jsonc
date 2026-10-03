@@ -31,6 +31,8 @@
     }
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "hire-excellence-media" }],
+  // Read-mostly cache (lib/profile.ts: the signed-in member's Clerk fields). Free tier allows ~1k writes/day: never write per request.
+  "kv_namespaces": [{ "binding": "CACHE", "id": "129f69d9798e4a38a7c9e2d36d9ee34e" }],
   "durable_objects": { "bindings": [{ "name": "FEED_HUB", "class_name": "FeedHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FeedHub"] }],
   // Background work (lib/tasks.ts): AI grading, invite emails, notification fan-out. Retried with backoff, then parked in the DLQ.
