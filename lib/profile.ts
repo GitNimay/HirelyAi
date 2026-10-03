@@ -1,5 +1,5 @@
-import { currentUser, type User } from "@clerk/nextjs/server";
-import { env } from "cloudflare:workers";
+import { auth, currentUser, type User } from "@clerk/nextjs/server";
+import { env, waitUntil } from "cloudflare:workers";
 import { cache } from "react";
 import { profileOf, syncStatements } from "./network";
 
@@ -61,27 +61,55 @@ export async function getProfile(viewerId: string, ref: string): Promise<Profile
 /** `onboarded`: they finished onboarding (have a resume). */
 export type Viewer = { id: string; name: string; imageUrl?: string; handle: string; onboarded: boolean };
 
-/**
- * The signed-in member as the app shows them (sidebar, composer): from D1, so an edited name or photo wins over Clerk's.
- * Also makes sure the D1 row exists, so a brand-new member appears in the network before posting anything.
- */
-export async function viewerOf(u: User): Promise<Viewer> {
-  const p = profileOf(u);
-  const [, , row] = await env.DB.batch<{ name: string; image_url: string | null; handle: string | null; onboarded: number }>([
-    ...syncStatements(p),
-    env.DB.prepare("SELECT name, image_url, handle, EXISTS (SELECT 1 FROM resumes WHERE user_id = users.id) AS onboarded FROM users WHERE id = ?").bind(p.id),
-  ]);
-  const r = row.results[0];
-  return { id: u.id, name: r?.name ?? p.name, imageUrl: r?.image_url ?? p.imageUrl ?? undefined, handle: r?.handle ?? u.id, onboarded: !!r?.onboarded };
-}
+/** The Clerk fields the app reads for the signed-in member. Cached in KV, so it must stay plain JSON. */
+type Member = ReturnType<typeof profileOf> & { email: string; phone: string };
+
+const memberOf = (u: User): Member => ({
+  ...profileOf(u),
+  email: u.primaryEmailAddress?.emailAddress ?? "",
+  phone: (typeof u.unsafeMetadata.phone === "string" && u.unsafeMetadata.phone) || u.primaryPhoneNumber?.phoneNumber || "",
+});
 
 /**
- * The signed-in Clerk user and their Viewer, once per request: the layout and the page both need them, and
- * currentUser() is a Clerk Backend API round trip (rate limited) while viewerOf is a D1 write batch.
+ * The signed-in member as the app shows them (sidebar, composer): from D1, so an edited name or photo wins over Clerk's.
+ * `sync` also makes sure the D1 row exists, so a brand-new member appears in the network before posting anything.
+ * Null when there's no D1 row and no sync.
+ */
+async function viewerOf(m: Member, sync: boolean): Promise<Viewer | null> {
+  const rows = await env.DB.batch<{ name: string; image_url: string | null; handle: string | null; onboarded: number }>([
+    ...(sync ? syncStatements(m) : []),
+    env.DB.prepare("SELECT name, image_url, handle, EXISTS (SELECT 1 FROM resumes WHERE user_id = users.id) AS onboarded FROM users WHERE id = ?").bind(m.id),
+  ]);
+  const r = rows.at(-1)!.results[0];
+  if (!r && !sync) return null;
+  return { id: m.id, name: r?.name ?? m.name, imageUrl: r?.image_url ?? m.imageUrl ?? undefined, handle: r?.handle ?? m.id, onboarded: !!r?.onboarded };
+}
+
+const memberKey = (id: string) => `member:${id}`;
+// ~1 KV write per active member per day (free tier: ~1k writes/day). Account settings drop the key on change.
+const MEMBER_TTL = 86_400;
+
+/** Next page load re-reads the member from Clerk (after they change their email or phone there). */
+export const forgetMember = (id: string) => env.CACHE.delete(memberKey(id)).catch(() => {});
+
+/**
+ * The signed-in member's contact details and Viewer, once per request: the layout and the page both need them.
+ * Warm path is a KV read plus one D1 read. Only a KV miss pays for currentUser() (a rate-limited Clerk Backend API
+ * round trip) and the D1 sync writes. KV being down just means the slow path.
  */
 export const signedIn = cache(async () => {
+  const { userId } = await auth();
+  if (!userId) return null;
+  const cached = await env.CACHE.get<Member>(memberKey(userId), "json").catch(() => null);
+  const warm = cached && (await viewerOf(cached, false));
+  if (cached && warm) return { account: cached, me: warm };
+
   const user = await currentUser();
-  return user && { user, me: await viewerOf(user) };
+  if (!user) return null;
+  const m = memberOf(user);
+  const me = (await viewerOf(m, true))!;
+  waitUntil(env.CACHE.put(memberKey(userId), JSON.stringify(m), { expirationTtl: MEMBER_TTL }).catch(() => {}));
+  return { account: m, me };
 });
 
 /** One comment with the post it answers, for the Replies tab. */

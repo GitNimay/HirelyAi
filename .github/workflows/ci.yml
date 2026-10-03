@@ -59,6 +59,7 @@ jobs:
       # Build (bakes in NEXT_PUBLIC_* from GitHub environment variables), apply D1 migrations, deploy.
       # Runtime secrets are NOT here: they live on the Worker (`wrangler secret`) and survive every deploy.
       # --tag labels the Cloudflare Worker version with the release, so a rollback target is easy to find
+      # The API token needs Edit on Workers Scripts, D1, Workers KV Storage, Queues and R2 (every binding in wrangler.jsonc)
       - run: npm run deploy -- --tag "${{ steps.version.outputs.tag }}" --message "${{ steps.version.outputs.tag }} (${GITHUB_SHA::7})"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

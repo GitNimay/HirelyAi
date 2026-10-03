@@ -5,7 +5,7 @@ import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import type { EmailAddressResource, OAuthStrategy, SessionWithActivitiesResource } from "@clerk/nextjs/types";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { deleteAccount } from "@/app/settings/actions";
+import { deleteAccount, refreshMember } from "@/app/settings/actions";
 import { validPhone } from "@/lib/resume-fields";
 import { errorText, providerIcons, providers } from "./auth";
 import { field, Field } from "./jobs";
@@ -79,7 +79,7 @@ const SessionRowSkeleton = () => (
 
 type Run = (fn: () => Promise<unknown>) => Promise<unknown>;
 
-/** Busy flag + error message for one section. Refreshes server-rendered parts (sidebar email) after a change. */
+/** Busy flag + error message for one section. Refreshes server-rendered parts (sidebar email, job contact prefill) after a change. */
 function useTask() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -89,6 +89,7 @@ function useTask() {
     setError("");
     try {
       await fn();
+      await refreshMember().catch(() => {});
       router.refresh();
       return true;
     } catch (e) {
