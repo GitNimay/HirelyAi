@@ -160,6 +160,13 @@ export async function getApplicants(posterId: string, jobId: string, applicantId
   }));
 }
 
+/** The interview questions, for the poster's edit form. */
+export async function jobQuestions(posterId: string, jobId: string): Promise<string[]> {
+  const q = await env.DB.prepare("SELECT i.questions FROM interviews i JOIN jobs j ON j.id = i.job_id AND j.poster_id = ? WHERE i.job_id = ?")
+    .bind(posterId, jobId).first<string>("questions");
+  return q ? JSON.parse(q) : [];
+}
+
 /** Contact details and resume from the viewer's last application, to prefill the next one. */
 export async function lastApplication(viewerId: string) {
   return env.DB.prepare("SELECT email, phone, resume_key AS resumeKey FROM applications WHERE applicant_id = ? ORDER BY created_at DESC LIMIT 1")

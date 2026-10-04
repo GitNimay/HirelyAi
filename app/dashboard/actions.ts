@@ -324,16 +324,10 @@ export async function postJob(input: Record<string, unknown>) {
   return createJob(input ?? {}).then((job) => ({ job: job! }), failed);
 }
 
-async function createJob(input: Record<string, unknown>) {
-  const me = await writer();
-  const companyId = text(input.companyId, 40);
-  const company = companyId && (await canPostJobs(me, companyId))
-    ? await env.DB.prepare("SELECT name FROM companies WHERE id = ?").bind(companyId).first<string>("name")
-    : null;
-  if (!company) throw new Fail("Only employees who verified their work email on the company page can post its jobs");
+/** The form fields a poster sets, on posting and on editing. */
+function jobFields(input: Record<string, unknown>) {
   const job = {
     title: text(input.title, LIMITS.title),
-    company,
     location: text(input.location, LIMITS.location),
     workplace: oneOf(WORKPLACES, input.workplace, "workplace type"),
     type: oneOf(JOB_TYPES, input.type, "job type"),
@@ -341,9 +335,20 @@ async function createJob(input: Record<string, unknown>) {
     salary: text(input.salary, LIMITS.salary) || null,
     description: text(input.description, LIMITS.description),
   };
-  if (!job.title || !job.company) throw new Fail("Add a job title and company");
+  if (!job.title) throw new Fail("Add a job title");
   if (job.workplace !== "remote" && !job.location) throw new Fail("Add a location for on-site and hybrid jobs");
   if (job.description.length < 50) throw new Fail("Describe the role in at least 50 characters");
+  return job;
+}
+
+async function createJob(input: Record<string, unknown>) {
+  const me = await writer();
+  const companyId = text(input.companyId, 40);
+  const company = companyId && (await canPostJobs(me, companyId))
+    ? await env.DB.prepare("SELECT name FROM companies WHERE id = ?").bind(companyId).first<string>("name")
+    : null;
+  if (!company) throw new Fail("Only employees who verified their work email on the company page can post its jobs");
+  const job = { ...jobFields(input), company };
   const interview = parseInterview(input);
 
   const id = crypto.randomUUID();
@@ -356,6 +361,36 @@ async function createJob(input: Record<string, unknown>) {
   broadcast({ t: "job", id, posterId: me });
   await notifyUsers(await followersOf(me), { type: "job", actor: me, ref: id, link: `/dashboard/jobs?id=${id}`, body: job.title });
   return getJob(me, id);
+}
+
+/** The poster edits a listing. Company stays; an existing voice interview's questions and deadline can change, but it can't be added or removed. */
+export async function updateJob(jobId: string, input: Record<string, unknown>) {
+  return editJob(String(jobId), input ?? {}).then((job) => ({ job: job! }), failed);
+}
+
+async function editJob(id: string, input: Record<string, unknown>) {
+  const me = await writer();
+  const job = jobFields(input);
+  const current = await env.DB.prepare("SELECT i.deadline FROM jobs j LEFT JOIN interviews i ON i.job_id = j.id WHERE j.id = ? AND j.poster_id = ?")
+    .bind(id, me).first<{ deadline: number | null }>();
+  if (!current) throw new Fail("Job not found");
+  const interview = current.deadline === null ? null : parseInterview({ ...input, interview: "on" }, current.deadline);
+  await env.DB.batch([
+    env.DB.prepare("UPDATE jobs SET title = ?, location = ?, workplace = ?, type = ?, level = ?, salary = ?, description = ? WHERE id = ? AND poster_id = ?")
+      .bind(job.title, job.location, job.workplace, job.type, job.level, job.salary, job.description, id, me),
+    ...(interview ? [env.DB.prepare("UPDATE interviews SET questions = ?, deadline = ? WHERE job_id = ?").bind(JSON.stringify(interview.questions), interview.deadline, id)] : []),
+  ]);
+  return getJob(me, id);
+}
+
+/**
+ * The poster deletes a listing; applications, saves and the interview cascade with it.
+ * ponytail: applicants' resume PDFs stay in R2 (later applications may reuse them); sweep unreferenced ones if storage matters.
+ */
+export async function deleteJob(jobId: string) {
+  const me = await writer();
+  const del = await env.DB.prepare("DELETE FROM jobs WHERE id = ? AND poster_id = ?").bind(String(jobId), me).run();
+  if (!del.meta.changes) throw new Error("Job not found");
 }
 
 async function pushJobStats(jobId: string) {

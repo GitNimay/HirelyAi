@@ -162,6 +162,18 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
     await actions.setJobClosed(j.id, closed).catch(() => patch(j.id, () => ({ closedAt: j.closedAt })));
   }
 
+  async function remove(j: Job) {
+    if (!(await ask({ title: "Delete this job?", body: `“${j.title}” and all its applications are deleted for good. This can't be undone.`, confirm: "Delete job" }))) return;
+    try {
+      await actions.deleteJob(j.id);
+      setList((l) => ({ ...l, ids: l.ids.filter((id) => id !== j.id) }));
+      choose(null);
+      toast("Job deleted");
+    } catch {
+      toast("Couldn't delete the job", "error");
+    }
+  }
+
   const ids = list.ids.filter((id) => byId[id]);
   const shown = selectedId ? byId[selectedId] : undefined;
   const hasFilters = Object.values(filters).some(Boolean);
@@ -200,6 +212,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
               setApplicants((m) => ({ ...m, [shown.id]: m[shown.id].map((x) => (x.id === a.id ? { ...x, status } : x)) }));
               await actions.setApplicationStatus(shown.id, a.id, status).catch(() => refreshApplicants(shown.id));
             }}
+            onDelete={() => remove(shown)}
           />
         </>
       )}
@@ -341,7 +354,7 @@ function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onO
   );
 }
 
-function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadApplicants, onStatus }: {
+function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadApplicants, onStatus, onDelete }: {
   job: Job;
   mine: boolean;
   applicants?: Applicant[];
@@ -350,6 +363,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
   onClose: (closed: boolean) => void;
   onLoadApplicants: () => Promise<void>;
   onStatus: (a: Applicant, s: AppStatus) => void;
+  onDelete: () => void;
 }) {
   const [view, setView] = useState<"details" | "applicants">("details");
   // Phones: a sticky Apply / Save bar once the main buttons scroll out of view (LinkedIn mobile)
@@ -402,6 +416,14 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
             <>
               <button type="button" className={j.closedAt ? btnPrimary : btnOutline} onClick={() => onClose(!j.closedAt)}>
                 {j.closedAt ? "Reopen job" : "Close job"}
+              </button>
+              <Link href={`/dashboard/jobs/${j.id}/edit`} className={btnOutline}>
+                <Icon d={icons.edit} size={14} />
+                Edit
+              </Link>
+              <button type="button" className={`${btnGhost} hover:text-danger`} onClick={onDelete}>
+                <Icon d={icons.trash} size={14} />
+                Delete
               </button>
               {j.closedAt && <span className="text-sm text-muted">No longer accepting applications</span>}
             </>
@@ -779,14 +801,15 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
  * Dedicated Post a job page in the feed column: grouped sections, then straight to the new listing.
  * `companies`: pages the member verified they work at; only those can be posted for. `initialCompany` preselects one.
  */
-export function PostJobForm({ companies, initialCompany }: { companies: { id: string; name: string }[]; initialCompany?: string }) {
+export function PostJobForm({ companies, initialCompany, job }: { companies: { id: string; name: string }[]; initialCompany?: string; job?: Job & { questions: string[] } }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [workplace, setWorkplace] = useState("onsite");
-  const [desc, setDesc] = useState("");
+  const [workplace, setWorkplace] = useState<string>(job?.workplace ?? "onsite");
+  const [desc, setDesc] = useState(job?.description ?? "");
   const [preview, setPreview] = useState(false);
-  const [interview, setInterview] = useState(false);
+  const [interview, setInterview] = useState(!!job?.interview);
+  const back = job ? `/dashboard/jobs?tab=posted&id=${job.id}` : "/dashboard/jobs";
   const [now] = useState(Date.now);
   const [dirty, setDirty] = useState(false);
   useUnsavedGuard(dirty);
@@ -795,7 +818,7 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
   function leave(e: React.MouseEvent) {
     if (!dirty) return;
     e.preventDefault();
-    leaveIfClean(true).then((ok) => ok && router.push("/dashboard/jobs"));
+    leaveIfClean(true).then((ok) => ok && router.push(back));
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -806,10 +829,10 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
       const input = Object.fromEntries(new FormData(e.currentTarget));
       // datetime-local is the poster's local time; the server gets an instant
       if (input.deadlineLocal) input.deadline = String(new Date(String(input.deadlineLocal)).getTime());
-      const r = await actions.postJob(input);
+      const r = job ? await actions.updateJob(job.id, input) : await actions.postJob(input);
       if ("error" in r) throw new Error(r.error);
       setDirty(false);
-      toast("Job posted");
+      toast(job ? "Job updated" : "Job posted");
       router.push(`/dashboard/jobs?tab=posted&id=${r.job.id}`);
     } catch (err) {
       setError(errMsg(err));
@@ -822,25 +845,25 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
   return (
     <>
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
-        <Link href="/dashboard/jobs" onClick={leave} aria-label="Back to jobs" className={backBtn}>
+        <Link href={back} onClick={leave} aria-label="Back to jobs" className={backBtn}>
           <Icon d={icons.back} size={18} />
         </Link>
-        <h1 className="text-sm font-semibold">Post a job</h1>
+        <h1 className="text-sm font-semibold">{job ? "Edit job" : "Post a job"}</h1>
       </header>
 
       <form onSubmit={submit} onChange={() => setDirty(true)}>
         <FormSection title="Role" hint="What candidates see first in search.">
           <Field label="Job title">
-            <input name="title" required autoFocus maxLength={LIMITS.title} placeholder="Senior Frontend Engineer" className={field} />
+            <input name="title" required autoFocus maxLength={LIMITS.title} defaultValue={job?.title} placeholder="Senior Frontend Engineer" className={field} />
           </Field>
-          <Field label="Company" hint="pages where you verified your work email">
-            <Select
+          <Field label="Company" hint={job ? "can't be changed" : "pages where you verified your work email"}>
+            {job ? <input value={job.company} disabled className={`${field} text-muted`} /> : <Select
               name="companyId"
               required
               defaultValue={companies.some((c) => c.id === initialCompany) ? initialCompany : undefined}
               className={select}
               options={companies.map((c) => ({ value: c.id, label: c.name }))}
-            />
+            />}
           </Field>
         </FormSection>
 
@@ -850,7 +873,7 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
               <Select name="workplace" value={workplace} onChange={setWorkplace} className={select} options={options(WORKPLACES)} />
             </Field>
             <Field label="Location" hint={workplace === "remote" ? "optional" : undefined}>
-              <input name="location" required={workplace !== "remote"} maxLength={LIMITS.location} placeholder="City, country" className={field} />
+              <input name="location" required={workplace !== "remote"} maxLength={LIMITS.location} defaultValue={job?.location} placeholder="City, country" className={field} />
             </Field>
           </div>
         </FormSection>
@@ -858,14 +881,14 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
         <FormSection title="Details">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Job type">
-              <Select name="type" defaultValue="full-time" className={select} options={options(JOB_TYPES)} />
+              <Select name="type" defaultValue={job?.type ?? "full-time"} className={select} options={options(JOB_TYPES)} />
             </Field>
             <Field label="Experience level">
-              <Select name="level" defaultValue="mid-senior" className={select} options={options(LEVELS)} />
+              <Select name="level" defaultValue={job?.level ?? "mid-senior"} className={select} options={options(LEVELS)} />
             </Field>
           </div>
           <Field label="Salary" hint="optional">
-            <input name="salary" maxLength={LIMITS.salary} placeholder="$120k–$150k / year" className={field} />
+            <input name="salary" maxLength={LIMITS.salary} defaultValue={job?.salary ?? undefined} placeholder="$120k–$150k / year" className={field} />
           </Field>
         </FormSection>
 
@@ -878,6 +901,7 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
             minLength={50}
             maxLength={LIMITS.description}
             rows={14}
+            defaultValue={job?.description}
             aria-label="Description"
             placeholder={DESCRIPTION_TEMPLATE}
             onChange={(e) => setDesc(e.target.value)}
@@ -892,11 +916,12 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
           <p className="text-right text-xs tabular-nums text-muted">{desc.length < 50 ? `${50 - desc.length} more characters needed` : `${desc.length} / ${LIMITS.description}`}</p>
         </FormSection>
 
-        <FormSection title="Voice interview" hint={`Optional. Applicants get a link and password by email and take a ${INTERVIEW.seconds / 60}-minute AI voice interview before the deadline.`}>
-          <label className="flex items-center gap-2.5 text-sm">
+        {/* Editing can change an interview's questions and deadline, but not add one: earlier applicants never got the invite */}
+        {(!job || job.interview) && <FormSection title="Voice interview" hint={`Optional. Applicants get a link and password by email and take a ${INTERVIEW.seconds / 60}-minute AI voice interview before the deadline.`}>
+          {job ? <input type="hidden" name="interview" value="on" /> : <label className="flex items-center gap-2.5 text-sm">
             <input type="checkbox" name="interview" checked={interview} onChange={(e) => setInterview(e.target.checked)} className="size-4 accent-foreground" />
             Add a voice interview
-          </label>
+          </label>}
           {interview && (
             <>
               <Field label="Questions" hint={`one per line, up to ${INTERVIEW.maxQuestions}`}>
@@ -904,22 +929,23 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
                   name="questions"
                   required
                   rows={5}
+                  defaultValue={job?.questions.join("\n")}
                   maxLength={INTERVIEW.maxQuestions * (INTERVIEW.questionChars + 1)}
                   placeholder={"Walk me through a project you're proud of.\nHow do you debug a slow page?\nWhy are you interested in this role?"}
                   className={`${field} h-auto resize-y py-2 leading-relaxed`}
                 />
               </Field>
               <Field label="Deadline" hint="the job closes after this">
-                <input name="deadlineLocal" type="datetime-local" required min={localInput(now + 3_600_000)} max={localInput(now + 90 * 86_400_000)} className={`${field} sm:w-64`} />
+                <input name="deadlineLocal" type="datetime-local" required defaultValue={job?.interview ? localInput(job.interview.deadline) : undefined} min={job ? undefined : localInput(now + 3_600_000)} max={localInput(now + 90 * 86_400_000)} className={`${field} sm:w-64`} />
               </Field>
             </>
           )}
-        </FormSection>
+        </FormSection>}
 
         <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
           {error && <p role="alert" className="mr-auto text-sm text-danger">{error}</p>}
-          <Link href="/dashboard/jobs" onClick={leave} className={btnGhost}>Cancel</Link>
-          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Post job</button>
+          <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{job ? "Save changes" : "Post job"}</button>
         </div>
       </form>
     </>
