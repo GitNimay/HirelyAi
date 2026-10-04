@@ -26,6 +26,11 @@ const mic = icons.mic;
 const chevron = "m9 18 6-6-6-6";
 const field = (bad: boolean) => `${input} h-10 ${bad ? "border-danger" : "border-border"}`;
 const date = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+// iOS Safari (17+) otherwise drops a call with the mic open to the earpiece; "play-and-record" defaults to the loudspeaker
+const audioSession = (type: "play-and-record" | "auto") => {
+  const s = (navigator as { audioSession?: { type: string } }).audioSession;
+  if (s) s.type = type;
+};
 
 // The theme showing now: a saved choice on <html data-theme>, else the OS. Re-read when either changes.
 const isDark = () => {
@@ -100,6 +105,7 @@ export function Interview({ view }: { view: CandidateView }) {
   async function begin() {
     setBusy(true);
     setError("");
+    audioSession("play-and-record");
     try {
       const r = await start(view.slug);
       if ("error" in r) throw new Error(r.error);
@@ -120,6 +126,7 @@ export function Interview({ view }: { view: CandidateView }) {
       rm.on(RoomEvent.AudioPlaybackStatusChanged, () => setMuted(!rm.canPlaybackAudio));
       rm.on(RoomEvent.Disconnected, (reason) => {
         room.current = null;
+        audioSession("auto");
         // We hung up, or the agent ended the call (it deletes the room). Anything else is a dropped connection.
         if (reason === DisconnectReason.CLIENT_INITIATED || reason === DisconnectReason.ROOM_DELETED) return go("done");
         go("mic");
