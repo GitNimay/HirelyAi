@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
+import { useAuth, useClerk, useSignIn, useSignUp } from "@clerk/nextjs";
 import type { OAuthStrategy, SetActiveNavigate } from "@clerk/nextjs/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,14 +31,6 @@ function openPopup() {
   const left = window.screenX + (window.outerWidth - w) / 2;
   const top = window.screenY + (window.outerHeight - h) / 2;
   return window.open("about:blank", "clerk-sso", `popup,width=${w},height=${h},left=${left},top=${top}`);
-}
-
-/** After a popup SSO: done → enter the app; otherwise (new account transfer, missing fields) let the callback page finish it. */
-async function afterPopup(res: { error: unknown }, status: string | null, finalize: () => Promise<{ error: unknown }>) {
-  if (res.error) return res;
-  if (status === "complete") return finalize();
-  window.location.assign("/sso-callback");
-  return { error: null };
 }
 
 /* ---------- Shared UI ---------- */
@@ -140,6 +132,9 @@ function AuthBody({
   const [step, setStep] = useState<"email" | "code">("email");
   const [error, setError] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  const clerk = useClerk();
+  const router = useRouter();
+  const navigate = useNavigateToApp();
   // "Last used" hint on the method this browser signed in with before (storage can throw: no hint then)
   const last = useClientValue(() => {
     try {
@@ -157,7 +152,8 @@ function AuthBody({
   const run = async (key: string, fn: () => Promise<void | { error: unknown }>) => {
     setError("");
     setPending(key);
-    const res = await fn();
+    // A throw must never leave the button spinning
+    const res = await fn().catch((error: unknown) => ({ error }));
     setPending(null);
     if (res?.error) {
       setError(errorText(res.error));
@@ -175,17 +171,46 @@ function AuthBody({
     e.preventDefault();
     run("code", () => verifyCode(code));
   };
-  // Opens the popup synchronously (inside the click, so it isn't blocked). If the user closes it, the button frees up;
-  // a sign-in that did finish still navigates on its own.
+  // The popup is opened synchronously inside the click so browsers don't block it.
+  // Clerk's popup-callback posts the session back and closes the popup; instead of trusting the sign-in resource
+  // afterwards (reload/status/finalize can each fail and strand the user on this page), we ask Clerk's client,
+  // the source of truth, whether a session now exists, and activate it. Runs when the flow ends AND when the popup
+  // closes, whichever first; a late success after a "close" still signs the user in.
   const onSso = (strategy: OAuthStrategy) => {
     remember(strategy);
     const popup = openPopup();
-    run(strategy, () => {
-      if (!popup) return sso(strategy);
-      let timer: ReturnType<typeof setInterval>;
-      const closed = new Promise<{ error: null }>((r) => (timer = setInterval(() => popup.closed && r({ error: null }), 500)));
-      return Promise.race([sso(strategy, popup), closed]).finally(() => clearInterval(timer));
-    });
+    if (!popup) return run(strategy, () => sso(strategy));
+    let done = false;
+    let queue: Promise<unknown> = Promise.resolve();
+    const check = async (ended: boolean, error: unknown) => {
+      if (done) return { error: null };
+      await clerk.client?.reload().catch(() => {});
+      const session = clerk.client?.signedInSessions[0];
+      if (session) {
+        done = true;
+        await clerk.setActive({ session: session.id, navigate });
+        return { error: null };
+      }
+      if (!ended) return { error: null }; // popup closed with no session: cancelled (or still finishing)
+      done = true;
+      // No session but the provider step finished: account transfer or missing fields, the callback page handles it
+      if (!error) router.push("/sso-callback");
+      return { error };
+    };
+    // One check at a time, so a close and a finish landing together can't activate the session twice
+    const settle = (ended: boolean, error: unknown) =>
+      (queue = queue.then(() => check(ended, error)).catch((e: unknown) => ({ error: e }))) as Promise<{ error: unknown }>;
+    run(strategy, () => new Promise((resolve) => {
+      const timer = setInterval(() => {
+        if (!popup.closed) return;
+        clearInterval(timer);
+        settle(false, null).then(resolve);
+      }, 500);
+      sso(strategy, popup)
+        .then((r) => r.error, (e: unknown) => e)
+        .then((error) => (clearInterval(timer), settle(true, error)))
+        .then(resolve);
+    }));
   };
   const disabled = busy || pending !== null;
 
@@ -269,11 +294,8 @@ export function SignInForm() {
       <AuthBody
         cta="Log in"
         busy={fetchStatus === "fetching"}
-        sso={async (strategy, popup) => {
-          // Popup routes are built with `new URL`, so the callback must be absolute
-          const res = await signIn.sso({ strategy, popup, redirectUrl: "/dashboard", redirectCallbackUrl: `${location.origin}/sso-callback` });
-          return popup ? afterPopup(res, signIn.status, () => signIn.finalize({ navigate })) : res;
-        }}
+        // Absolute callback: Clerk's popup mode wraps it with `new URL`
+        sso={(strategy, popup) => signIn.sso({ strategy, popup, redirectUrl: "/dashboard", redirectCallbackUrl: `${location.origin}/sso-callback` })}
         sendCode={(emailAddress) => signIn.emailCode.sendCode({ emailAddress })}
         verifyCode={async (code) => {
           const res = await signIn.emailCode.verifyCode({ code });
@@ -299,10 +321,7 @@ export function SignUpForm() {
       <AuthBody
         cta="Sign up"
         busy={fetchStatus === "fetching"}
-        sso={async (strategy, popup) => {
-          const res = await signUp.sso({ strategy, popup, redirectUrl: "/dashboard", redirectCallbackUrl: `${location.origin}/sso-callback` });
-          return popup ? afterPopup(res, signUp.status, () => signUp.finalize({ navigate })) : res;
-        }}
+        sso={(strategy, popup) => signUp.sso({ strategy, popup, redirectUrl: "/dashboard", redirectCallbackUrl: `${location.origin}/sso-callback` })}
         sendCode={async (emailAddress) => {
           const res = await signUp.create({ emailAddress });
           return res.error ? res : signUp.verifications.sendEmailCode();
