@@ -233,11 +233,9 @@ small transcription errors and filler words). Judge only what the candidate actu
   "fit": "strong" | "moderate" | "weak" (fit for THIS job description),
   "summary": "3-4 sentences: how the interview went and why this fit verdict",
   "strengths": ["up to 4 short points"],
-  "concerns": ["up to 4 short points"],
-  "questions": [{ "answer": "the candidate's answer to this question, quoted from the transcript (merge follow-ups); empty if not answered", "score": 0-10, "feedback": "one sentence" }]
+  "concerns": ["up to 4 short points"]
 }
-"questions" has exactly one entry per interview question, in the same order. Unanswered questions score 0.
-Never invent answers. A candidate who ran out of time is judged on what they covered.`;
+Weigh every interview question; an unanswered one counts against the candidate. Never invent answers. A candidate who ran out of time is judged on what they covered.`;
 
 /**
  * Bedrock grades the transcript. When Bedrock is busy and this isn't the `final` try, throws so the queue retries later;
@@ -253,7 +251,7 @@ export async function evaluate(sessionId: string, final = true) {
   const transcript = JSON.parse(r.transcript ?? "[]") as Line[];
   let report: Report | null;
   if (!transcript.some((l) => l.role === "candidate")) {
-    report = cleanReport({ score: 0, fit: "weak", summary: "The candidate joined but didn't answer any questions." }, questions);
+    report = cleanReport({ score: 0, fit: "weak", summary: "The candidate joined but didn't answer any questions." });
   } else {
     const out = await bedrockJson(
       JUDGE,
@@ -261,7 +259,7 @@ export async function evaluate(sessionId: string, final = true) {
       4000,
     );
     if (!out.ok && out.reason === "busy" && !final) throw new Error(`evaluate ${sessionId}: bedrock busy`);
-    report = out.ok ? cleanReport(out.value, questions) : null;
+    report = out.ok ? cleanReport(out.value) : null;
   }
   await env.DB.prepare("UPDATE interview_sessions SET status = ?, report = ?, score = ? WHERE id = ?")
     .bind(report ? "done" : "failed", report && JSON.stringify(report), report?.score ?? null, sessionId).run();

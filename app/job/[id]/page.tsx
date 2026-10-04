@@ -3,10 +3,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
-import { Prose } from "@/components/jobs";
+import { AboutCompany, JobFacts, Prose } from "@/components/jobs";
 import { PublicShell, publicDate } from "@/components/public-shell";
 import { btnLg, btnPrimary } from "@/components/ui";
-import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
+import { JOB_TYPES, WORKPLACES } from "@/lib/job-fields";
 import { getPublicJob } from "@/lib/jobs";
 
 type Props = { params: Promise<{ id: string }> };
@@ -37,28 +37,25 @@ export default async function PublicJobPage({ params }: Props) {
             <h1 className="text-xl font-semibold tracking-tight text-balance">{j.title}</h1>
             <p className="mt-1 text-sm text-muted">{where} · Posted {publicDate(j.createdAt)}</p>
           </div>
-          <ul className="flex flex-wrap gap-2 text-xs">
-            {[WORKPLACES[j.workplace], JOB_TYPES[j.type], LEVELS[j.level], j.salary].filter(Boolean).map((t) => (
-              <li key={t} className="rounded-full border border-border px-2.5 py-1 text-muted">{t}</li>
-            ))}
-          </ul>
           {j.closedAt ? (
             <p className="text-sm text-muted">No longer accepting applications</p>
           ) : (
             <Link href="/sign-up" className={`${btnPrimary} ${btnLg}`}>Sign up to apply</Link>
           )}
         </div>
+        <JobFacts job={j} h="h2" />
         <section className="border-b border-border p-4">
           <h2 className="mb-1 text-sm font-semibold">Posted by</h2>
           <p className="text-sm">{j.poster.name}</p>
           {j.poster.headline && <p className="text-xs text-muted">{j.poster.headline}</p>}
         </section>
-        <section className="p-4">
+        <section className={`p-4 ${j.page ? "border-b border-border" : ""}`}>
           <h2 className="mb-3 text-sm font-semibold">About the job</h2>
           <div className="space-y-3 break-words text-sm leading-relaxed text-foreground/90">
-            <Prose text={j.description} />
+            <Prose text={j.description} h="h3" />
           </div>
         </section>
+        {j.page && <AboutCompany name={j.company} page={j.page} h="h2" linked={false} />}
       </article>
     </PublicShell>
   );
