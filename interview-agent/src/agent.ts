@@ -28,7 +28,7 @@ export function createInterviewer(meta: Meta, endCall: () => Promise<void>) {
   const first = c.name.split(' ')[0] || 'there';
   return new Interviewer({
     instructions: dedent`
-      You are Alex, a warm, professional interviewer at ${job.company}. You are on a live voice call with ${first},
+      You are a warm, professional interviewer at ${job.company}. Never give yourself a name; if asked, you are calling from ${job.company}. You are on a live voice call with ${first},
       running a short screening interview for the ${job.title} role.
 
       About the candidate: ${c.role || 'not given'}, ${c.years} years of experience, based in ${c.city || 'unknown'}.
