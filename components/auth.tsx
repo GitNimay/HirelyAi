@@ -3,7 +3,6 @@
 import { useAuth, useClerk, useSignIn, useSignUp } from "@clerk/nextjs";
 import type { OAuthStrategy, SetActiveNavigate } from "@clerk/nextjs/types";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { CodeField } from "./input-otp";
 import { useClientValue } from "./kit";
@@ -16,14 +15,10 @@ export function errorText(e: unknown) {
   return err.errors?.[0]?.longMessage ?? err.errors?.[0]?.message ?? err.longMessage ?? err.message ?? "Something went wrong";
 }
 
-function useNavigateToApp(): SetActiveNavigate {
-  const router = useRouter();
-  return ({ decorateUrl }) => {
-    const url = decorateUrl("/dashboard");
-    if (url.startsWith("http")) window.location.href = url;
-    else router.push(url);
-  };
-}
+// Full page load, not router.push: Clerk's Next.js integration runs router.refresh() right after setActive, and in
+// vinext that refresh supersedes a pending push, leaving a signed-in user on /sign-in. A document navigation can't be
+// cancelled that way (and /sign-in itself redirects signed-in users, as a second net).
+const navigate: SetActiveNavigate = ({ decorateUrl }) => window.location.assign(decorateUrl("/dashboard"));
 
 /** Small centered window for the provider's login page; null if the browser blocked it (we fall back to a full redirect). */
 function openPopup() {
@@ -133,8 +128,6 @@ function AuthBody({
   const [error, setError] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const clerk = useClerk();
-  const router = useRouter();
-  const navigate = useNavigateToApp();
   // "Last used" hint on the method this browser signed in with before (storage can throw: no hint then)
   const last = useClientValue(() => {
     try {
@@ -194,7 +187,8 @@ function AuthBody({
       if (!ended) return { error: null }; // popup closed with no session: cancelled (or still finishing)
       done = true;
       // No session but the provider step finished: account transfer or missing fields, the callback page handles it
-      if (!error) router.push("/sso-callback");
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full load on purpose, see `navigate`
+      if (!error) window.location.assign("/sso-callback");
       return { error };
     };
     // One check at a time, so a close and a finish landing together can't activate the session twice
@@ -283,7 +277,6 @@ const LastUsed = () => <span className="absolute right-3 rounded-full border bor
 
 export function SignInForm() {
   const { signIn, fetchStatus } = useSignIn();
-  const navigate = useNavigateToApp();
 
   return (
     <Shell
@@ -310,7 +303,6 @@ export function SignInForm() {
 
 export function SignUpForm() {
   const { signUp, fetchStatus } = useSignUp();
-  const navigate = useNavigateToApp();
 
   return (
     <Shell
