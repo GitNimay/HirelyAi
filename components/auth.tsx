@@ -25,6 +25,22 @@ function useNavigateToApp(): SetActiveNavigate {
   };
 }
 
+/** Small centered window for the provider's login page; null if the browser blocked it (we fall back to a full redirect). */
+function openPopup() {
+  const w = 500, h = 640;
+  const left = window.screenX + (window.outerWidth - w) / 2;
+  const top = window.screenY + (window.outerHeight - h) / 2;
+  return window.open("about:blank", "clerk-sso", `popup,width=${w},height=${h},left=${left},top=${top}`);
+}
+
+/** After a popup SSO: done → enter the app; otherwise (new account transfer, missing fields) let the callback page finish it. */
+async function afterPopup(res: { error: unknown }, status: string | null, finalize: () => Promise<{ error: unknown }>) {
+  if (res.error) return res;
+  if (status === "complete") return finalize();
+  window.location.assign("/sso-callback");
+  return { error: null };
+}
+
 /* ---------- Shared UI ---------- */
 
 const btn =
@@ -115,7 +131,7 @@ function AuthBody({
 }: {
   cta: string;
   busy: boolean;
-  sso: (strategy: OAuthStrategy) => Result;
+  sso: (strategy: OAuthStrategy, popup?: Window) => Result;
   sendCode: (email: string) => Result;
   verifyCode: (code: string) => Promise<void | { error: unknown }>;
 }) {
@@ -159,6 +175,18 @@ function AuthBody({
     e.preventDefault();
     run("code", () => verifyCode(code));
   };
+  // Opens the popup synchronously (inside the click, so it isn't blocked). If the user closes it, the button frees up;
+  // a sign-in that did finish still navigates on its own.
+  const onSso = (strategy: OAuthStrategy) => {
+    remember(strategy);
+    const popup = openPopup();
+    run(strategy, () => {
+      if (!popup) return sso(strategy);
+      let timer: ReturnType<typeof setInterval>;
+      const closed = new Promise<{ error: null }>((r) => (timer = setInterval(() => popup.closed && r({ error: null }), 500)));
+      return Promise.race([sso(strategy, popup), closed]).finally(() => clearInterval(timer));
+    });
+  };
   const disabled = busy || pending !== null;
 
   if (step === "code") {
@@ -188,7 +216,7 @@ function AuthBody({
     <>
       <div className="space-y-3">
         {providers.map(({ strategy, label }) => (
-          <button aria-busy={pending === strategy} key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => (remember(strategy), run(strategy, () => sso(strategy)))}>
+          <button aria-busy={pending === strategy} key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => onSso(strategy)}>
             <span className="absolute left-4">{providerIcons[strategy]}</span>
             {`Continue with ${label}`}
             {last === strategy && <LastUsed />}
@@ -241,7 +269,11 @@ export function SignInForm() {
       <AuthBody
         cta="Log in"
         busy={fetchStatus === "fetching"}
-        sso={(strategy) => signIn.sso({ strategy, redirectUrl: "/dashboard", redirectCallbackUrl: "/sso-callback" })}
+        sso={async (strategy, popup) => {
+          // Popup routes are built with `new URL`, so the callback must be absolute
+          const res = await signIn.sso({ strategy, popup, redirectUrl: "/dashboard", redirectCallbackUrl: `${location.origin}/sso-callback` });
+          return popup ? afterPopup(res, signIn.status, () => signIn.finalize({ navigate })) : res;
+        }}
         sendCode={(emailAddress) => signIn.emailCode.sendCode({ emailAddress })}
         verifyCode={async (code) => {
           const res = await signIn.emailCode.verifyCode({ code });
@@ -267,7 +299,10 @@ export function SignUpForm() {
       <AuthBody
         cta="Sign up"
         busy={fetchStatus === "fetching"}
-        sso={(strategy) => signUp.sso({ strategy, redirectUrl: "/dashboard", redirectCallbackUrl: "/sso-callback" })}
+        sso={async (strategy, popup) => {
+          const res = await signUp.sso({ strategy, popup, redirectUrl: "/dashboard", redirectCallbackUrl: `${location.origin}/sso-callback` });
+          return popup ? afterPopup(res, signUp.status, () => signUp.finalize({ navigate })) : res;
+        }}
         sendCode={async (emailAddress) => {
           const res = await signUp.create({ emailAddress });
           return res.error ? res : signUp.verifications.sendEmailCode();
