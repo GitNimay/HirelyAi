@@ -76,18 +76,18 @@ export function Feedback() {
 
   return (
     <>
-      {/* Bottom-left (above the phone tab bar); newest at the bottom, springs in from the left, older ones glide up */}
-      <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-20 z-50 flex flex-col items-start gap-2 sm:inset-x-auto sm:bottom-6 sm:left-6">
+      {/* Bottom-right (above the phone tab bar); newest at the bottom, springs in from the right, older ones glide up */}
+      <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-20 z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-6 sm:right-6">
         <AnimatePresence initial={false}>
           {toasts.map((t) => (
             <motion.div
               key={t.id}
               layout={!reduce}
-              initial={reduce ? { opacity: 0 } : { opacity: 0, x: -16, scale: 0.96 }}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, x: 16, scale: 0.96 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, ...(reduce ? {} : { x: -16, scale: 0.96 }), transition: spring.moderate.exit }}
+              exit={{ opacity: 0, ...(reduce ? {} : { x: 16, scale: 0.96 }), transition: spring.moderate.exit }}
               transition={reduce ? { duration: 0.12 } : spring.slow}
-              className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-xl border border-border bg-surface py-2.5 pl-3 pr-1.5 text-sm text-foreground shadow-[0_8px_24px_rgb(0_0_0/0.35)] sm:w-auto sm:min-w-72"
+              className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-xl border border-border bg-surface py-2.5 pl-3 pr-1.5 text-sm text-foreground shadow-(--shadow-pop) sm:w-auto sm:min-w-72"
             >
               <span className={`flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-hover ${t.tone ? "text-danger" : "text-success"}`}>
                 <Icon d={t.tone ? icons.close : icons.check} size={14} />
@@ -186,7 +186,7 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
       <div
         data-open={open || undefined}
         inert={!open}
-        className={cn("dd absolute z-20 rounded-xl border border-border bg-surface text-sm shadow-[0_12px_32px_rgb(0_0_0/0.35)]", panelClassName)}
+        className={cn("dd absolute z-20 rounded-xl border border-border bg-surface text-sm shadow-(--shadow-pop)", panelClassName)}
       >
         <div>
           <div
@@ -297,7 +297,7 @@ export function Select({ options, value, defaultValue, onChange, name, required,
       <div
         data-open={open || undefined}
         inert={!open}
-        className={cn("dd absolute left-0 top-full z-30 mt-1 w-full min-w-max rounded-xl border border-border bg-surface text-sm text-foreground shadow-[0_12px_32px_rgb(0_0_0/0.35)]", panelClassName)}
+        className={cn("dd absolute left-0 top-full z-30 mt-1 w-full min-w-max rounded-xl border border-border bg-surface text-sm text-foreground shadow-(--shadow-pop)", panelClassName)}
       >
         <div>
           <ul

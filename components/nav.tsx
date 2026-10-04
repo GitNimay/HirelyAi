@@ -60,7 +60,7 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
       onMouseMove={(e) => ((e.target as Element).closest("nav") === e.currentTarget ? hover.handlers.onMouseMove(e) : hover.clear())}
       className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background pb-[env(safe-area-inset-bottom)] sm:relative sm:flex-col sm:justify-start sm:gap-1 sm:border-0 sm:pb-0"
     >
-      <FluidHoverHighlight hover={hover} className="hidden rounded-md bg-surface sm:block" />
+      <FluidHoverHighlight hover={hover} className="hidden rounded-md bg-surface light:bg-surface-hover sm:block" />
       {navItems.map(({ slug, label, icon }) => {
         const href = slug === "me" ? `/in/${me}` : slug ? `/dashboard/${slug}` : "/dashboard";
         const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && pathname.startsWith("/settings/")) || (slug === "companies" && pathname.startsWith("/company/"));
@@ -73,7 +73,8 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
               title={label}
               data-rail
               className={`relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
-                active ? "font-medium text-foreground sm:bg-surface" : "text-muted hover:text-foreground"
+                // light: a raised white pill, since plain white barely shows on the off-white page
+                active ? "font-medium text-foreground sm:bg-surface sm:light:shadow-(--shadow-pop) sm:light:ring-1 sm:light:ring-border" : "text-muted hover:text-foreground"
               }`}
             >
               <span className="relative">
