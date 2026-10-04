@@ -137,3 +137,35 @@ export async function getReplies(userId: string, cursor?: string) {
   }));
   return { replies, next: replies.length === REPLY_PAGE ? String(offset + REPLY_PAGE) : null };
 }
+
+/** The dashboard's right-hand card: cover, headline, current job and network counts for the signed-in member. */
+export type Summary = {
+  coverUrl: string | null;
+  headline: string | null;
+  location: string | null;
+  connections: number;
+  followers: number;
+  /** First experience marked current on their resume; `slug`/`logoUrl` only when it links to a company page. */
+  company: { name: string; slug: string | null; logoUrl: string | null } | null;
+};
+
+export async function getSummary(userId: string): Promise<Summary | null> {
+  const r = await env.DB.prepare(
+    `SELECT u.cover_key, u.headline, u.location,
+       (SELECT COUNT(*) FROM connections WHERE user_id = u.id) AS connections,
+       (SELECT COUNT(*) FROM follows WHERE followee_id = u.id) AS followers,
+       x.company, c.slug, c.logo_key
+     FROM users u
+     LEFT JOIN (SELECT e.value ->> '$.company' AS company, e.value ->> '$.companyId' AS company_id
+                FROM resumes r, json_each(r.data, '$.experience') e
+                WHERE r.user_id = ?1 AND e.value ->> '$.current' ORDER BY e.key LIMIT 1) x ON 1
+     LEFT JOIN companies c ON c.id = x.company_id
+     WHERE u.id = ?1`,
+  ).bind(userId).first<{ cover_key: string | null; headline: string | null; location: string | null; connections: number; followers: number; company: string | null; slug: string | null; logo_key: string | null }>();
+  if (!r) return null;
+  return {
+    coverUrl: r.cover_key ? `/api/media/${r.cover_key}` : null, headline: r.headline, location: r.location,
+    connections: r.connections, followers: r.followers,
+    company: r.company ? { name: r.company, slug: r.slug, logoUrl: r.logo_key ? `/api/media/${r.logo_key}` : null } : null,
+  };
+}

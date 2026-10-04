@@ -202,3 +202,60 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
     </li>
   );
 }
+
+/** Dashboard right rail: the newest three, kept live. The full list lives at /dashboard/notifications. */
+export function QuickNotifications({ initial }: { initial: Notification[] }) {
+  const [items, setItems] = useState(initial);
+  useRealtime((e) => {
+    if (e.t === "notif") setItems((l) => [e.n, ...l.filter((n) => n.id !== e.n.id)].sort(newestFirst).slice(0, 3));
+  });
+
+  function open(n: Notification) {
+    if (n.read) return;
+    setItems((l) => l.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+    actions.markRead(n.id).catch(() => {});
+  }
+
+  return (
+    <section aria-labelledby="quick-notifs" className="border border-border bg-background">
+      <div className="flex h-11 items-center justify-between border-b border-border px-4">
+        <h2 id="quick-notifs" className="text-sm font-semibold">Notifications</h2>
+        <Link href="/dashboard/notifications" className="text-xs text-link hover:underline">See all</Link>
+      </div>
+      {items.length === 0 ? (
+        <p className="flex items-center gap-2 px-4 py-6 text-sm text-muted">
+          <Icon d={icons.notifications} size={16} />
+          No notifications
+        </p>
+      ) : (
+        <ul>
+          {items.map((n) => (
+            <li key={n.id} className="border-b border-border last:border-b-0">
+              <Link
+                href={n.link}
+                onClick={() => open(n)}
+                className="flex gap-2.5 px-4 py-3 outline-none transition-colors hover:bg-surface focus-visible:bg-surface"
+              >
+                <span className="relative shrink-0 self-start">
+                  <Avatar name={n.actors[0]?.name ?? "?"} src={n.actors[0]?.imageUrl ?? undefined} size={32} />
+                  <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full border-2 border-background bg-surface-hover text-foreground">
+                    <Icon d={ICON[n.type]} size={8} />
+                  </span>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2 text-xs leading-snug">
+                    <span className="font-medium">{who(n.actors, n.count)}</span> <span className="text-muted">{verb(n.type, n.body)}</span>
+                  </span>
+                  <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+                    {ago(n.at)}
+                    {!n.read && <span aria-label="Unread" className="size-1.5 rounded-full bg-link" />}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
