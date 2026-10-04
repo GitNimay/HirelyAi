@@ -259,7 +259,7 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
 }
 
 /** Title left, card centre, steps right; the faint rules frame the card column, like the reference. Also used by the interview flow. */
-export function StepFrame({ title, steps, current, stepKey, action, children }: { title: string; steps: string[]; current: number; stepKey: string; action?: ReactNode; children: ReactNode }) {
+export function StepFrame({ title, steps, current, stepKey, action, card = "rounded-xl bg-surface", children }: { title: string; steps: string[]; current: number; stepKey: string; action?: ReactNode; card?: string; children: ReactNode }) {
   const reduce = useReducedMotion();
   return (
     <div className="flex min-h-screen flex-1 flex-col">
@@ -272,7 +272,7 @@ export function StepFrame({ title, steps, current, stepKey, action, children }: 
       </header>
 
       <div className="grid flex-1 border-t border-dashed border-border lg:grid-cols-[1fr_minmax(0,680px)_1fr]">
-        <aside className="hidden justify-end px-8 pt-10 lg:flex">
+        <aside className="hidden justify-end px-8 pt-18 lg:flex">
           <p className="text-sm font-medium">{title}</p>
         </aside>
 
@@ -290,14 +290,14 @@ export function StepFrame({ title, steps, current, stepKey, action, children }: 
               animate={{ opacity: 1, y: 0 }}
               exit={reduce ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="rounded-xl border border-border bg-surface px-6 pt-6 pb-6 sm:px-8 sm:pt-8"
+              className={`border border-border ${card} px-6 pt-6 pb-6 sm:px-8 sm:pt-8`}
             >
               {children}
             </motion.div>
           </AnimatePresence>
         </main>
 
-        <aside className="hidden px-8 pt-10 lg:block">
+        <aside className="hidden px-8 pt-18 lg:block">
           <ol className="space-y-3 text-sm" aria-label="Progress">
             {steps.map((label, i) => (
               <li key={label} aria-current={i === current ? "step" : undefined} className={`flex items-center gap-2.5 ${i === current ? "font-medium text-foreground" : "text-muted"}`}>

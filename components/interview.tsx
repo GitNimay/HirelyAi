@@ -2,19 +2,23 @@
 
 import type { RemoteParticipant, Room } from "livekit-client";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ThinkingOrb } from "thinking-orbs";
 import { onboard, start, verify, warm } from "@/app/interview/actions";
 import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, NOTICE, type Profile } from "@/lib/interview-fields";
 import { Head, primary, StepFrame } from "./onboarding";
 import { F, input } from "./resume-editor";
 import { ask, Select } from "./kit";
+import { applyTheme } from "./account-menu";
 import { btnGhost, Icon, icons } from "./ui";
 
 type Step = "gate" | "details" | "mic" | "live" | "done" | "closed";
 type AgentState = "connecting" | "initializing" | "listening" | "thinking" | "speaking";
 const STEPS = ["Sign in", "Your details", "Mic check", "Interview"];
 const INDEX: Record<Step, number> = { gate: 0, details: 1, mic: 2, live: 3, done: 4, closed: 0 };
+// The orb's tuned animation for each interviewer state
+const ORB = { connecting: "connecting", initializing: "connecting", listening: "listening", thinking: "solving", speaking: "composing" } as const;
 const STATE_LABEL: Record<AgentState, string> = {
   connecting: "Connecting…", initializing: "Your interviewer is joining…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking",
 };
@@ -22,6 +26,19 @@ const mic = icons.mic;
 const chevron = "m9 18 6-6-6-6";
 const field = (bad: boolean) => `${input} h-10 ${bad ? "border-danger" : "border-border"}`;
 const date = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+// The theme showing now: a saved choice on <html data-theme>, else the OS. Re-read when either changes.
+const isDark = () => {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
+};
+function onThemeChange(cb: () => void) {
+  const mo = new MutationObserver(cb);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  const mq = matchMedia("(prefers-color-scheme: light)");
+  mq.addEventListener("change", cb);
+  return () => (mo.disconnect(), mq.removeEventListener("change", cb));
+}
 
 function stepOf(v: CandidateView): Step {
   const s = v.session?.status;
@@ -126,7 +143,7 @@ export function Interview({ view }: { view: CandidateView }) {
   const card: Record<Step, React.ReactNode> = {
     gate: (
       <form onSubmit={signIn} className="space-y-5">
-        <Head title={`Voice interview for ${view.title}`} sub={`${view.company} invited you to a short AI voice interview. Sign in with the details from your invitation email.`} />
+        <Head title={`Voice interview for ${view.title}`} sub="Use the details from your invitation email." />
         <F label="Full name">
           <input name="name" required maxLength={60} autoComplete="name" autoFocus placeholder="Ada Lovelace" className={field(false)} />
         </F>
@@ -137,8 +154,8 @@ export function Interview({ view }: { view: CandidateView }) {
           <input name="password" required maxLength={40} autoComplete="off" spellCheck={false} placeholder="xxxx-xxxx" className={`${field(false)} font-mono`} />
         </F>
         {error && <Alert>{error}</Alert>}
-        <p className="text-[13px] text-muted" suppressHydrationWarning>Open until {date(view.deadline)}.</p>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
+          <p className="text-[13px] text-muted" suppressHydrationWarning>Open until {date(view.deadline)}</p>
           <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
         </div>
       </form>
@@ -146,22 +163,15 @@ export function Interview({ view }: { view: CandidateView }) {
     details: <Details initial={{ ...view.session?.prefill, ...(name ? { name } : {}) }} onDone={() => go("mic")} slug={view.slug} />,
     mic: (
       <div className="space-y-6">
-        <Head title="Check your microphone" sub="Say something. When the bar moves, you're good to go." />
+        <Head title="Mic check" sub="Say something to test your microphone." />
         <MicCheck deviceId={deviceId} onDevice={setDeviceId} onError={setError}>
           {(heard) => (
             <>
-              <ul className="space-y-2.5 text-sm">
-                {[
-                  `${view.questions} question${view.questions === 1 ? "" : "s"}, ${INTERVIEW.seconds / 60} minutes at most. The call ends on its own when time is up.`,
-                  "Find a quiet place. Speak naturally, like on a phone call.",
-                  "You can ask the interviewer to repeat or clarify a question.",
-                  "You get one attempt, so keep this tab open until the end.",
-                ].map((t) => (
-                  <li key={t} className="flex gap-2.5 text-muted"><Icon d={icons.check} size={16} className="mt-0.5 shrink-0 text-success" />{t}</li>
-                ))}
-              </ul>
+              <p className="text-sm text-muted">
+                {view.questions} question{view.questions === 1 ? "" : "s"} · {INTERVIEW.seconds / 60} min · one attempt, keep this tab open
+              </p>
               {error && <Alert>{error}</Alert>}
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex items-center justify-end gap-3 border-t border-border pt-5">
                 {!heard && <span className="text-[13px] text-muted">Waiting to hear you…</span>}
                 <button aria-busy={busy} type="button" className={primary} disabled={!heard || busy} onClick={begin}>
                   {view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
@@ -185,17 +195,15 @@ export function Interview({ view }: { view: CandidateView }) {
     ),
     done: (
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
-        <span className="flex size-14 items-center justify-center rounded-full bg-success/15 text-success"><Icon d={icons.check} size={28} /></span>
-        <h2 className="mt-6 text-xl font-semibold tracking-tight">Interview submitted</h2>
-        <p className="mt-1 max-w-sm text-sm text-muted">Thanks for your time. The hiring team at {view.company} will review your interview and get back to you. You can close this tab.</p>
+        <span className="flex size-12 items-center justify-center rounded-full bg-success/15 text-success"><Icon d={icons.check} size={24} /></span>
+        <h2 className="mt-5 text-lg font-semibold tracking-tight">Interview submitted</h2>
+        <p className="mt-1 text-sm text-muted">Thanks. {view.company} will be in touch. You can close this tab.</p>
       </div>
     ),
     closed: (
       <div className="py-8 text-center">
         <h2 className="text-lg font-semibold tracking-tight">This interview has closed</h2>
-        <p className="mt-1 text-sm text-muted" suppressHydrationWarning>
-          The deadline for {view.title} at {view.company} was {date(view.deadline)}.
-        </p>
+        <p className="mt-1 text-sm text-muted" suppressHydrationWarning>It closed on {date(view.deadline)}.</p>
       </div>
     ),
   };
@@ -206,10 +214,31 @@ export function Interview({ view }: { view: CandidateView }) {
       steps={STEPS}
       current={INDEX[step]}
       stepKey={step}
-      action={<span className="max-w-[50%] truncate text-sm text-muted">{view.company}</span>}
+      card="bg-background"
+      action={
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="truncate text-sm text-muted">{view.company}</span>
+          <ThemeToggle />
+        </span>
+      }
     >
       {card[step]}
     </StepFrame>
+  );
+}
+
+/** Flips light/dark, starting from whatever is showing now (a saved choice, or the OS). */
+function ThemeToggle() {
+  const dark = useSyncExternalStore(onThemeChange, isDark, () => null); // null on the server
+  return (
+    <button
+      type="button"
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      onClick={() => applyTheme(dark ? "light" : "dark")}
+      className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Icon d={dark === false ? icons.moon : icons.sun} size={16} />
+    </button>
   );
 }
 
@@ -239,7 +268,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
 
   return (
     <form onSubmit={submit} noValidate className="space-y-5">
-      <Head title="A few details first" sub="Your interviewer uses these to tailor the conversation. The hiring team sees them with your interview." />
+      <Head title="Your details" sub="Shared with the hiring team." />
       <F label="Full name" bad={bad("name")}>
         <input value={p.name ?? ""} onChange={set("name")} maxLength={60} autoComplete="name" className={field(bad("name"))} />
       </F>
@@ -266,7 +295,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
         <input value={p.link ?? ""} onChange={set("link")} type="url" maxLength={200} placeholder="https://" className={field(false)} />
       </F>
       {error && <Alert>{error}</Alert>}
-      <div className="flex justify-end pt-1">
+      <div className="flex justify-end border-t border-border pt-5">
         <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
       </div>
     </form>
@@ -331,7 +360,7 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
 
   return (
     <>
-      <div className="space-y-4 rounded-lg border border-border bg-background p-4">
+      <div className="space-y-4 rounded-lg border border-border p-4">
         <div className="flex items-center gap-3">
           <span className={`flex size-10 shrink-0 items-center justify-center rounded-md border border-border ${heard ? "text-success" : "text-muted"}`}>
             <Icon d={mic} size={18} />
@@ -383,10 +412,9 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
   }, [endsAt, onTimeUp]);
 
   const secs = Math.ceil(left / 1000);
-  const speaking = agent === "speaking";
   return (
-    <div className="flex flex-col items-center gap-8 py-4 text-center">
-      <div className="flex w-full items-center justify-between text-[13px] text-muted">
+    <div className="flex flex-col items-center gap-8 text-center">
+      <div className="flex w-full items-center justify-between border-b border-border pb-4 text-[13px] text-muted">
         <span className="flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />Live</span>
         <span className={`tabular-nums ${endsAt && secs <= 30 ? "font-medium text-danger" : ""}`}>
           {endsAt ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")} left` : "Starting…"}
@@ -395,11 +423,9 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
         <span className="sr-only" aria-live="assertive">{secs <= 30 && secs > 0 ? "30 seconds left" : secs <= 60 && secs > 0 ? "One minute left" : ""}</span>
       </div>
 
-      <div className="relative flex size-40 items-center justify-center" aria-hidden>
-        {speaking && <span className="absolute inset-2 animate-ping rounded-full bg-foreground/10 motion-reduce:animate-none" />}
-        <span
-          className={`size-28 rounded-full transition-all duration-300 ${speaking ? "scale-110 bg-foreground" : agent === "thinking" ? "animate-pulse bg-foreground/50" : agent === "listening" ? "bg-foreground/80 ring-4 ring-success/40" : "bg-foreground/20"}`}
-        />
+      {/* Tuned at 64px and drawn at up to 2x density, so 1.5x stays sharp. It follows data-theme on its own. */}
+      <div className="flex size-32 items-center justify-center" aria-hidden>
+        <ThinkingOrb state={ORB[agent]} size={64} className="scale-150" />
       </div>
 
       <div className="min-h-24 w-full space-y-3" aria-live="polite">

@@ -16,7 +16,7 @@ const themes: { value: Theme; label: string; icon: IconDef }[] = [
 ];
 
 // Remembered in a cookie so the server renders <html data-theme> right away, with no flash of the other theme
-function applyTheme(t: Theme) {
+export function applyTheme(t: Theme) {
   document.cookie = `theme=${t}; path=/; max-age=31536000; samesite=lax`;
   if (t === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;

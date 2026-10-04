@@ -91,7 +91,7 @@ export default defineAgent({
 
     const first = meta.candidate.name.split(' ')[0];
     session.generateReply({
-      instructions: `Greet ${first} by name, introduce yourself as Alex from ${meta.job.company} in one sentence, say this is a quick ${Math.round(meta.seconds / 60)} minute chat about the ${meta.job.title} role, then ask the first question.`,
+      instructions: `Greet ${first} by name, say you're calling from ${meta.job.company} (no name for yourself), say this is a quick ${Math.round(meta.seconds / 60)} minute chat about the ${meta.job.title} role, then ask the first question.`,
     });
 
     // Hard limit: a nudge 30 s before, then cut the call regardless of what's happening
