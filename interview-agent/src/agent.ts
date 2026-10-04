@@ -1,4 +1,4 @@
-import { Agent, dedent, inference, tool } from '@livekit/agents';
+import { Agent, dedent, inference, type llm, tool, voice } from '@livekit/agents';
 
 /** Job metadata, set by the app when it issues the candidate's token (lib/interview.ts startInterview). */
 export type Meta = {
@@ -9,11 +9,24 @@ export type Meta = {
   questions: string[];
 };
 
+// Universal-3 Pro labels a quiet stretch (the candidate listening to a question) as "Silence." and the like.
+// Drop those labels when they stand alone or are bracketed, never a word inside a real sentence ("less noise").
+const LABELS =
+  /[[(](?:silence|noise|background noise|music|inaudible|laughs?)[\])]|(?:^|(?<=[.!?]\s))(?:silence|noise|background noise|music|inaudible)(?:[.!](?=\s|$)|$)/gi;
+export const stripLabels = (t: string) => t.replace(LABELS, '').replace(/\s+/g, ' ').trim();
+
+class Interviewer extends Agent {
+  override async onUserTurnCompleted(_: llm.ChatContext, msg: llm.ChatMessage) {
+    msg.content = msg.content.map((c) => (typeof c === 'string' ? stripLabels(c) : c)).filter((c) => c !== '');
+    if (!msg.textContent) throw new voice.StopResponse(); // nothing was said: no reply, nothing in the transcript
+  }
+}
+
 /** The interviewer: asks the recruiter's questions in order, reacts to answers, and hangs up when done. */
 export function createInterviewer(meta: Meta, endCall: () => Promise<void>) {
   const { job, candidate: c, questions } = meta;
   const first = c.name.split(' ')[0] || 'there';
-  return new Agent({
+  return new Interviewer({
     instructions: dedent`
       You are Alex, a warm, professional interviewer at ${job.company}. You are on a live voice call with ${first},
       running a short screening interview for the ${job.title} role.

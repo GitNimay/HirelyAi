@@ -13,16 +13,13 @@ assert.equal(p.profile.notice, "30d");
 assert.equal(p.profile.link, "");
 assert.deepEqual(p.missing, ["role", "phone"]);
 
-// Report: clamped, unknown fit → weak, one row per asked question even when the model skips some
-const r = cleanReport({ score: 140, fit: "amazing", summary: "ok", strengths: ["x", 3, ""], questions: [{ answer: "A1", score: 12 }] }, ["Q1", "Q2"]);
+// Report: clamped, unknown fit → weak, junk list items dropped
+const r = cleanReport({ score: 140, fit: "amazing", summary: "ok", strengths: ["x", 3, ""] });
 assert.equal(r.score, 100);
 assert.equal(r.fit, "weak");
 assert.deepEqual(r.strengths, ["x"]);
-assert.deepEqual(r.questions, [
-  { question: "Q1", answer: "A1", score: 10, feedback: "" },
-  { question: "Q2", answer: "Not answered", score: 0, feedback: "" },
-]);
-assert.equal(cleanReport(null, []).summary, "");
+assert.deepEqual(r.concerns, []);
+assert.equal(cleanReport(null).summary, "");
 
 assert.deepEqual(cleanTranscript([{ role: "agent", text: "Hi" }, { role: "x", text: " yo " }, { text: "" }, null]), [
   { role: "agent", text: "Hi" },

@@ -13,7 +13,6 @@ export type Report = {
   summary: string;
   strengths: string[];
   concerns: string[];
-  questions: { question: string; answer: string; score: number; feedback: string }[]; // score 0-10
 };
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, max) : "");
@@ -43,20 +42,14 @@ export function cleanProfile(input: Record<string, unknown>): { profile: Profile
 }
 
 /** Model output → a Report we can render safely. Missing or odd fields become empty/zero instead of throwing. */
-export function cleanReport(raw: unknown, questions: string[]): Report {
+export function cleanReport(raw: unknown): Report {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  const qs = Array.isArray(r.questions) ? r.questions : [];
   return {
     score: num(r.score, 0, 100),
     fit: typeof r.fit === "string" && Object.hasOwn(FITS, r.fit) ? (r.fit as Fit) : "weak",
     summary: str(r.summary, 1200),
     strengths: strs(r.strengths, 5, 200),
     concerns: strs(r.concerns, 5, 200),
-    // Always one row per asked question, in order, even if the model skipped one
-    questions: questions.map((question, i) => {
-      const q = (qs[i] && typeof qs[i] === "object" ? qs[i] : {}) as Record<string, unknown>;
-      return { question, answer: str(q.answer, 3000) || "Not answered", score: num(q.score, 0, 10), feedback: str(q.feedback, 500) };
-    }),
   };
 }
 

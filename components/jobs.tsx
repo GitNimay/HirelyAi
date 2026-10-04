@@ -7,7 +7,8 @@ import * as actions from "@/app/dashboard/actions";
 import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
 import { FITS, INTERVIEW, NOTICE, type Fit } from "@/lib/interview-fields";
-import type { Applicant, Job, JobPage } from "@/lib/jobs";
+import type { Applicant, Job, JobPage, PublicJob } from "@/lib/jobs";
+import { parseInline, parseProse } from "@/lib/prose";
 import { ask, Clamp, leaveIfClean, Modal, Select, Tabs, toast, useUnsavedGuard } from "./kit";
 import { JobRowsSkeleton, Line, Loading, Skeleton, times } from "./skeleton";
 import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
@@ -396,12 +397,6 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
             {where(j)} · {posted(j.createdAt)} · {applicantsText(j.applicants)}
           </p>
         </div>
-        <ul className="flex flex-wrap gap-2 text-xs">
-          {[WORKPLACES[j.workplace], JOB_TYPES[j.type], LEVELS[j.level], j.salary, j.interview && "AI voice interview"].filter(Boolean).map((t) => (
-            <li key={t} className="rounded-full border border-border px-2.5 py-1 text-muted">{t}</li>
-          ))}
-        </ul>
-
         <div ref={actionsRef} className="flex flex-wrap items-center gap-2">
           {mine ? (
             <>
@@ -434,6 +429,8 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
         {j.interview && (mine || j.application) && <InterviewPanel interview={j.interview} mine={mine} />}
       </div>
 
+      {view === "details" && <JobFacts job={j} />}
+
       {mine && (
         <div className="border-b border-border">
           <Tabs
@@ -459,12 +456,13 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
               </div>
             </div>
           </section>
-          <section className="p-4">
+          <section className={`p-4 ${j.page ? "border-b border-border" : ""}`}>
             <h3 className="mb-3 text-sm font-semibold">About the job</h3>
-            <Clamp lines={12} className="space-y-3 break-words text-sm leading-relaxed text-foreground/90">
+            <div className="space-y-3 break-words text-sm leading-relaxed text-foreground/90">
               <Prose text={j.description} />
-            </Clamp>
+            </div>
           </section>
+          {j.page && <AboutCompany name={j.company} page={j.page} />}
         </>
       )}
 
@@ -481,27 +479,86 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
   );
 }
 
-const BULLET = /^\s*[-*•]\s+/;
+type Facts = Pick<PublicJob, "location" | "workplace" | "type" | "level" | "salary" | "interview">;
 
-/** Plain-text job description as paragraphs, with "- " / "• " lines rendered as real lists. */
-export function Prose({ text }: { text: string }) {
-  return text
-    .trim()
-    .split(/\n\s*\n/)
-    .map((block, i) => {
-      const lines = block.split("\n");
-      const k = lines.findIndex((l) => BULLET.test(l));
-      const bullets = lines.slice(k);
-      // A list only when every line from the first bullet on is a bullet; otherwise keep the text as written
-      if (k < 0 || !bullets.every((l) => BULLET.test(l))) return <p key={i} className="whitespace-pre-wrap">{block}</p>;
-      const intro = lines.slice(0, k).join("\n");
-      return (
-        <div key={i}>
-          {intro && <p className="whitespace-pre-wrap">{intro}</p>}
-          <ul className="list-disc space-y-1 pl-5">{bullets.map((l, j) => <li key={j}>{l.replace(BULLET, "")}</li>)}</ul>
+/** Everything the poster picked on the form, labeled (LinkedIn's job insights / Indeed's "Job details"). */
+export function JobFacts({ job: j, h: H = "h3" }: { job: Facts; h?: "h2" | "h3" }) {
+  const facts = [
+    { icon: icons.pay, label: "Pay", value: j.salary ?? "Not disclosed", muted: !j.salary },
+    { icon: icons.jobs, label: "Job type", value: JOB_TYPES[j.type] },
+    { icon: icons.level, label: "Experience level", value: LEVELS[j.level] },
+    { icon: icons.laptop, label: "Workplace", value: WORKPLACES[j.workplace] },
+    { icon: icons.pin, label: "Location", value: j.location || (j.workplace === "remote" ? "Anywhere" : "Not specified") },
+    j.interview && {
+      icon: icons.mic,
+      label: "Hiring process",
+      value: `AI voice interview · ${j.interview.questions} question${j.interview.questions === 1 ? "" : "s"} · ${INTERVIEW.seconds / 60} min`,
+      sub: `Applicants take it online before ${dateTime(j.interview.deadline)}. The link and password are emailed on applying.`,
+    },
+  ].filter((f) => !!f);
+  return (
+    <section className="border-b border-border p-4">
+      <H className="mb-3 text-sm font-semibold">Job details</H>
+      <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        {facts.map((f) => (
+          <div key={f.label} className={`flex gap-3 ${"sub" in f ? "sm:col-span-2" : ""}`}>
+            <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border text-muted"><Icon d={f.icon} size={16} /></span>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted">{f.label}</dt>
+              <dd className={`text-sm break-words ${"muted" in f && f.muted ? "text-muted" : "font-medium"}`}>{f.value}</dd>
+              {"sub" in f && <dd className="mt-0.5 text-xs text-muted" suppressHydrationWarning>{f.sub}</dd>}
+            </div>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+/** The company page behind the listing, so candidates know who they'd work for without leaving the job. */
+/** `linked`: false on the signed-out share page, where company pages need an account. */
+export function AboutCompany({ name, page: p, h: H = "h3", linked = true }: { name: string; page: NonNullable<Job["page"]>; h?: "h2" | "h3"; linked?: boolean }) {
+  const meta = [p.industry, p.size && `${p.size} employees`, p.hq].filter(Boolean).join(" · ");
+  return (
+    <section className="space-y-3 p-4">
+      <H className="text-sm font-semibold">About the company</H>
+      <div className="flex items-center gap-3">
+        <CompanyLogo name={name} src={p.logoUrl} size={48} />
+        <div className="min-w-0">
+          {linked ? <Link href={`/company/${p.slug}`} className="block truncate text-sm font-medium hover:underline">{name}</Link> : <p className="truncate text-sm font-medium">{name}</p>}
+          {p.tagline && <p className="truncate text-xs text-muted">{p.tagline}</p>}
+          <p className="text-xs text-muted">{p.followers.toLocaleString()} follower{p.followers === 1 ? "" : "s"}</p>
         </div>
-      );
-    });
+      </div>
+      {meta && <p className="text-sm text-muted">{meta}</p>}
+      {p.about && <Clamp lines={4} className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{p.about}</Clamp>}
+      {linked && <Link href={`/company/${p.slug}`} className={btnOutline}>View company page</Link>}
+    </section>
+  );
+}
+
+/** A recruiter's plain-text description with its headings, bullet and numbered lists, bold, links and emails. */
+export function Prose({ text, h: H = "h4" }: { text: string; h?: "h3" | "h4" }) {
+  return parseProse(text).map((b, i) =>
+    b.t === "h" ? (
+      <H key={i} className="pt-2 text-sm font-semibold text-foreground">{b.text}</H>
+    ) : b.t === "p" ? (
+      <p key={i} className="whitespace-pre-wrap"><Inline text={b.text} /></p>
+    ) : (
+      <b.t key={i} className={`space-y-1.5 pl-5 ${b.t === "ul" ? "list-disc" : "list-decimal"} marker:text-muted`}>
+        {b.items.map((x, j) => <li key={j} className="pl-1"><Inline text={x} /></li>)}
+      </b.t>
+    ),
+  );
+}
+
+function Inline({ text }: { text: string }) {
+  return parseInline(text).map((s, i) =>
+    s.t === "b" ? <strong key={i} className="font-semibold text-foreground">{s.text}</strong>
+    : s.t === "url" ? <a key={i} href={s.text} target="_blank" rel="noopener noreferrer nofollow" className="break-all text-link hover:underline">{s.text}</a>
+    : s.t === "email" ? <a key={i} href={`mailto:${s.text}`} className="text-link hover:underline">{s.text}</a>
+    : s.text,
+  );
 }
 
 function Applicants({ jobId, list, onStatus }: { jobId: string; list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
@@ -578,7 +635,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{a.name}</p>
+                <Link href={applicantHref(jobId, a.id)} className="block truncate text-sm font-medium hover:underline">{a.name}</Link>
                 {a.headline && <p className="truncate text-xs text-muted">{a.headline}</p>}
               </div>
               <Select
@@ -600,7 +657,23 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
               <Icon d={icons.file} size={14} />
               Download resume
             </a>
-            {a.interview && <InterviewRow key={a.interview.status} jobId={jobId} applicant={a} />}
+            <Link href={applicantHref(jobId, a.id)} className="flex items-center gap-1.5 pt-1 text-xs">
+              {a.interview && (
+                <>
+                  <span className="font-medium">Voice interview:</span>
+                  {a.interview.status === "done" && a.interview.score !== null ? (
+                    <span>
+                      <span className="font-medium tabular-nums">{a.interview.score}/100</span>
+                      {a.interview.fit && <span className={FIT_TONE[a.interview.fit]}> · {FITS[a.interview.fit]}</span>}
+                    </span>
+                  ) : (
+                    <span className="text-muted">{IV_STATUS[a.interview.status]}</span>
+                  )}
+                  <span className="text-muted">·</span>
+                </>
+              )}
+              <span className="font-medium text-link hover:underline">View full application</span>
+            </Link>
           </div>
         </li>
       ))}
@@ -711,7 +784,8 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [workplace, setWorkplace] = useState("onsite");
-  const [chars, setChars] = useState(0);
+  const [desc, setDesc] = useState("");
+  const [preview, setPreview] = useState(false);
   const [interview, setInterview] = useState(false);
   const [now] = useState(Date.now);
   const [dirty, setDirty] = useState(false);
@@ -795,18 +869,27 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
           </Field>
         </FormSection>
 
-        <FormSection title="Description" hint="Responsibilities, requirements, skills and benefits.">
+        <FormSection title="Description" hint="Responsibilities, requirements, skills and benefits. Short lines ending in “:” become headings; lines starting with “-” or “1.” become lists.">
+          <Tabs label="Description view" tabs={[{ id: "write", label: "Write" }, { id: "preview", label: "Preview" }]} value={preview ? "preview" : "write"} onChange={(v) => setPreview(v === "preview")} />
+          {/* Stays mounted while previewing so the form still submits it */}
           <textarea
             name="description"
             required
             minLength={50}
             maxLength={LIMITS.description}
-            rows={12}
+            rows={14}
             aria-label="Description"
-            onChange={(e) => setChars(e.target.value.length)}
-            className={`${field} h-auto resize-y py-2 leading-relaxed`}
+            placeholder={DESCRIPTION_TEMPLATE}
+            onChange={(e) => setDesc(e.target.value)}
+            onInvalid={() => setPreview(false)}
+            className={`${field} h-auto resize-y py-2 leading-relaxed ${preview ? "hidden" : ""}`}
           />
-          <p className="text-right text-xs tabular-nums text-muted">{chars < 50 ? `${50 - chars} more characters needed` : `${chars} / ${LIMITS.description}`}</p>
+          {preview && (
+            <div className="min-h-40 space-y-3 break-words rounded-md border border-border p-4 text-sm leading-relaxed text-foreground/90">
+              {desc.trim() ? <Prose text={desc} /> : <p className="text-muted">Nothing to preview yet.</p>}
+            </div>
+          )}
+          <p className="text-right text-xs tabular-nums text-muted">{desc.length < 50 ? `${50 - desc.length} more characters needed` : `${desc.length} / ${LIMITS.description}`}</p>
         </FormSection>
 
         <FormSection title="Voice interview" hint={`Optional. Applicants get a link and password by email and take a ${INTERVIEW.seconds / 60}-minute AI voice interview before the deadline.`}>
@@ -843,17 +926,31 @@ export function PostJobForm({ companies, initialCompany }: { companies: { id: st
   );
 }
 
-function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+export function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-4 border-b border-border px-4 py-6">
       <div>
         <h2 className="text-sm font-semibold">{title}</h2>
-        {hint && <p className="mt-0.5 text-sm text-muted">{hint}</p>}
+        {hint && <p className="mt-0.5 text-sm text-muted" suppressHydrationWarning>{hint}</p>}
       </div>
       {children}
     </section>
   );
 }
+
+const DESCRIPTION_TEMPLATE = `About the role
+What the team does and why this role matters.
+
+Responsibilities:
+- Build and ship …
+- Work with …
+
+Requirements:
+- 3+ years of …
+- Experience with …
+
+Benefits:
+- …`;
 
 /** "YYYY-MM-DDTHH:mm" in local time, for datetime-local min/max. */
 const localInput = (ms: number) => new Date(ms - new Date(ms).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -915,114 +1012,89 @@ const IV_STATUS: Record<SessionStatus, string> = {
 };
 const FIT_TONE: Record<Fit, string> = { strong: "text-success", moderate: "text-foreground", weak: "text-danger" };
 
-/** One applicant's interview line, expanding into the full report. Keyed by status, so it refetches when that changes. */
-function InterviewRow({ jobId, applicant: a }: { jobId: string; applicant: Applicant }) {
-  const iv = a.interview!;
-  const [open, setOpen] = useState(false);
-  const [result, setResult] = useState<InterviewResult | null | undefined>();
-  const [retrying, setRetrying] = useState(false);
+export const applicantHref = (jobId: string, applicantId: string) => `/dashboard/jobs/${jobId}/applicants/${applicantId}`;
 
-  function toggle() {
-    setOpen(!open);
-    if (!open && result === undefined) actions.loadInterview(jobId, a.id).then(setResult, () => setResult(null));
+/** Applicant page: onboarding answers, the AI verdict and the full transcript. */
+export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: string; applicantId: string; initial: InterviewResult }) {
+  const [r, setR] = useState(initial);
+  const [retrying, setRetrying] = useState(false);
+  const p = r.profile;
+  const rep = r.report;
+
+  async function retry() {
+    setRetrying(true);
+    setR((await actions.retryInterview(jobId, applicantId).catch(() => null)) ?? r);
+    setRetrying(false);
   }
 
   return (
-    <div className="pt-1">
-      <button type="button" onClick={toggle} aria-expanded={open} className="flex items-center gap-1.5 text-xs">
-        <span className="font-medium">Voice interview:</span>
-        {iv.status === "done" && iv.score !== null ? (
-          <span>
-            <span className="font-medium tabular-nums">{iv.score}/100</span>
-            {iv.fit && <span className={FIT_TONE[iv.fit]}> · {FITS[iv.fit]}</span>}
-          </span>
-        ) : (
-          <span className="text-muted">{IV_STATUS[iv.status]}</span>
-        )}
-        <Icon d="m6 9 6 6 6-6" size={14} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="mt-3 rounded-lg border border-border p-3">
-          {result === undefined ? (
-            <Loading label="Loading interview…" className="space-y-2"><Line className="text-sm" w="60%" /><Line className="text-xs" w="90%" /><Line className="text-xs" w="80%" /></Loading>
-          ) : !result ? (
-            <p className="text-sm text-muted">Couldn&apos;t load this interview.</p>
-          ) : (
-            <InterviewReport
-              result={result}
-              retrying={retrying}
-              onRetry={async () => {
-                setRetrying(true);
-                setResult(await actions.retryInterview(jobId, a.id).catch(() => result));
-                setRetrying(false);
-              }}
-            />
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InterviewReport({ result: r, retrying, onRetry }: { result: InterviewResult; retrying: boolean; onRetry: () => void }) {
-  const p = r.profile;
-  const rep = r.report;
-  return (
-    <div className="space-y-4 text-sm">
+    <>
       {p && (
-        <p className="text-xs text-muted">
-          {[p.role, `${p.years} yr${p.years === 1 ? "" : "s"} experience`, p.city, `Notice: ${NOTICE[p.notice]}`, p.phone].filter(Boolean).join(" · ")}
-          {p.link && <> · <a href={p.link} target="_blank" rel="noopener noreferrer" className="text-link hover:underline">Profile link</a></>}
-        </p>
-      )}
-
-      {rep ? (
-        <>
-          <div className="flex items-center gap-4">
-            <p className="text-3xl font-semibold tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
-            <p className={`rounded-full border border-border px-2.5 py-1 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
-          </div>
-          {rep.summary && <p className="leading-relaxed text-foreground/90">{rep.summary}</p>}
-          <div className="grid gap-3 sm:grid-cols-2">
-            {([["Strengths", rep.strengths], ["Concerns", rep.concerns]] as const).map(([title, list]) => list.length > 0 && (
-              <div key={title}>
-                <p className="mb-1 text-xs font-medium">{title}</p>
-                <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted">{list.map((x) => <li key={x}>{x}</li>)}</ul>
+        <FormSection title="Interview onboarding" hint="What the candidate entered before the call.">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+            {([
+              ["Name", p.name],
+              ["Phone", p.phone && <a href={`tel:${p.phone}`} className="hover:underline">{p.phone}</a>],
+              ["City", p.city],
+              ["Current role", p.role],
+              ["Experience", `${p.years} yr${p.years === 1 ? "" : "s"}`],
+              ["Notice period", NOTICE[p.notice]],
+              ["Profile link", p.link && <a href={p.link} target="_blank" rel="noopener noreferrer" className="break-all text-link hover:underline">{p.link}</a>],
+            ] as const).map(([k, v]) => v && (
+              <div key={k} className="contents">
+                <dt className="text-muted">{k}</dt>
+                <dd className="min-w-0">{v}</dd>
               </div>
             ))}
-          </div>
-          <ol className="space-y-3">
-            {rep.questions.map((q, i) => (
-              <li key={i} className="space-y-1 border-t border-border pt-3">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-medium">{i + 1}. {q.question}</p>
-                  <span className="shrink-0 text-xs tabular-nums text-muted">{q.score}/10</span>
+          </dl>
+        </FormSection>
+      )}
+
+      <FormSection title="AI evaluation" hint={r.startedAt ? `Interview taken ${dateTime(r.startedAt)}` : undefined}>
+        {rep ? (
+          <div className="space-y-4 text-sm">
+            <div className="flex items-center gap-4">
+              <p className="text-3xl font-semibold tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
+              <p className={`rounded-full border border-border px-2.5 py-1 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
+            </div>
+            {rep.summary && <p className="leading-relaxed text-foreground/90">{rep.summary}</p>}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {([["Strengths", rep.strengths, "text-success"], ["Concerns", rep.concerns, "text-danger"]] as const).map(([title, list, tone]) => (
+                <div key={title} className="rounded-lg border border-border p-3">
+                  <p className={`mb-1.5 text-xs font-medium ${tone}`}>{title}</p>
+                  {list.length > 0 ? (
+                    <ul className="list-disc space-y-1 pl-4 text-sm text-foreground/90">{list.map((x) => <li key={x}>{x}</li>)}</ul>
+                  ) : (
+                    <p className="text-sm text-muted">None noted.</p>
+                  )}
                 </div>
-                <p className="whitespace-pre-wrap text-foreground/90">&ldquo;{q.answer}&rdquo;</p>
-                {q.feedback && <p className="text-xs text-muted">{q.feedback}</p>}
+              ))}
+            </div>
+          </div>
+        ) : r.status === "failed" ? (
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <p className="text-muted">The AI evaluation didn&apos;t finish. The transcript is saved.</p>
+            <button aria-busy={retrying} type="button" className={btnOutline} onClick={retry} disabled={retrying}>Retry evaluation</button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">{IV_STATUS[r.status]}</p>
+        )}
+      </FormSection>
+
+      <FormSection title="Full transcript">
+        {r.transcript.length > 0 ? (
+          <ol className="space-y-3 text-sm">
+            {r.transcript.map((l, i) => (
+              <li key={i} className={`max-w-[85%] rounded-lg px-3 py-2 ${l.role === "agent" ? "bg-surface" : "ml-auto border border-border"}`}>
+                <p className="mb-0.5 text-xs font-medium text-muted">{l.role === "agent" ? "Interviewer" : "Candidate"}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{l.text}</p>
               </li>
             ))}
           </ol>
-        </>
-      ) : r.status === "failed" ? (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-muted">The AI evaluation didn&apos;t finish. The transcript is saved.</p>
-          <button aria-busy={retrying} type="button" className={btnOutline} onClick={onRetry} disabled={retrying}>Retry evaluation</button>
-        </div>
-      ) : (
-        <p className="text-muted">{IV_STATUS[r.status]}</p>
-      )}
-
-      {r.transcript.length > 0 && (
-        <details className="border-t border-border pt-3">
-          <summary className="cursor-pointer text-xs font-medium text-link">Full transcript</summary>
-          <ul className="mt-2 space-y-1.5 text-xs">
-            {r.transcript.map((l, i) => (
-              <li key={i}><span className="font-medium">{l.role === "agent" ? "Interviewer" : "Candidate"}:</span> <span className="text-foreground/90">{l.text}</span></li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </div>
+        ) : (
+          <p className="text-sm text-muted">No transcript yet.</p>
+        )}
+      </FormSection>
+    </>
   );
 }

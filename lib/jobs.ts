@@ -9,7 +9,10 @@ export type Job = {
   title: string;
   company: string;
   /** The company page, for jobs posted since pages exist. `verified`: the poster proved a work email there. */
-  page: { slug: string; logoUrl: string | null; verified: boolean } | null;
+  page: {
+    slug: string; logoUrl: string | null; verified: boolean;
+    tagline: string | null; about: string | null; industry: string | null; size: string | null; hq: string | null; followers: number;
+  } | null;
   location: string;
   workplace: Workplace;
   type: JobType;
@@ -42,7 +45,8 @@ export type Applicant = {
 };
 
 type Row = {
-  id: string; poster_id: string; title: string; company: string; co_slug: string | null; co_logo: string | null; co_verified: number; location: string; workplace: Workplace; type: JobType; level: Level;
+  id: string; poster_id: string; title: string; company: string; co_slug: string | null; co_logo: string | null; co_verified: number;
+  co_tagline: string | null; co_about: string | null; co_industry: string | null; co_size: string | null; co_hq: string | null; co_followers: number | null; location: string; workplace: Workplace; type: JobType; level: Level;
   salary: string | null; description: string; applicant_count: number; closed_at: number | null; created_at: number;
   name: string; image_url: string | null; headline: string | null; saved: number; app_status: AppStatus | null; applied_at: number | null;
   iv_deadline: number | null; iv_questions: number | null; iv_slug: string | null; iv_password: string | null; iv_status: SessionStatus | null;
@@ -56,7 +60,8 @@ const POSTED_DAYS = { day: 1, week: 7, month: 30 };
 const SELECT = `
   SELECT j.*, u.name, u.image_url, u.headline, a.status AS app_status, a.created_at AS applied_at,
          EXISTS (SELECT 1 FROM saved_jobs s WHERE s.user_id = ?1 AND s.job_id = j.id) AS saved,
-         co.slug AS co_slug, co.logo_key AS co_logo,
+         co.slug AS co_slug, co.logo_key AS co_logo, co.tagline AS co_tagline, co.about AS co_about, co.industry AS co_industry,
+         co.size AS co_size, co.hq AS co_hq, co.follower_count AS co_followers,
          EXISTS (SELECT 1 FROM company_verifications v WHERE v.company_id = j.company_id AND v.user_id = j.poster_id) AS co_verified,
          i.deadline AS iv_deadline, json_array_length(i.questions) AS iv_questions, ivs.status AS iv_status,
          CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.slug END AS iv_slug,
@@ -70,7 +75,10 @@ const SELECT = `
 
 const toJob = (r: Row): Job => ({
   id: r.id, title: r.title, company: r.company,
-  page: r.co_slug ? { slug: r.co_slug, logoUrl: r.co_logo ? `/api/media/${r.co_logo}` : null, verified: !!r.co_verified } : null,
+  page: r.co_slug ? {
+    slug: r.co_slug, logoUrl: r.co_logo ? `/api/media/${r.co_logo}` : null, verified: !!r.co_verified,
+    tagline: r.co_tagline, about: r.co_about, industry: r.co_industry, size: r.co_size, hq: r.co_hq, followers: r.co_followers ?? 0,
+  } : null,
   location: r.location, workplace: r.workplace, type: r.type, level: r.level,
   salary: r.salary, description: r.description, applicants: r.applicant_count, createdAt: r.created_at, closedAt: r.closed_at,
   poster: { id: r.poster_id, name: r.name, imageUrl: r.image_url, headline: r.headline },
@@ -131,16 +139,16 @@ export async function companyJobs(viewerId: string, companyId: string): Promise<
   return results.map(toJob);
 }
 
-/** Only the poster sees applicants. */
-export async function getApplicants(posterId: string, jobId: string): Promise<Applicant[]> {
+/** Only the poster sees applicants. `applicantId` narrows it to one (their detail page). */
+export async function getApplicants(posterId: string, jobId: string, applicantId: string | null = null): Promise<Applicant[]> {
   const { results } = await env.DB.prepare(
     `SELECT a.*, u.name, u.image_url, u.headline, s.status AS iv_status, s.score AS iv_score, s.report ->> '$.fit' AS iv_fit
      FROM applications a
      JOIN jobs j ON j.id = a.job_id AND j.poster_id = ?1
      JOIN users u ON u.id = a.applicant_id
      LEFT JOIN interview_sessions s ON s.job_id = a.job_id AND s.applicant_id = a.applicant_id
-     WHERE a.job_id = ?2 ORDER BY a.created_at DESC LIMIT 500`,
-  ).bind(posterId, jobId).all<{
+     WHERE a.job_id = ?2 AND (?3 IS NULL OR a.applicant_id = ?3) ORDER BY a.created_at DESC LIMIT 500`,
+  ).bind(posterId, jobId, applicantId).all<{
     applicant_id: string; name: string; image_url: string | null; headline: string | null; email: string; phone: string | null;
     resume_key: string; note: string | null; status: AppStatus; created_at: number;
     iv_status: SessionStatus | null; iv_score: number | null; iv_fit: Fit | null;
@@ -161,11 +169,16 @@ export async function lastApplication(viewerId: string) {
 /** What the signed-out share page (/job/<id>) may show: the listing and who posted it, never interview credentials or applicant data. */
 export type PublicJob = Pick<Job, "id" | "title" | "company" | "page" | "location" | "workplace" | "type" | "level" | "salary" | "description" | "createdAt" | "closedAt"> & {
   poster: { name: string; headline: string | null };
+  interview: { deadline: number; questions: number } | null;
 };
 
 export async function getPublicJob(id: string): Promise<PublicJob | null> {
   const j = await getJob("", id);
   if (!j) return null;
   const { title, company, page, location, workplace, type, level, salary, description, createdAt, closedAt } = j;
-  return { id: j.id, title, company, page, location, workplace, type, level, salary, description, createdAt, closedAt, poster: { name: j.poster.name, headline: j.poster.headline } };
+  return {
+    id: j.id, title, company, page, location, workplace, type, level, salary, description, createdAt, closedAt,
+    poster: { name: j.poster.name, headline: j.poster.headline },
+    interview: j.interview && { deadline: j.interview.deadline, questions: j.interview.questions },
+  };
 }

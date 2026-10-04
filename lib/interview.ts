@@ -150,33 +150,62 @@ export async function saveProfile(slug: string, sessionId: string | undefined, p
   if (!upd.meta.changes) throw new Fail("You've already started this interview.");
 }
 
-/**
- * Marks the attempt live and returns a LiveKit token whose room config dispatches the interview agent with
- * everything it needs as job metadata. Rejoining within the time limit reuses the room (and the agent in it).
- */
-export async function startInterview(slug: string, sessionId: string | undefined) {
+/** Checks the candidate may (re)join now and builds the agent's job metadata. */
+async function attempt(slug: string, sessionId: string | undefined) {
   const { iv, s } = await sessionFor(slug, sessionId);
   const now = Date.now();
   if (s.status === "live" && s.started_at! + INTERVIEW.seconds * 1000 < now) throw new Fail("Your interview time is over.");
   if (s.status !== "onboarded" && s.status !== "live") throw new Fail(s.status === "verified" ? "Fill in your details first." : "You've already completed this interview.");
   if (s.status === "onboarded" && !isOpen(iv)) throw new Fail("This interview has closed.");
   const startedAt = s.started_at ?? now;
-  await env.DB.prepare("UPDATE interview_sessions SET status = 'live', started_at = ? WHERE id = ?").bind(startedAt, s.id).run();
-
   const profile = JSON.parse(s.profile!) as Profile;
+  const seconds = INTERVIEW.seconds - Math.floor((now - startedAt) / 1000);
   const metadata = JSON.stringify({
     sessionId: s.id,
-    seconds: INTERVIEW.seconds - Math.floor((now - startedAt) / 1000),
+    seconds,
     job: { title: iv.title, company: iv.company, description: iv.description.slice(0, 2000) },
     candidate: profile,
     questions: JSON.parse(iv.questions),
   });
+  return { s, profile, startedAt, seconds, metadata };
+}
+
+/**
+ * Marks the attempt live and returns a LiveKit token whose room config dispatches the interview agent with
+ * everything it needs as job metadata. Rejoining within the time limit reuses the room (and the agent in it).
+ * `seconds` is what's left of the call; the page counts it down from when the interviewer is actually there.
+ */
+export async function startInterview(slug: string, sessionId: string | undefined) {
+  const { s, profile, startedAt, seconds, metadata } = await attempt(slug, sessionId);
+  await env.DB.prepare("UPDATE interview_sessions SET status = 'live', started_at = ? WHERE id = ?").bind(startedAt, s.id).run();
   const token = await livekitToken({
     sub: s.id, name: profile.name,
     video: { room: s.id, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true },
     roomConfig: { agents: [{ agentName: env.LIVEKIT_AGENT_NAME, metadata }] },
   });
-  return { url: env.LIVEKIT_URL, token, startedAt };
+  return { url: env.LIVEKIT_URL, token, seconds };
+}
+
+/**
+ * Sends the agent into the candidate's room while they check their mic, so its cold start (10-20 s on LiveKit's
+ * Build plan) and setup are over by the time they press Start. It waits there for them. The token's dispatch only
+ * fires when the call creates the room, so this never doubles up; a room that already has an agent is left alone.
+ */
+export async function warmInterview(slug: string, sessionId: string | undefined) {
+  const { s, metadata } = await attempt(slug, sessionId);
+  const auth = `Bearer ${await livekitToken({ video: { room: s.id, roomAdmin: true } })}`;
+  const api = async (method: string, body: object) => {
+    const res = await fetch(`${env.LIVEKIT_URL.replace(/^ws/, "http")}/twirp/livekit.AgentDispatchService/${method}`, {
+      method: "POST", headers: { Authorization: auth, "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    if (res.status === 404) return {}; // ListDispatch on a room that doesn't exist yet
+    if (!res.ok) throw new Error(`LiveKit ${method}: ${res.status} ${await res.text()}`);
+    return (await res.json()) as { agent_dispatches?: { agent_name: string }[] };
+  };
+  const { agent_dispatches = [] } = await api("ListDispatch", { room: s.id });
+  if (!agent_dispatches.some((d) => d.agent_name === env.LIVEKIT_AGENT_NAME)) {
+    await api("CreateDispatch", { room: s.id, agent_name: env.LIVEKIT_AGENT_NAME, metadata });
+  }
 }
 
 /** LiveKit access token: an HS256 JWT signed with the project secret (same claims as the server SDK, no dependency). */
@@ -204,11 +233,9 @@ small transcription errors and filler words). Judge only what the candidate actu
   "fit": "strong" | "moderate" | "weak" (fit for THIS job description),
   "summary": "3-4 sentences: how the interview went and why this fit verdict",
   "strengths": ["up to 4 short points"],
-  "concerns": ["up to 4 short points"],
-  "questions": [{ "answer": "the candidate's answer to this question, quoted from the transcript (merge follow-ups); empty if not answered", "score": 0-10, "feedback": "one sentence" }]
+  "concerns": ["up to 4 short points"]
 }
-"questions" has exactly one entry per interview question, in the same order. Unanswered questions score 0.
-Never invent answers. A candidate who ran out of time is judged on what they covered.`;
+Weigh every interview question; an unanswered one counts against the candidate. Never invent answers. A candidate who ran out of time is judged on what they covered.`;
 
 /**
  * Bedrock grades the transcript. When Bedrock is busy and this isn't the `final` try, throws so the queue retries later;
@@ -224,7 +251,7 @@ export async function evaluate(sessionId: string, final = true) {
   const transcript = JSON.parse(r.transcript ?? "[]") as Line[];
   let report: Report | null;
   if (!transcript.some((l) => l.role === "candidate")) {
-    report = cleanReport({ score: 0, fit: "weak", summary: "The candidate joined but didn't answer any questions." }, questions);
+    report = cleanReport({ score: 0, fit: "weak", summary: "The candidate joined but didn't answer any questions." });
   } else {
     const out = await bedrockJson(
       JUDGE,
@@ -232,7 +259,7 @@ export async function evaluate(sessionId: string, final = true) {
       4000,
     );
     if (!out.ok && out.reason === "busy" && !final) throw new Error(`evaluate ${sessionId}: bedrock busy`);
-    report = out.ok ? cleanReport(out.value, questions) : null;
+    report = out.ok ? cleanReport(out.value) : null;
   }
   await env.DB.prepare("UPDATE interview_sessions SET status = ?, report = ?, score = ? WHERE id = ?")
     .bind(report ? "done" : "failed", report && JSON.stringify(report), report?.score ?? null, sessionId).run();
