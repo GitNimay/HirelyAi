@@ -38,11 +38,13 @@ export function same(a: string, b: string) {
 }
 
 /** Validates the post form's interview section. Null when the poster didn't add one. */
-export function parseInterview(input: Record<string, unknown>) {
+/** `current`: the saved deadline when editing; leaving it as is skips the window checks. */
+export function parseInterview(input: Record<string, unknown>, current?: number) {
   if (input.interview !== "on") return null;
   const questions = cleanQuestions(input.questions);
   const deadline = Number(input.deadline);
   if (!questions.length) throw new Fail("Add at least one interview question");
+  if (current !== undefined && Math.abs(deadline - current) < 60_000) return { questions, deadline: current };
   if (!Number.isFinite(deadline) || deadline < Date.now() + 3_600_000) throw new Fail("Set the interview deadline at least an hour from now");
   if (deadline > Date.now() + 90 * 86_400_000) throw new Fail("The interview deadline must be within 90 days");
   return { questions, deadline };
