@@ -7,12 +7,11 @@ import { insertInterview, interviewResult, parseInterview, retryEvaluation } fro
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
 import { canPostJobs, roleOf } from "@/lib/companies";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
-import { inFolder, isVideo, newKey, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
+import { inFolder, isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
 import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
 import { followersOf, listNotifications, notifyUsers, unseenCount } from "@/lib/notifications";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
 import { getResume } from "@/lib/resume";
-import { resumePdf } from "@/lib/resume-pdf";
 import { enqueue } from "@/lib/tasks";
 
 
@@ -425,7 +424,7 @@ export async function toggleSaveJob(jobId: string) {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Easy Apply: contact details plus a PDF resume this user uploaded, or (no `resumeKey`) their profile resume. */
+/** Easy Apply: contact details plus the applicant's profile (snapshotted), and optionally a PDF resume they uploaded. */
 export async function applyToJob(jobId: string, input: Record<string, unknown>) {
   return apply(String(jobId), input ?? {}).then((job) => ({ job: job! }), failed);
 }
@@ -435,30 +434,25 @@ async function apply(jobId: string, input: Record<string, unknown>) {
   const email = text(input.email, LIMITS.email);
   const phone = text(input.phone, LIMITS.phone) || null;
   const note = text(input.note, LIMITS.note) || null;
-  let resumeKey = text(input.resumeKey, 200);
+  const resumeKey = text(input.resumeKey, 200) || null;
   if (!EMAIL.test(email)) throw new Fail("Enter a valid email");
   if (phone && !/^[+\d\s().-]{6,}$/.test(phone)) throw new Fail("Enter a valid phone number");
-  // No upload: attach a PDF snapshot of their profile resume, so the poster sees it as it was when they applied
-  const generated = !resumeKey;
-  if (generated) {
-    const r = await getResume(me);
-    if (!r) throw new Fail("Upload your resume");
-    resumeKey = newKey("resumes", me, "pdf");
-    await env.MEDIA.put(resumeKey, await resumePdf(r), { httpMetadata: { contentType: RESUME_TYPE }, customMetadata: { owner: me } });
-  } else {
-    if (!inFolder(resumeKey, "resumes", me)) throw new Fail("Upload your resume");
+  if (resumeKey) {
+    if (!inFolder(resumeKey, "resumes", me)) throw new Fail("Upload your resume again");
     const obj = await env.MEDIA.head(resumeKey);
-    if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume");
+    if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume again");
   }
+  // The profile as it is now, so the poster reads what was sent even if it's edited later
+  const profile = await getResume(me);
+  if (!profile) throw new Fail("Finish setting up your profile before applying");
 
   const now = Date.now();
   const ins = await env.DB.prepare(
-    `INSERT OR IGNORE INTO applications (job_id, applicant_id, email, phone, resume_key, note, created_at, updated_at)
-     SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2
+    `INSERT OR IGNORE INTO applications (job_id, applicant_id, email, phone, resume_key, profile, note, created_at, updated_at)
+     SELECT id, ?2, ?3, ?4, ?5, ?8, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2
        AND NOT EXISTS (SELECT 1 FROM interviews WHERE job_id = ?1 AND deadline <= ?7)`,
-  ).bind(jobId, me, email, phone, resumeKey, note, now).run();
+  ).bind(jobId, me, email, phone, resumeKey, note, now, JSON.stringify(profile)).run();
   if (!ins.meta.changes) {
-    if (generated) await env.MEDIA.delete(resumeKey);
     const job = await getJob(me, jobId);
     if (job?.application) throw new Fail("You already applied to this job");
     throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");

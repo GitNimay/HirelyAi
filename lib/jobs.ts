@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import type { SessionStatus } from "./interview";
 import type { Fit } from "./interview-fields";
+import { getResume } from "./resume";
+import { cleanResume, type Resume } from "./resume-fields";
 import type { AppStatus, JobFilters, JobType, Level, MyJobsTab, Workplace } from "./job-fields";
 
 /** A job as one viewer sees it: whether they saved it, applied (and where that stands), or posted it. */
@@ -37,7 +39,8 @@ export type Applicant = {
   headline: string | null;
   email: string;
   phone: string | null;
-  resumeKey: string;
+  /** Optional PDF they attached; the profile itself is on the applicant page. */
+  resumeKey: string | null;
   note: string | null;
   status: AppStatus;
   at: number;
@@ -142,7 +145,7 @@ export async function companyJobs(viewerId: string, companyId: string): Promise<
 /** Only the poster sees applicants. `applicantId` narrows it to one (their detail page). */
 export async function getApplicants(posterId: string, jobId: string, applicantId: string | null = null): Promise<Applicant[]> {
   const { results } = await env.DB.prepare(
-    `SELECT a.*, u.name, u.image_url, u.headline, s.status AS iv_status, s.score AS iv_score, s.report ->> '$.fit' AS iv_fit
+    `SELECT a.job_id, a.applicant_id, a.email, a.phone, a.resume_key, a.note, a.status, a.created_at, u.name, u.image_url, u.headline, s.status AS iv_status, s.score AS iv_score, s.report ->> '$.fit' AS iv_fit
      FROM applications a
      JOIN jobs j ON j.id = a.job_id AND j.poster_id = ?1
      JOIN users u ON u.id = a.applicant_id
@@ -150,7 +153,7 @@ export async function getApplicants(posterId: string, jobId: string, applicantId
      WHERE a.job_id = ?2 AND (?3 IS NULL OR a.applicant_id = ?3) ORDER BY a.created_at DESC LIMIT 500`,
   ).bind(posterId, jobId, applicantId).all<{
     applicant_id: string; name: string; image_url: string | null; headline: string | null; email: string; phone: string | null;
-    resume_key: string; note: string | null; status: AppStatus; created_at: number;
+    resume_key: string | null; note: string | null; status: AppStatus; created_at: number;
     iv_status: SessionStatus | null; iv_score: number | null; iv_fit: Fit | null;
   }>();
   return results.map((r) => ({
@@ -167,10 +170,22 @@ export async function jobQuestions(posterId: string, jobId: string): Promise<str
   return q ? JSON.parse(q) : [];
 }
 
-/** Contact details and resume from the viewer's last application, to prefill the next one. */
+/** Contact details from the viewer's last application, to prefill the next one. */
 export async function lastApplication(viewerId: string) {
-  return env.DB.prepare("SELECT email, phone, resume_key AS resumeKey FROM applications WHERE applicant_id = ? ORDER BY created_at DESC LIMIT 1")
-    .bind(viewerId).first<{ email: string; phone: string | null; resumeKey: string }>();
+  return env.DB.prepare("SELECT email, phone FROM applications WHERE applicant_id = ? ORDER BY created_at DESC LIMIT 1")
+    .bind(viewerId).first<{ email: string; phone: string | null }>();
+}
+
+/**
+ * The profile an applicant sent, for the job's poster only. Applications from before profiles were sent
+ * (`profile` NULL) fall back to their current profile.
+ */
+export async function applicationProfile(posterId: string, jobId: string, applicantId: string): Promise<Resume | null> {
+  const r = await env.DB.prepare(
+    "SELECT a.profile FROM applications a JOIN jobs j ON j.id = a.job_id AND j.poster_id = ?1 WHERE a.job_id = ?2 AND a.applicant_id = ?3",
+  ).bind(posterId, jobId, applicantId).first<{ profile: string | null }>();
+  if (!r) return null;
+  return r.profile ? cleanResume(JSON.parse(r.profile)) : getResume(applicantId);
 }
 
 /** What the signed-out share page (/job/<id>) may show: the listing and who posted it, never interview credentials or applicant data. */
