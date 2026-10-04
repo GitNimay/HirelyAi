@@ -3,20 +3,26 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApplicantInterview, FormSection } from "@/components/jobs";
 import { BackButton } from "@/components/kit";
+import { ResumeSections } from "@/components/resume-view";
 import { Avatar, Icon, icons } from "@/components/ui";
+import { companiesByIds } from "@/lib/companies";
 import { interviewResult } from "@/lib/interview";
 import { STATUSES } from "@/lib/job-fields";
-import { getApplicants, getJob } from "@/lib/jobs";
+import { applicationProfile, getApplicants, getJob } from "@/lib/jobs";
+import { STATUSES as CAREER } from "@/lib/resume-fields";
 
 export const metadata = { title: "Applicant | Hire Excellence" };
 
-/** One applicant's full application for the job's poster: contact, resume, note, interview onboarding, AI verdict, transcript. */
+/** One applicant's full application for the job's poster: contact, the profile they sent, note, optional PDF, interview verdict and transcript. */
 export default async function ApplicantPage({ params }: PageProps<"/dashboard/jobs/[id]/applicants/[applicantId]">) {
   const { userId } = await auth.protect();
   const { id, applicantId } = await params;
-  // getApplicants and interviewResult both check the viewer posted this job
-  const [job, [a], result] = await Promise.all([getJob(userId, id), getApplicants(userId, id, applicantId), interviewResult(userId, id, applicantId)]);
+  // getApplicants, applicationProfile and interviewResult all check the viewer posted this job
+  const [job, [a], profile, result] = await Promise.all([
+    getJob(userId, id), getApplicants(userId, id, applicantId), applicationProfile(userId, id, applicantId), interviewResult(userId, id, applicantId),
+  ]);
   if (!job || !a) notFound();
+  const companies = profile ? await companiesByIds(profile.experience.flatMap((e) => e.companyId ?? [])) : {};
 
   return (
     <>
@@ -41,14 +47,27 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
           <p className="flex flex-wrap gap-x-3 text-xs text-muted" suppressHydrationWarning>
             <a href={`mailto:${a.email}`} className="text-link hover:underline">{a.email}</a>
             {a.phone && <a href={`tel:${a.phone}`} className="hover:text-foreground">{a.phone}</a>}
+            {profile?.city && <span>{profile.city}</span>}
+            {profile && <span>{CAREER[profile.status]}</span>}
             <span>Applied {new Date(a.at).toLocaleDateString(undefined, { dateStyle: "medium" })}</span>
           </p>
-          <a href={`/api/media/${a.resumeKey}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline">
-            <Icon d={icons.file} size={14} />
-            Download resume
-          </a>
+          {a.resumeKey && (
+            <a href={`/api/media/${a.resumeKey}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline">
+              <Icon d={icons.file} size={14} />
+              View attached resume (PDF)
+            </a>
+          )}
         </div>
       </section>
+
+      {profile && (
+        <div className="space-y-6 border-b border-border px-4 py-5">
+          <ResumeSections r={profile} companies={companies} />
+          {profile.preferredLocations.length > 0 && (
+            <p className="border-t border-border pt-5 text-sm"><span className="font-semibold">Preferred locations</span> <span className="text-muted">· {profile.preferredLocations.join(", ")}</span></p>
+          )}
+        </div>
+      )}
 
       {a.note && (
         <FormSection title="Why they're a fit">

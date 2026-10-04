@@ -15,7 +15,12 @@ import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, Com
 import { useRealtime } from "./use-realtime";
 
 type Tab = "search" | MyJobsTab;
-type Contact = { email: string; phone: string; resumeKey: string };
+type Contact = { email: string; phone: string };
+/** What Easy Apply shows of the profile it sends. Null before onboarding. */
+export type ApplyProfile = {
+  name: string; headline: string; imageUrl: string | null; handle: string;
+  counts: { experience: number; education: number; projects: number; skills: number };
+} | null;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "search", label: "Search" },
@@ -44,13 +49,14 @@ const applicantsText = (n: number) => (n === 0 ? "Be an early applicant" : `${n}
  * Jobs, in the feed column: search with LinkedIn's core filters, saved/applied/posted lists, and a job's
  * details opening under the search in place of the list. Live via /api/realtime.
  */
-export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSelected, contact: initialContact }: {
+export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSelected, contact: initialContact, profile }: {
   viewerId: string;
   initialTab: Tab;
   initial: JobPage;
   initialFilters: JobFilters;
   initialSelected: Job | null;
   contact: Contact;
+  profile: ApplyProfile;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [filters, setFilters] = useState(initialFilters);
@@ -241,6 +247,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
         <ApplyDialog
           job={shown}
           contact={contact}
+          profile={profile}
           onClose={() => setApplying(false)}
           onApplied={(job, c) => {
             merge([job]);
@@ -675,10 +682,12 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
               <span>Applied {posted(a.at).toLowerCase()}</span>
             </p>
             {a.note && <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{a.note}</p>}
-            <a href={`/api/media/${a.resumeKey}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline">
-              <Icon d={icons.file} size={14} />
-              Download resume
-            </a>
+            {a.resumeKey && (
+              <a href={`/api/media/${a.resumeKey}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline">
+                <Icon d={icons.file} size={14} />
+                Attached resume
+              </a>
+            )}
             <Link href={applicantHref(jobId, a.id)} className="flex items-center gap-1.5 pt-1 text-xs">
               {a.interview && (
                 <>
@@ -694,7 +703,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
                   <span className="text-muted">·</span>
                 </>
               )}
-              <span className="font-medium text-link hover:underline">View full application</span>
+              <span className="font-medium text-link hover:underline">View profile &amp; application</span>
             </Link>
           </div>
         </li>
@@ -713,7 +722,9 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
   );
 }
 
-function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: Contact; onClose: () => void; onApplied: (j: Job, c: Contact) => void }) {
+function ApplyDialog({ job, contact, profile, onClose, onApplied }: {
+  job: Job; contact: Contact; profile: ApplyProfile; onClose: () => void; onApplied: (j: Job, c: Contact) => void;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -724,15 +735,15 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
     setBusy(true);
     setError("");
     try {
-      let resumeKey = ""; // the server attaches your profile resume
+      let resumeKey = ""; // optional: the profile is always sent
       if (file) {
         const res = await fetch("/api/uploads", { method: "PUT", headers: { "Content-Type": RESUME_TYPE }, body: file });
         const data = (await res.json()) as { key?: string; error?: string };
         if (!res.ok || !data.key) throw new Error(data.error ?? "Upload failed");
         resumeKey = data.key;
       }
-      const c = { email: String(fd.get("email")), phone: String(fd.get("phone")), resumeKey };
-      const r = await actions.applyToJob(job.id, { ...c, note: fd.get("note") });
+      const c = { email: String(fd.get("email")), phone: String(fd.get("phone")) };
+      const r = await actions.applyToJob(job.id, { ...c, resumeKey, note: fd.get("note") });
       if ("error" in r) throw new Error(r.error);
       onApplied(r.job, c);
     } catch (err) {
@@ -753,6 +764,11 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
     <Modal title={`Apply to ${job.company}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4 p-5">
         <p className="text-sm text-muted">{job.title} · {where(job)}</p>
+        {profile ? <ProfileLoaded p={profile} /> : (
+          <p role="alert" className="rounded-md border border-border p-3 text-sm">
+            Finish your profile first: it&apos;s what {job.company} sees. <Link href="/onboarding" className="font-medium text-link hover:underline">Set it up</Link>
+          </p>
+        )}
         <Field label="Email">
           <input name="email" type="email" required maxLength={LIMITS.email} defaultValue={contact.email} autoComplete="email" className={field} />
         </Field>
@@ -760,21 +776,12 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
           <input name="phone" type="tel" maxLength={LIMITS.phone} defaultValue={contact.phone} autoComplete="tel" className={field} />
         </Field>
         <div className="space-y-1.5">
-          <span className="text-sm font-medium">Resume</span>
-          <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
+          <span className="text-sm font-medium">Resume<span className="font-normal text-muted"> · optional</span></span>
+          <div className="flex items-center gap-3 rounded-md border border-dashed border-border px-3 py-2.5">
             <Icon d={icons.file} size={18} className="text-muted" />
-            <span className="min-w-0 flex-1">
-              {file ? (
-                <span className="block truncate text-sm">{file.name}</span>
-              ) : (
-                <>
-                  <span className="block text-sm">Your profile resume</span>
-                  <a href="/api/resume" download className="text-xs text-link hover:underline">Preview PDF</a>
-                </>
-              )}
-            </span>
+            <span className="min-w-0 flex-1 truncate text-sm">{file ? file.name : <span className="text-muted">Attach a PDF alongside your profile</span>}</span>
             {file ? (
-              <button type="button" className={btnGhost} onClick={() => setFile(null)}>Use profile resume</button>
+              <button type="button" className={btnGhost} onClick={() => setFile(null)}>Remove</button>
             ) : (
               <label className={btnOutline}>
                 Upload PDF
@@ -782,7 +789,7 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
               </label>
             )}
           </div>
-          <p className="text-xs text-muted">Uploading a different PDF (up to 5 MB) is optional.</p>
+          <p className="text-xs text-muted">Up to 5 MB. Your profile is sent either way.</p>
         </div>
         <Field label="Why you're a fit" hint="optional">
           <textarea name="note" rows={4} maxLength={LIMITS.note} className={`${field} h-auto resize-none py-2`} />
@@ -790,10 +797,34 @@ function ApplyDialog({ job, contact, onClose, onApplied }: { job: Job; contact: 
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className={btnGhost} onClick={onClose} disabled={busy}>Cancel</button>
-          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Submit application</button>
+          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || !profile}>Submit application</button>
         </div>
       </form>
     </Modal>
+  );
+}
+
+/** The profile Easy Apply sends, confirmed as loaded, with a link to check it. */
+function ProfileLoaded({ p }: { p: NonNullable<ApplyProfile> }) {
+  const n = (k: number, one: string) => k > 0 && `${k} ${one}${k === 1 ? "" : "s"}`;
+  const counts = [n(p.counts.experience, "role"), n(p.counts.education, "school"), n(p.counts.projects, "project"), n(p.counts.skills, "skill")].filter(Boolean);
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-surface p-3">
+      <p className="flex items-center gap-1.5 text-xs font-medium text-success">
+        <Icon d={icons.check} size={14} />
+        Profile loaded successfully
+      </p>
+      <div className="flex items-center gap-3">
+        <Avatar name={p.name} src={p.imageUrl ?? undefined} size={40} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{p.name}</p>
+          {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
+          {counts.length > 0 && <p className="truncate text-xs text-muted">{counts.join(" · ")}</p>}
+        </div>
+        <a href={`/in/${p.handle}/resume`} target="_blank" rel="noreferrer" className="shrink-0 text-xs font-medium text-link hover:underline">Review</a>
+      </div>
+      <p className="text-xs text-muted">The recruiter sees this profile as it is now: experience, education, projects and skills.</p>
+    </div>
   );
 }
 
