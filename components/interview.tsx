@@ -1,9 +1,9 @@
 "use client";
 
-import type { Room } from "livekit-client";
+import type { RemoteParticipant, Room } from "livekit-client";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { onboard, start, verify } from "@/app/interview/actions";
+import { onboard, start, verify, warm } from "@/app/interview/actions";
 import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, NOTICE, type Profile } from "@/lib/interview-fields";
 import { Head, primary, StepFrame } from "./onboarding";
@@ -45,11 +45,16 @@ export function Interview({ view }: { view: CandidateView }) {
   const [deviceId, setDeviceId] = useState("");
   const [agent, setAgent] = useState<AgentState>("connecting");
   const [caption, setCaption] = useState({ agent: "", you: "" });
-  const [startedAt, setStartedAt] = useState(0);
+  const [endsAt, setEndsAt] = useState(0); // 0 until the interviewer is in the call
+  const [muted, setMuted] = useState(false); // the browser blocked autoplay (Safari, mostly)
   const room = useRef<Room | null>(null);
   const go = (s: Step | null) => (setError(""), setLocal(s), window.scrollTo({ top: 0 }));
 
   useEffect(() => () => void room.current?.disconnect(), []);
+  // Get the interviewer into the room while the candidate checks their mic (hides the agent's cold start)
+  useEffect(() => {
+    if (step === "mic") void warm(view.slug);
+  }, [step, view.slug]);
 
   async function signIn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -71,16 +76,21 @@ export function Interview({ view }: { view: CandidateView }) {
     try {
       const r = await start(view.slug);
       if ("error" in r) throw new Error(r.error);
-      const { DisconnectReason, Room, RoomEvent, Track } = await import("livekit-client");
+      const { DisconnectReason, RemoteParticipant, Room, RoomEvent, Track } = await import("livekit-client");
       const rm = new Room({ audioCaptureDefaults: { deviceId: deviceId || undefined, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       rm.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind === Track.Kind.Audio) document.body.appendChild(track.attach());
       });
-      rm.on(RoomEvent.ParticipantConnected, (p) => p.isAgent && setAgent("initializing"));
-      rm.on(RoomEvent.ParticipantAttributesChanged, (_, p) => {
-        const s = p.attributes["lk.agent.state"] as AgentState | undefined;
-        if (s) setAgent(s);
-      });
+      // The clock starts once the interviewer is ready, not on the click: dispatch can take a while
+      const sync = (p: RemoteParticipant) => {
+        if (!p.isAgent) return;
+        const s = (p.attributes["lk.agent.state"] as AgentState | undefined) ?? "initializing";
+        setAgent(s);
+        if (s === "listening" || s === "thinking" || s === "speaking") setEndsAt((e) => e || Date.now() + r.seconds * 1000);
+      };
+      rm.on(RoomEvent.ParticipantConnected, sync);
+      rm.on(RoomEvent.ParticipantAttributesChanged, (_, p) => p instanceof RemoteParticipant && sync(p));
+      rm.on(RoomEvent.AudioPlaybackStatusChanged, () => setMuted(!rm.canPlaybackAudio));
       rm.on(RoomEvent.Disconnected, (reason) => {
         room.current = null;
         // We hung up, or the agent ended the call (it deletes the room). Anything else is a dropped connection.
@@ -100,9 +110,11 @@ export function Interview({ view }: { view: CandidateView }) {
       });
       await rm.connect(r.url, r.token);
       await rm.localParticipant.setMicrophoneEnabled(true);
-      await rm.startAudio();
+      // Pre-warmed: the interviewer may already be in the room
+      rm.remoteParticipants.forEach(sync);
+      await rm.startAudio().catch(() => {});
+      setMuted(!rm.canPlaybackAudio);
       room.current = rm;
-      setStartedAt(r.startedAt);
       go("live");
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : "Couldn't start the interview. Try again.");
@@ -164,7 +176,9 @@ export function Interview({ view }: { view: CandidateView }) {
       <Live
         agent={agent}
         caption={caption}
-        startedAt={startedAt}
+        endsAt={endsAt}
+        muted={muted}
+        onUnmute={() => void room.current?.startAudio().then(() => setMuted(false))}
         onEnd={async () => (await ask({ title: "End the interview now?", body: "You can't restart it.", confirm: "End interview", danger: true })) && room.current?.disconnect()}
         onTimeUp={() => room.current?.disconnect()}
       />
@@ -345,18 +359,20 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
   );
 }
 
-function Live({ agent, caption, startedAt, onEnd, onTimeUp }: {
+function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
   agent: AgentState;
   caption: { agent: string; you: string };
-  startedAt: number;
+  endsAt: number;
+  muted: boolean;
+  onUnmute: () => void;
   onEnd: () => void;
   onTimeUp: () => void;
 }) {
-  const end = startedAt + INTERVIEW.seconds * 1000;
-  const [left, setLeft] = useState(() => Math.max(0, end - Date.now()));
+  const [left, setLeft] = useState(INTERVIEW.seconds * 1000);
   useEffect(() => {
     const t = setInterval(() => {
-      const l = Math.max(0, end - Date.now());
+      if (!endsAt) return; // not started yet
+      const l = Math.max(0, endsAt - Date.now());
       setLeft(l);
       // The agent cuts the call at the limit too; this is the backstop
       if (l === 0) onTimeUp();
@@ -364,7 +380,7 @@ function Live({ agent, caption, startedAt, onEnd, onTimeUp }: {
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     addEventListener("beforeunload", warn);
     return () => (clearInterval(t), removeEventListener("beforeunload", warn));
-  }, [end, onTimeUp]);
+  }, [endsAt, onTimeUp]);
 
   const secs = Math.ceil(left / 1000);
   const speaking = agent === "speaking";
@@ -372,8 +388,8 @@ function Live({ agent, caption, startedAt, onEnd, onTimeUp }: {
     <div className="flex flex-col items-center gap-8 py-4 text-center">
       <div className="flex w-full items-center justify-between text-[13px] text-muted">
         <span className="flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />Live</span>
-        <span className={`tabular-nums ${secs <= 30 ? "font-medium text-danger" : ""}`}>
-          {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")} left
+        <span className={`tabular-nums ${endsAt && secs <= 30 ? "font-medium text-danger" : ""}`}>
+          {endsAt ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")} left` : "Starting…"}
         </span>
         {/* Screen readers hear the countdown once at each threshold, not every tick */}
         <span className="sr-only" aria-live="assertive">{secs <= 30 && secs > 0 ? "30 seconds left" : secs <= 60 && secs > 0 ? "One minute left" : ""}</span>
@@ -391,6 +407,12 @@ function Live({ agent, caption, startedAt, onEnd, onTimeUp }: {
         {caption.agent && <p className="text-base leading-relaxed text-balance">{caption.agent}</p>}
         {caption.you && <p className="text-[13px] text-muted">You: {caption.you}</p>}
       </div>
+
+      {muted && (
+        <button type="button" onClick={onUnmute} className={primary}>
+          Tap to hear your interviewer
+        </button>
+      )}
 
       <button type="button" onClick={onEnd} className="inline-flex h-10 items-center gap-2 rounded-md border border-danger/50 px-4 text-sm font-medium text-danger transition-colors outline-none hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-ring">
         End interview
