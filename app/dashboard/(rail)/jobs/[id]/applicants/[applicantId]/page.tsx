@@ -7,6 +7,7 @@ import { ResumeSections } from "@/components/resume-view";
 import { Avatar, Icon, icons } from "@/components/ui";
 import { companiesByIds } from "@/lib/companies";
 import { interviewResult } from "@/lib/interview";
+import { KINDS } from "@/lib/interview-fields";
 import { STATUSES } from "@/lib/job-fields";
 import { applicationProfile, getApplicants, getJob } from "@/lib/jobs";
 import { STATUSES as CAREER } from "@/lib/resume-fields";
@@ -79,7 +80,7 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
         <ApplicantInterview jobId={id} applicantId={applicantId} initial={result} />
       ) : (
         job.interview && (
-          <FormSection title="Voice interview">
+          <FormSection title={KINDS[job.interview.kind]}>
             <p className="text-sm text-muted">Not taken yet.</p>
           </FormSection>
         )

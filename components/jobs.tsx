@@ -6,7 +6,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
-import { FITS, INTERVIEW, NOTICE, type Fit } from "@/lib/interview-fields";
+import { DIFFICULTY, FITS, INTERVIEW, KINDS, MCQ, NOTICE, screeningFacts, type Fit, type Kind, type Mcq } from "@/lib/interview-fields";
 import type { Applicant, Job, JobPage, PublicJob } from "@/lib/jobs";
 import { parseInline, parseProse } from "@/lib/prose";
 import { ask, Clamp, leaveIfClean, Modal, Select, Tabs, toast, useUnsavedGuard } from "./kit";
@@ -519,9 +519,9 @@ export function JobFacts({ job: j, h: H = "h3" }: { job: Facts; h?: "h2" | "h3" 
     { icon: icons.laptop, label: "Workplace", value: WORKPLACES[j.workplace] },
     { icon: icons.pin, label: "Location", value: j.location || (j.workplace === "remote" ? "Anywhere" : "Not specified") },
     j.interview && {
-      icon: icons.mic,
+      icon: j.interview.kind === "mcq" ? icons.file : icons.mic,
       label: "Hiring process",
-      value: `AI voice interview · ${j.interview.questions} question${j.interview.questions === 1 ? "" : "s"} · ${INTERVIEW.seconds / 60} min`,
+      value: `${j.interview.kind === "mcq" ? "MCQ test" : "AI voice interview"} · ${screeningFacts(j.interview.kind, j.interview.questions)}`,
       sub: `Applicants take it online before ${dateTime(j.interview.deadline)}. The link and password are emailed on applying.`,
     },
   ].filter((f) => !!f);
@@ -652,7 +652,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
         {scored && (
           <label className="ml-auto flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" checked={byScore} onChange={(e) => setByScore(e.target.checked)} className="size-4 accent-foreground" />
-            Sort by interview score
+            Sort by score
           </label>
         )}
       </div>
@@ -691,7 +691,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
             <Link href={applicantHref(jobId, a.id)} className="flex items-center gap-1.5 pt-1 text-xs">
               {a.interview && (
                 <>
-                  <span className="font-medium">Voice interview:</span>
+                  <span className="font-medium">{KINDS[a.interview.kind]}:</span>
                   {a.interview.status === "done" && a.interview.score !== null ? (
                     <span>
                       <span className="font-medium tabular-nums">{a.interview.score}/100</span>
@@ -832,14 +832,14 @@ function ProfileLoaded({ p }: { p: NonNullable<ApplyProfile> }) {
  * Dedicated Post a job page in the feed column: grouped sections, then straight to the new listing.
  * `companies`: pages the member verified they work at; only those can be posted for. `initialCompany` preselects one.
  */
-export function PostJobForm({ companies, initialCompany, job }: { companies: { id: string; name: string }[]; initialCompany?: string; job?: Job & { questions: string[] } }) {
+export function PostJobForm({ companies, initialCompany, job }: { companies: { id: string; name: string }[]; initialCompany?: string; job?: Job & { questions: string[] | Mcq[] } }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [workplace, setWorkplace] = useState<string>(job?.workplace ?? "onsite");
   const [desc, setDesc] = useState(job?.description ?? "");
   const [preview, setPreview] = useState(false);
-  const [interview, setInterview] = useState(!!job?.interview);
+  const [screening, setScreening] = useState<Kind | "none">(job?.interview?.kind ?? "none");
   const back = job ? `/dashboard/jobs?tab=posted&id=${job.id}` : "/dashboard/jobs";
   const [now] = useState(Date.now);
   const [dirty, setDirty] = useState(false);
@@ -947,29 +947,54 @@ export function PostJobForm({ companies, initialCompany, job }: { companies: { i
           <p className="text-right text-xs tabular-nums text-muted">{desc.length < 50 ? `${50 - desc.length} more characters needed` : `${desc.length} / ${LIMITS.description}`}</p>
         </FormSection>
 
-        {/* Editing can change an interview's questions and deadline, but not add one: earlier applicants never got the invite */}
-        {(!job || job.interview) && <FormSection title="Voice interview" hint={`Optional. Applicants get a link and password by email and take a ${INTERVIEW.seconds / 60}-minute AI voice interview before the deadline.`}>
-          {job ? <input type="hidden" name="interview" value="on" /> : <label className="flex items-center gap-2.5 text-sm">
-            <input type="checkbox" name="interview" checked={interview} onChange={(e) => setInterview(e.target.checked)} className="size-4 accent-foreground" />
-            Add a voice interview
-          </label>}
-          {interview && (
+        {/* Editing can change the questions and deadline, but not add, remove or switch the screening: earlier applicants got that invite */}
+        {(!job || job.interview) && <FormSection title="Screening" hint="Optional. Applicants get a link and password by email and take it online before the deadline. Pick one.">
+          <div role="radiogroup" aria-label="Screening" className="grid gap-2 sm:grid-cols-3">
+            {([
+              ["none", "None", "Applications only"],
+              ["voice", "AI voice interview", `${INTERVIEW.seconds / 60}-min spoken Q&A, AI graded`],
+              ["mcq", "MCQ test", "Timed, auto-graded"],
+            ] as const).map(([id, label, sub]) => (
+              <label
+                key={id}
+                className={`flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${screening === id ? "border-foreground bg-surface" : "border-border hover:bg-surface-hover"}`}
+              >
+                <input
+                  type="radio"
+                  name="screening"
+                  value={id}
+                  checked={screening === id}
+                  disabled={!!job && screening !== id}
+                  onChange={() => setScreening(id)}
+                  className="mt-0.5 size-4 shrink-0 accent-foreground"
+                />
+                <span className="min-w-0">
+                  <span className="block font-medium">{label}</span>
+                  <span className="block text-xs text-muted">{job && screening === id ? "Can't be changed" : sub}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {screening === "mcq" && <McqEditor initial={job?.interview ? (job.questions as Mcq[]) : []} />}
+          {screening === "voice" && (
             <>
               <Field label="Questions" hint={`one per line, up to ${INTERVIEW.maxQuestions}`}>
                 <textarea
                   name="questions"
                   required
                   rows={5}
-                  defaultValue={job?.questions.join("\n")}
+                  defaultValue={job?.interview ? (job.questions as string[]).join("\n") : undefined}
                   maxLength={INTERVIEW.maxQuestions * (INTERVIEW.questionChars + 1)}
                   placeholder={"Walk me through a project you're proud of.\nHow do you debug a slow page?\nWhy are you interested in this role?"}
                   className={`${field} h-auto resize-y py-2 leading-relaxed`}
                 />
               </Field>
-              <Field label="Deadline" hint="the job closes after this">
-                <input name="deadlineLocal" type="datetime-local" required defaultValue={job?.interview ? localInput(job.interview.deadline) : undefined} min={job ? undefined : localInput(now + 3_600_000)} max={localInput(now + 90 * 86_400_000)} className={`${field} sm:w-64`} />
-              </Field>
             </>
+          )}
+          {screening !== "none" && (
+            <Field label="Deadline" hint="the job closes after this">
+              <input name="deadlineLocal" type="datetime-local" required defaultValue={job?.interview ? localInput(job.interview.deadline) : undefined} min={job ? undefined : localInput(now + 3_600_000)} max={localInput(now + 90 * 86_400_000)} className={`${field} sm:w-64`} />
+            </Field>
           )}
         </FormSection>}
 
@@ -1029,15 +1054,15 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
     <section className="space-y-3 rounded-lg border border-border p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">Voice interview</p>
+          <p className="font-medium">{KINDS[iv.kind]}</p>
           <p className="text-xs text-muted" suppressHydrationWarning>
-            {iv.questions} question{iv.questions === 1 ? "" : "s"} · {INTERVIEW.seconds / 60} min · {closed ? "Closed" : "Open until"} {dateTime(iv.deadline)}
+            {screeningFacts(iv.kind, iv.questions)} · {closed ? "Closed" : "Open until"} {dateTime(iv.deadline)}
           </p>
         </div>
         {!mine && (finished ? (
           <span className="inline-flex items-center gap-1 text-xs text-success"><Icon d={icons.check} size={14} />Completed</span>
         ) : !closed && iv.slug && (
-          <a href={`/interview/${iv.slug}`} target="_blank" rel="noopener" className={btnPrimary}>Start interview</a>
+          <a href={`/interview/${iv.slug}`} target="_blank" rel="noopener" className={btnPrimary}>{iv.kind === "mcq" ? "Start test" : "Start interview"}</a>
         ))}
       </div>
       {iv.slug && iv.password && (mine || (!finished && !closed)) && (
@@ -1071,7 +1096,7 @@ const FIT_TONE: Record<Fit, string> = { strong: "text-success", moderate: "text-
 
 export const applicantHref = (jobId: string, applicantId: string) => `/dashboard/jobs/${jobId}/applicants/${applicantId}`;
 
-/** Applicant page: onboarding answers, the AI verdict and the full transcript. */
+/** Applicant page: onboarding answers, then the AI verdict and transcript (voice) or the score and every answer (MCQ). */
 export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: string; applicantId: string; initial: InterviewResult }) {
   const [r, setR] = useState(initial);
   const [retrying, setRetrying] = useState(false);
@@ -1087,7 +1112,7 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
   return (
     <>
       {p && (
-        <FormSection title="Interview onboarding" hint="What the candidate entered before the call.">
+        <FormSection title={`${KINDS[r.kind]}: onboarding`} hint={`What the candidate entered before the ${r.kind === "mcq" ? "test" : "call"}.`}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             {([
               ["Name", p.name],
@@ -1107,6 +1132,7 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
         </FormSection>
       )}
 
+      {r.kind === "mcq" ? <McqResult r={r} /> : <>
       <FormSection title="AI evaluation" hint={r.startedAt ? `Interview taken ${dateTime(r.startedAt)}` : undefined}>
         {rep ? (
           <div className="space-y-4 text-sm">
@@ -1152,6 +1178,212 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
           <p className="text-sm text-muted">No transcript yet.</p>
         )}
       </FormSection>
+      </>}
     </>
+  );
+}
+
+const LETTERS = "ABCDEF";
+
+/** MCQ result: the score, then each question with the candidate's pick against the key. */
+function McqResult({ r }: { r: InterviewResult }) {
+  const rep = r.report;
+  return (
+    <>
+      <FormSection title="Test result" hint={r.startedAt ? `Taken ${dateTime(r.startedAt)}` : undefined}>
+        {rep ? (
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <p className="text-3xl font-semibold tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
+            <p className={`rounded-full border border-border px-2.5 py-1 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
+            <p className="text-muted">{rep.summary}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">{IV_STATUS[r.status]}</p>
+        )}
+      </FormSection>
+      {r.review.length > 0 && (
+        <FormSection title="Answers">
+          <ol className="space-y-4">
+            {r.review.map((q, i) => {
+              const right = q.picked === q.answer;
+              return (
+                <li key={i} className="space-y-2 rounded-lg border border-border p-3 text-sm">
+                  <p className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 font-medium whitespace-pre-wrap break-words">{i + 1}. {q.q}</span>
+                    <span className={`shrink-0 text-xs font-medium ${q.picked < 0 ? "text-muted" : right ? "text-success" : "text-danger"}`}>
+                      {q.picked < 0 ? "Skipped" : right ? "Correct" : "Wrong"}
+                    </span>
+                  </p>
+                  <ul className="space-y-1">
+                    {q.options.map((o, k) => (
+                      <li key={k} className={`flex gap-2 rounded-md px-2 py-1 ${k === q.answer ? "bg-success/10 text-success" : k === q.picked ? "bg-danger/10 text-danger" : "text-muted"}`}>
+                        <span className="w-4 shrink-0 font-medium">{LETTERS[k]}</span>
+                        <span className="min-w-0 break-words">{o}</span>
+                        {k === q.picked && <span className="ml-auto shrink-0 text-xs">their answer</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ol>
+        </FormSection>
+      )}
+    </>
+  );
+}
+
+type Draft = { id: string; q: string; options: string[]; answer: number };
+const blank = (): Draft => ({ id: crypto.randomUUID(), q: "", options: ["", "", "", ""], answer: -1 });
+const COUNTS = [5, 10, 15, 20];
+
+/**
+ * MCQ builder for the post form: write questions by hand, or have AI draft them from a topic, difficulty and optional
+ * context, then edit. Up to MCQ.maxQuestions either way. Posts as JSON in the hidden `mcq` field; the server re-validates.
+ */
+function McqEditor({ initial }: { initial: Mcq[] }) {
+  const [list, setList] = useState<Draft[]>(() => (initial.length ? initial.map((q) => ({ ...q, id: crypto.randomUUID() })) : [blank()]));
+  const [ai, setAi] = useState(!initial.length);
+  const [gen, setGen] = useState({ topic: "", difficulty: "medium", count: "10", summary: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const room = MCQ.maxQuestions - list.filter((d) => d.q.trim()).length;
+  const set = (id: string, patch: Partial<Draft>) => setList((l) => l.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+
+  async function generate() {
+    if (!gen.topic.trim()) return setError("Add a topic first.");
+    setBusy(true);
+    setError("");
+    const r = await actions.generateQuestions({ ...gen, count: Math.min(Number(gen.count), room) }).catch(() => ({ error: "Couldn't reach the server. Try again." }));
+    setBusy(false);
+    if ("error" in r) return setError(r.error);
+    // New questions go after the filled ones; an untouched blank card is replaced
+    setList((l) => [...l.filter((d) => d.q.trim()), ...r.questions.map((q) => ({ ...q, id: crypto.randomUUID() }))].slice(0, MCQ.maxQuestions));
+    toast(`Added ${r.questions.length} question${r.questions.length === 1 ? "" : "s"}. Review them before posting.`);
+  }
+
+  const small = "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted transition-colors outline-none hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+  return (
+    <div className="space-y-4">
+      <input type="hidden" name="mcq" value={JSON.stringify(list.map(({ q, options, answer }) => ({ q, options, answer })))} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm"><span className="font-medium tabular-nums">{list.length}</span><span className="text-muted"> / {MCQ.maxQuestions} questions · {MCQ.secondsPerQuestion / 60} min each</span></p>
+        <button type="button" className={btnOutline} aria-expanded={ai} onClick={() => setAi(!ai)}>
+          <Icon d={icons.verified} size={14} />
+          Generate with AI
+        </button>
+      </div>
+
+      {ai && (
+        <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
+          <Field label="Topic">
+            <input
+              value={gen.topic}
+              onChange={(e) => setGen({ ...gen, topic: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void generate())}
+              maxLength={MCQ.topicChars}
+              placeholder="React hooks, SQL joins, Excel for finance…"
+              className={field}
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Difficulty">
+              <Select value={gen.difficulty} onChange={(difficulty) => setGen({ ...gen, difficulty })} className={select} options={Object.entries(DIFFICULTY).map(([value, label]) => ({ value, label }))} />
+            </Field>
+            <Field label="Questions">
+              <Select value={gen.count} onChange={(count) => setGen({ ...gen, count })} className={select} options={COUNTS.map((n) => ({ value: String(n), label: String(n) }))} />
+            </Field>
+          </div>
+          <Field label="Summary" hint="optional">
+            <textarea
+              value={gen.summary}
+              onChange={(e) => setGen({ ...gen, summary: e.target.value })}
+              rows={2}
+              maxLength={MCQ.summaryChars}
+              placeholder="What the role needs, e.g. “Mid-level frontend role, focus on performance and accessibility.”"
+              className={`${field} h-auto resize-y py-2 leading-relaxed`}
+            />
+          </Field>
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+          <div className="flex items-center justify-end gap-3">
+            {busy && <span className="text-xs text-muted" aria-live="polite">Writing questions, this can take half a minute…</span>}
+            <button aria-busy={busy} type="button" className={btnPrimary} disabled={busy || room <= 0} onClick={generate}>
+              {room <= 0 ? `${MCQ.maxQuestions} question limit reached` : "Generate"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ol className="space-y-3">
+        {list.map((d, n) => (
+          <li key={d.id} className="space-y-3 rounded-lg border border-border p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted">Question {n + 1}</span>
+              {list.length > 1 && (
+                <button type="button" aria-label={`Remove question ${n + 1}`} className={small} onClick={() => setList((l) => l.filter((x) => x.id !== d.id))}>
+                  <Icon d={icons.trash} size={14} />
+                </button>
+              )}
+            </div>
+            <textarea
+              value={d.q}
+              onChange={(e) => set(d.id, { q: e.target.value })}
+              required
+              rows={2}
+              maxLength={MCQ.questionChars}
+              aria-label={`Question ${n + 1}`}
+              placeholder="Which hook runs after every render by default?"
+              className={`${field} h-auto resize-y py-2 leading-relaxed`}
+            />
+            <fieldset className="space-y-2">
+              <legend className="mb-2 text-xs text-muted">Options · select the correct one</legend>
+              {d.options.map((o, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  {/* form="" keeps these out of the job form's data; the hidden mcq field carries everything */}
+                  <input
+                    type="radio"
+                    form=""
+                    name={`correct-${d.id}`}
+                    required
+                    checked={d.answer === i}
+                    onChange={() => set(d.id, { answer: i })}
+                    aria-label={`Option ${LETTERS[i]} is correct`}
+                    className="size-4 shrink-0 accent-foreground"
+                  />
+                  <input
+                    value={o}
+                    onChange={(e) => set(d.id, { options: d.options.map((x, k) => (k === i ? e.target.value : x)) })}
+                    required
+                    maxLength={MCQ.optionChars}
+                    aria-label={`Option ${LETTERS[i]}`}
+                    placeholder={`Option ${LETTERS[i]}`}
+                    className={`${field} h-9 ${d.answer === i ? "border-success" : ""}`}
+                  />
+                  {d.options.length > MCQ.minOptions && (
+                    <button
+                      type="button"
+                      aria-label={`Remove option ${LETTERS[i]}`}
+                      className={small}
+                      onClick={() => set(d.id, { options: d.options.filter((_, k) => k !== i), answer: d.answer === i ? -1 : d.answer > i ? d.answer - 1 : d.answer })}
+                    >
+                      <Icon d={icons.close} size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </fieldset>
+            {d.options.length < MCQ.maxOptions && (
+              <button type="button" className={small} onClick={() => set(d.id, { options: [...d.options, ""] })}>
+                <Icon d={icons.plus} size={14} />Add option
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+      <button type="button" className={btnOutline} disabled={list.length >= MCQ.maxQuestions} onClick={() => setList((l) => [...l, blank()])}>
+        <Icon d={icons.plus} size={14} />
+        {list.length >= MCQ.maxQuestions ? `${MCQ.maxQuestions} question limit reached` : "Add question"}
+      </button>
+    </div>
   );
 }

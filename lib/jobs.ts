@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import type { SessionStatus } from "./interview";
-import type { Fit } from "./interview-fields";
+import type { Fit, Kind, Mcq } from "./interview-fields";
 import { getResume } from "./resume";
 import { cleanResume, type Resume } from "./resume-fields";
 import type { AppStatus, JobFilters, JobType, Level, MyJobsTab, Workplace } from "./job-fields";
@@ -27,8 +27,8 @@ export type Job = {
   poster: { id: string; name: string; imageUrl: string | null; headline: string | null };
   saved: boolean;
   application: { status: AppStatus; at: number } | null;
-  /** Voice interview. Link and password only for the poster and applicants; `status` is the viewer's own attempt. */
-  interview: { deadline: number; questions: number; slug: string | null; password: string | null; status: SessionStatus | null } | null;
+  /** Screening (voice interview or MCQ test). Link and password only for the poster and applicants; `status` is the viewer's own attempt. */
+  interview: { kind: Kind; deadline: number; questions: number; slug: string | null; password: string | null; status: SessionStatus | null } | null;
 };
 export type JobPage = { jobs: Job[]; next: string | null };
 
@@ -44,7 +44,7 @@ export type Applicant = {
   note: string | null;
   status: AppStatus;
   at: number;
-  interview: { status: SessionStatus; score: number | null; fit: Fit | null } | null;
+  interview: { kind: Kind; status: SessionStatus; score: number | null; fit: Fit | null } | null;
 };
 
 type Row = {
@@ -52,7 +52,7 @@ type Row = {
   co_tagline: string | null; co_about: string | null; co_industry: string | null; co_size: string | null; co_hq: string | null; co_followers: number | null; location: string; workplace: Workplace; type: JobType; level: Level;
   salary: string | null; description: string; applicant_count: number; closed_at: number | null; created_at: number;
   name: string; image_url: string | null; headline: string | null; saved: number; app_status: AppStatus | null; applied_at: number | null;
-  iv_deadline: number | null; iv_questions: number | null; iv_slug: string | null; iv_password: string | null; iv_status: SessionStatus | null;
+  iv_kind: Kind | null; iv_deadline: number | null; iv_questions: number | null; iv_slug: string | null; iv_password: string | null; iv_status: SessionStatus | null;
 };
 
 const PAGE = 20;
@@ -66,7 +66,7 @@ const SELECT = `
          co.slug AS co_slug, co.logo_key AS co_logo, co.tagline AS co_tagline, co.about AS co_about, co.industry AS co_industry,
          co.size AS co_size, co.hq AS co_hq, co.follower_count AS co_followers,
          EXISTS (SELECT 1 FROM company_verifications v WHERE v.company_id = j.company_id AND v.user_id = j.poster_id) AS co_verified,
-         i.deadline AS iv_deadline, json_array_length(i.questions) AS iv_questions, ivs.status AS iv_status,
+         i.kind AS iv_kind, i.deadline AS iv_deadline, json_array_length(i.questions) AS iv_questions, ivs.status AS iv_status,
          CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.slug END AS iv_slug,
          CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.password END AS iv_password
   FROM jobs j
@@ -87,7 +87,7 @@ const toJob = (r: Row): Job => ({
   poster: { id: r.poster_id, name: r.name, imageUrl: r.image_url, headline: r.headline },
   saved: !!r.saved,
   application: r.app_status ? { status: r.app_status, at: r.applied_at! } : null,
-  interview: r.iv_deadline === null ? null : { deadline: r.iv_deadline, questions: r.iv_questions ?? 0, slug: r.iv_slug, password: r.iv_password, status: r.iv_status },
+  interview: r.iv_deadline === null ? null : { kind: r.iv_kind!, deadline: r.iv_deadline, questions: r.iv_questions ?? 0, slug: r.iv_slug, password: r.iv_password, status: r.iv_status },
 });
 
 const like = (s: string) => `%${s.replace(/[!%_]/g, "!$&")}%`;
@@ -145,26 +145,27 @@ export async function companyJobs(viewerId: string, companyId: string): Promise<
 /** Only the poster sees applicants. `applicantId` narrows it to one (their detail page). */
 export async function getApplicants(posterId: string, jobId: string, applicantId: string | null = null): Promise<Applicant[]> {
   const { results } = await env.DB.prepare(
-    `SELECT a.job_id, a.applicant_id, a.email, a.phone, a.resume_key, a.note, a.status, a.created_at, u.name, u.image_url, u.headline, s.status AS iv_status, s.score AS iv_score, s.report ->> '$.fit' AS iv_fit
+    `SELECT a.job_id, a.applicant_id, a.email, a.phone, a.resume_key, a.note, a.status, a.created_at, u.name, u.image_url, u.headline, s.status AS iv_status, s.score AS iv_score, s.report ->> '$.fit' AS iv_fit, i.kind AS iv_kind
      FROM applications a
      JOIN jobs j ON j.id = a.job_id AND j.poster_id = ?1
      JOIN users u ON u.id = a.applicant_id
      LEFT JOIN interview_sessions s ON s.job_id = a.job_id AND s.applicant_id = a.applicant_id
+     LEFT JOIN interviews i ON i.job_id = a.job_id
      WHERE a.job_id = ?2 AND (?3 IS NULL OR a.applicant_id = ?3) ORDER BY a.created_at DESC LIMIT 500`,
   ).bind(posterId, jobId, applicantId).all<{
     applicant_id: string; name: string; image_url: string | null; headline: string | null; email: string; phone: string | null;
     resume_key: string | null; note: string | null; status: AppStatus; created_at: number;
-    iv_status: SessionStatus | null; iv_score: number | null; iv_fit: Fit | null;
+    iv_status: SessionStatus | null; iv_score: number | null; iv_fit: Fit | null; iv_kind: Kind | null;
   }>();
   return results.map((r) => ({
     id: r.applicant_id, name: r.name, imageUrl: r.image_url, headline: r.headline, email: r.email, phone: r.phone,
     resumeKey: r.resume_key, note: r.note, status: r.status, at: r.created_at,
-    interview: r.iv_status ? { status: r.iv_status, score: r.iv_score, fit: r.iv_fit } : null,
+    interview: r.iv_status ? { kind: r.iv_kind ?? "voice", status: r.iv_status, score: r.iv_score, fit: r.iv_fit } : null,
   }));
 }
 
-/** The interview questions, for the poster's edit form. */
-export async function jobQuestions(posterId: string, jobId: string): Promise<string[]> {
+/** The screening questions (voice: strings, MCQ: with the key), for the poster's edit form. */
+export async function jobQuestions(posterId: string, jobId: string): Promise<string[] | Mcq[]> {
   const q = await env.DB.prepare("SELECT i.questions FROM interviews i JOIN jobs j ON j.id = i.job_id AND j.poster_id = ? WHERE i.job_id = ?")
     .bind(posterId, jobId).first<string>("questions");
   return q ? JSON.parse(q) : [];
@@ -191,7 +192,7 @@ export async function applicationProfile(posterId: string, jobId: string, applic
 /** What the signed-out share page (/job/<id>) may show: the listing and who posted it, never interview credentials or applicant data. */
 export type PublicJob = Pick<Job, "id" | "title" | "company" | "page" | "location" | "workplace" | "type" | "level" | "salary" | "description" | "createdAt" | "closedAt"> & {
   poster: { name: string; headline: string | null };
-  interview: { deadline: number; questions: number } | null;
+  interview: { kind: Kind; deadline: number; questions: number } | null;
 };
 
 export async function getPublicJob(id: string): Promise<PublicJob | null> {
@@ -201,6 +202,6 @@ export async function getPublicJob(id: string): Promise<PublicJob | null> {
   return {
     id: j.id, title, company, page, location, workplace, type, level, salary, description, createdAt, closedAt,
     poster: { name: j.poster.name, headline: j.poster.headline },
-    interview: j.interview && { deadline: j.interview.deadline, questions: j.interview.questions },
+    interview: j.interview && { kind: j.interview.kind, deadline: j.interview.deadline, questions: j.interview.questions },
   };
 }

@@ -5,11 +5,11 @@ import { env } from "cloudflare:workers";
  * Returns the JSON object in the reply, or null when the call fails or the reply has no parseable object.
  * No response_format: this endpoint's JSON mode emits a stray "{", plain output is clean.
  */
-export async function bedrockJson(system: string, user: string, maxTokens: number): Promise<{ ok: false; reason: "busy" | "unparseable" } | { ok: true; value: unknown }> {
+export async function bedrockJson(system: string, user: string, maxTokens: number, temperature = 0): Promise<{ ok: false; reason: "busy" | "unparseable" } | { ok: true; value: unknown }> {
   const res = await fetch(`${env.BEDROCK_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${env.BEDROCK_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: env.BEDROCK_MODEL, messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: maxTokens, temperature: 0 }),
+    body: JSON.stringify({ model: env.BEDROCK_MODEL, messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: maxTokens, temperature }),
     // A reasoning model writing a few thousand tokens takes a while; past this, treat it as busy
     signal: AbortSignal.timeout(120_000),
   }).catch((e) => (console.error("bedrock fetch", e), null));
