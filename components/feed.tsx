@@ -9,7 +9,6 @@ import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
 import { isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
 import { profileHref } from "@/lib/profile-fields";
 import { ask, Clamp, Menu, Modal, scrollToTop, setParam, Tabs, toast } from "./kit";
-import { LikeButton } from "./like-button";
 import { CommentsSkeleton, PostsSkeleton } from "./skeleton";
 import { ago, Avatar, btnGhost, btnLg, btnPrimary, CompanyLogo, Icon, icons, menuItem } from "./ui";
 import { useRealtime } from "./use-realtime";
@@ -567,7 +566,11 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
       </div>
 
       <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center">
-        <LikeButton liked={p.liked} count={p.likes} onClick={() => like(p)} className={iconBtn} />
+        <button type="button" aria-label={named("Like", p.likes)} aria-pressed={p.liked} onClick={() => like(p)} className={`${iconBtn} ${p.liked ? "text-danger hover:text-danger" : ""}`}>
+          <Icon d={icons.like} size={16} className={p.liked ? "fill-current" : ""} />
+          <span className="hidden sm:inline">Like</span>
+          {count(p.likes)}
+        </button>
         <button type="button" aria-label={named("Comment", p.comments)} aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={`${iconBtn} ${showComments ? "text-foreground" : ""}`}>
           <Icon d={icons.comment} size={16} />
           <span className="hidden sm:inline">Comment</span>
