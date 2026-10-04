@@ -92,3 +92,9 @@ export async function followersOf(userId: string) {
     .bind(userId, MAX_RECIPIENTS).all<{ follower_id: string }>();
   return results.map((r) => r.follower_id);
 }
+
+/** Newest few, for the dashboard's quick panel. */
+export async function latestNotifications(userId: string, n = 3) {
+  const { results } = await env.DB.prepare(`${SELECT} WHERE n.user_id = ?1 ORDER BY n.created_at DESC, n.id DESC LIMIT ?2`).bind(userId, n).all<Row>();
+  return results.map(toNotification);
+}

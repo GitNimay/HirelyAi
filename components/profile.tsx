@@ -117,7 +117,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
       </header>
 
       <section>
-        <div className="aspect-[3/1] bg-gradient-to-br from-surface-hover to-surface">
+        <div className={`aspect-[3/1] ${profile.coverUrl ? "" : "cover-hatch"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
           {profile.coverUrl && <img src={profile.coverUrl} alt="" className="size-full object-cover" />}
         </div>

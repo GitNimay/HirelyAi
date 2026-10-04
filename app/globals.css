@@ -258,3 +258,9 @@ select option {
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
 }
+
+/* Placeholder for a missing cover photo: fine diagonal lines, one direction, in the border color */
+@utility cover-hatch {
+  background-color: var(--background);
+  background-image: repeating-linear-gradient(45deg, var(--border) 0 1px, transparent 1px 12px);
+}

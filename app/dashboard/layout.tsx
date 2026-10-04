@@ -4,13 +4,15 @@ import { redirect } from "next/navigation";
 import { AccountMenu } from "@/components/account-menu";
 import { Logo } from "@/components/auth";
 import { Nav } from "@/components/nav";
-import { signedIn } from "@/lib/profile";
-import { unseenCount } from "@/lib/notifications";
+import { QuickNotifications } from "@/components/notifications";
+import { ProfileCard } from "@/components/profile-card";
+import { getSummary, signedIn } from "@/lib/profile";
+import { latestNotifications, unseenCount } from "@/lib/notifications";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const { userId } = await auth.protect();
   // Name and photo come from D1 (editable on the profile), not Clerk
-  const [session, unseen] = await Promise.all([signedIn(), unseenCount(userId)]);
+  const [session, unseen, summary, latest] = await Promise.all([signedIn(), unseenCount(userId), getSummary(userId), latestNotifications(userId)]);
   const me = session?.me;
   // New members set up their profile first
   if (me && !me.onboarded) redirect("/onboarding");
@@ -35,6 +37,14 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       <div className="sm:hidden"><Nav unseen={unseen} me={me?.handle ?? ""} /></div>
 
       {children}
+
+      {/* Right rail: your profile summary, on every dashboard screen (wide screens only) */}
+      {me && summary && (
+        <aside className="sticky top-0 hidden h-screen w-[320px] shrink-0 space-y-4 overflow-y-auto px-5 py-4 lg:block">
+          <ProfileCard me={me} summary={summary} />
+          <QuickNotifications initial={latest} />
+        </aside>
+      )}
     </div>
   );
 }
