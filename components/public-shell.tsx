@@ -19,7 +19,7 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
           </div>
         </div>
       </header>
-      <main id="main" className="mx-auto w-full max-w-[640px] flex-1 pb-24 sm:border-x sm:border-border">
+      <main id="main" className="mx-auto w-full max-w-[640px] flex-1 pb-40 sm:border-x sm:border-border">
         {children}
         <section className="border-t border-border px-4 py-8 text-center">
           <p className="text-sm font-medium">{cta}</p>
