@@ -3,7 +3,7 @@
 import { env } from "cloudflare:workers";
 import { cookies, headers } from "next/headers";
 import { Fail, failed, text } from "@/lib/guard";
-import { saveProfile, startInterview, verifyCandidate, warmInterview } from "@/lib/interview";
+import { saveAnswer, saveProfile, startInterview, startTest, submitTest, verifyCandidate, warmInterview } from "@/lib/interview";
 import { cleanProfile } from "@/lib/interview-fields";
 
 // Candidates aren't signed in: the password gate issues a session cookie scoped to this interview's path.
@@ -41,4 +41,17 @@ export async function start(slug: string) {
 /** Best effort: if it fails, Start dispatches the agent the usual (slower) way. */
 export async function warm(slug: string) {
   await warmInterview(String(slug), await session()).catch((e) => console.error("interview warm-up", e));
+}
+
+// MCQ test: start the clock, save each pick as it's made, submit
+export async function beginTest(slug: string) {
+  return startTest(String(slug), await session()).then(() => ({ ok: true as const }), failed);
+}
+
+export async function answer(slug: string, index: number, pick: number) {
+  return saveAnswer(String(slug), await session(), Number(index), Number(pick)).then(() => ({ ok: true as const }), failed);
+}
+
+export async function finishTest(slug: string) {
+  return submitTest(String(slug), await session()).then(() => ({ ok: true as const }), failed);
 }

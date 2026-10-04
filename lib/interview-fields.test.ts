@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cleanProfile, cleanQuestions, cleanReport, cleanTranscript } from "./interview-fields.ts";
+import { cleanAnswers, cleanMcq, cleanProfile, cleanQuestions, cleanReport, cleanTranscript, gradeMcq, screeningFacts } from "./interview-fields.ts";
 
 // One per line, blanks dropped, capped at 5
 assert.deepEqual(cleanQuestions(" a \n\n b\nc\nd\ne\nf"), ["a", "b", "c", "d", "e"]);
@@ -26,3 +26,20 @@ assert.deepEqual(cleanTranscript([{ role: "agent", text: "Hi" }, { role: "x", te
   { role: "candidate", text: "yo" },
 ]);
 console.log("interview-fields: ok");
+
+// MCQ: blank options dropped with the answer following its text; broken questions skipped, or reported when strict
+const m = cleanMcq([
+  { q: " What is 2+2? ", options: ["3", "", "4"], answer: 2 },
+  { q: "No answer", options: ["a", "b"], answer: 5 },
+  { q: "Dupes", options: ["a", "a"], answer: 0 },
+  null,
+]);
+assert.deepEqual(m, [{ q: "What is 2+2?", options: ["3", "4"], answer: 1 }]);
+assert.throws(() => cleanMcq([{ q: "x", options: ["a"], answer: 0 }], true), /Question 1 needs at least 2 options/);
+assert.deepEqual(cleanAnswers([1, 9, "x"], [{ options: ["a", "b"] }, { options: ["a", "b"] }, { options: ["a"] }]), [1, -1, -1]);
+const g = gradeMcq([...m, { q: "y", options: ["a", "b"], answer: 0 }, { q: "z", options: ["a", "b"], answer: 1 }, { q: "w", options: ["a", "b"], answer: 1 }], [1, 0, -1, 0]);
+assert.equal(g.score, 50);
+assert.equal(g.fit, "moderate");
+assert.equal(g.summary, "2 of 4 correct, 1 unanswered.");
+assert.equal(screeningFacts("mcq", 10), "10 questions · 10 min");
+console.log("mcq: ok");

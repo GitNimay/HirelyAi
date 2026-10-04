@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Interview } from "@/components/interview";
 import { candidateView } from "@/lib/interview";
 
-export const metadata = { title: "Voice interview | Hire Excellence" };
+export const metadata = { title: "Assessment | Hire Excellence" };
 
 export default async function InterviewPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

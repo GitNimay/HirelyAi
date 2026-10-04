@@ -1,7 +1,10 @@
 import { env } from "cloudflare:workers";
 import { bedrockJson } from "./bedrock";
 import { Fail } from "./guard";
-import { cleanQuestions, cleanReport, INTERVIEW, type Line, type Profile, type Report } from "./interview-fields";
+import {
+  cleanAnswers, cleanMcq, cleanQuestions, cleanReport, DIFFICULTY, gradeMcq, INTERVIEW, MCQ, mcqSeconds, screeningFacts,
+  type Kind, type Line, type Mcq, type McqPublic, type McqReview, type Profile, type Report,
+} from "./interview-fields";
 import { sendTo } from "./realtime";
 
 export type SessionStatus = "verified" | "onboarded" | "live" | "processing" | "done" | "failed";
@@ -9,20 +12,28 @@ export type SessionStatus = "verified" | "onboarded" | "live" | "processing" | "
 /** What the candidate page needs: the job, and their attempt once they've got past the password gate. */
 export type CandidateView = {
   slug: string;
+  kind: Kind;
   title: string;
   company: string;
   deadline: number;
   questions: number;
   open: boolean;
-  session: { status: SessionStatus; startedAt: number | null; prefill: Partial<Profile> } | null;
+  session: {
+    status: SessionStatus; startedAt: number | null; prefill: Partial<Profile>;
+    /** MCQ in progress: the questions without the key, saved picks, and ms left. */
+    test: { questions: McqPublic[]; answers: number[]; left: number } | null;
+  } | null;
 };
 
 /** The poster's view of one applicant's interview. */
 export type InterviewResult = {
+  kind: Kind;
   status: SessionStatus;
   profile: Profile | null;
   transcript: Line[];
   report: Report | null;
+  /** MCQ: every question with the key and the candidate's pick. */
+  review: McqReview[];
   startedAt: number | null;
   endedAt: number | null;
 };
@@ -37,22 +48,63 @@ export function same(a: string, b: string) {
   return x.byteLength === y.byteLength && (crypto.subtle as unknown as { timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean }).timingSafeEqual(x, y);
 }
 
-/** Validates the post form's interview section. Null when the poster didn't add one. */
-/** `current`: the saved deadline when editing; leaving it as is skips the window checks. */
-export function parseInterview(input: Record<string, unknown>, current?: number) {
-  if (input.interview !== "on") return null;
-  const questions = cleanQuestions(input.questions);
+/**
+ * Validates the post form's screening section (`screening`: voice | mcq). Null when the poster didn't add one.
+ * `current`: the saved kind and deadline when editing; the kind can't change, an unchanged deadline skips the window checks.
+ */
+export function parseInterview(input: Record<string, unknown>, current?: { kind: Kind; deadline: number }) {
+  const kind = (current?.kind ?? input.screening) as Kind | "none" | undefined;
+  if (kind !== "voice" && kind !== "mcq") return null;
+  let questions: string[] | Mcq[];
+  if (kind === "voice") {
+    questions = cleanQuestions(input.questions);
+    if (!questions.length) throw new Fail("Add at least one interview question");
+  } else {
+    let raw: unknown = [];
+    try {
+      raw = JSON.parse(String(input.mcq ?? "[]"));
+    } catch {}
+    try {
+      questions = cleanMcq(raw, true);
+    } catch (e) {
+      throw new Fail((e as Error).message);
+    }
+    if (!questions.length) throw new Fail("Add at least one test question");
+  }
   const deadline = Number(input.deadline);
-  if (!questions.length) throw new Fail("Add at least one interview question");
-  if (current !== undefined && Math.abs(deadline - current) < 60_000) return { questions, deadline: current };
+  if (current && Math.abs(deadline - current.deadline) < 60_000) return { kind, questions, deadline: current.deadline };
   if (!Number.isFinite(deadline) || deadline < Date.now() + 3_600_000) throw new Fail("Set the interview deadline at least an hour from now");
   if (deadline > Date.now() + 90 * 86_400_000) throw new Fail("The interview deadline must be within 90 days");
-  return { questions, deadline };
+  return { kind, questions, deadline };
 }
 
-export const insertInterview = (jobId: string, iv: { questions: string[]; deadline: number }) =>
-  env.DB.prepare("INSERT INTO interviews (job_id, slug, password, questions, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(jobId, code(12), `${code(4)}-${code(4)}`, JSON.stringify(iv.questions), iv.deadline, Date.now());
+export const insertInterview = (jobId: string, iv: { kind: Kind; questions: string[] | Mcq[]; deadline: number }) =>
+  env.DB.prepare("INSERT INTO interviews (job_id, slug, password, kind, questions, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .bind(jobId, code(12), `${code(4)}-${code(4)}`, iv.kind, JSON.stringify(iv.questions), iv.deadline, Date.now());
+
+const GENERATE = `You write multiple-choice screening questions for hiring. Reply with ONLY one JSON object:
+{ "questions": [{ "q": "the question", "options": ["A", "B", "C", "D"], "answer": 0-based index of the one correct option }] }
+Rules: exactly 4 short options per question and exactly one unambiguously correct; plausible distractors of similar length;
+no "all/none of the above"; spread the correct position evenly; test practical, job-relevant understanding, not trivia;
+plain text only (inline code like map() is fine, no code blocks); every question self-contained and distinct.`;
+
+/** AI-drafted MCQs for the post form; the poster reviews and edits them before posting. */
+export async function generateMcq(input: Record<string, unknown>) {
+  const topic = String(input.topic ?? "").trim().slice(0, MCQ.topicChars);
+  const summary = String(input.summary ?? "").trim().slice(0, MCQ.summaryChars);
+  const difficulty = typeof input.difficulty === "string" && Object.hasOwn(DIFFICULTY, input.difficulty) ? input.difficulty : "medium";
+  const count = Math.min(MCQ.maxQuestions, Math.max(1, Math.round(Number(input.count) || 10)));
+  if (!topic) throw new Fail("Add a topic to generate questions");
+  const out = await bedrockJson(
+    GENERATE,
+    `Topic: ${topic}\nDifficulty: ${difficulty}\nNumber of questions: ${count}${summary ? `\nContext from the recruiter: ${summary}` : ""}`,
+    Math.min(16_000, 2000 + count * 400),
+    0.7, // a second Generate should give new questions
+  );
+  const questions = out.ok ? cleanMcq((out.value as { questions?: unknown }).questions) : [];
+  if (!questions.length) throw new Fail("Couldn't generate questions right now. Try again, or write them yourself.");
+  return questions.slice(0, count);
+}
 
 const when = (ms: number) => `${new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} IST`;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -63,26 +115,27 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
  */
 export async function sendInvite(jobId: string, to: string) {
   const iv = await env.DB.prepare(
-    "SELECT i.slug, i.password, i.deadline, i.questions, j.title, j.company FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.job_id = ?",
-  ).bind(jobId).first<{ slug: string; password: string; deadline: number; questions: string; title: string; company: string }>();
+    "SELECT i.slug, i.password, i.deadline, i.kind, json_array_length(i.questions) AS n, j.title, j.company FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.job_id = ?",
+  ).bind(jobId).first<{ slug: string; password: string; deadline: number; kind: Kind; n: number; title: string; company: string }>();
   if (!iv) return;
   const link = `${env.APP_URL}/interview/${iv.slug}`;
-  const n = JSON.parse(iv.questions).length;
+  const voice = iv.kind === "voice";
+  const what = voice ? "voice interview" : "online test";
   const lines = [
     `Thanks for applying for ${iv.title} at ${iv.company}.`,
-    `The next step is a short AI voice interview: ${n} question${n === 1 ? "" : "s"}, ${INTERVIEW.seconds / 60} minutes at most. Take it any time before ${when(iv.deadline)}.`,
+    `The next step is a short ${voice ? "AI voice interview" : "multiple-choice test"}: ${screeningFacts(iv.kind, iv.n)} at most. Take it any time before ${when(iv.deadline)}.`,
     `Open ${link} and sign in with the email you applied with and this password: ${iv.password}`,
-    "You'll need a quiet place and a microphone. Chrome, Edge or Safari work best.",
+    voice ? "You'll need a quiet place and a microphone. Chrome, Edge or Safari work best." : "It's timed, one attempt: keep the tab open until you submit. Your answers save as you go.",
   ];
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;color:#111;max-width:520px">
 <p>${esc(lines[0])}</p><p>${esc(lines[1])}</p>
-<p style="margin:24px 0"><a href="${esc(link)}" style="background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">Start your interview</a></p>
+<p style="margin:24px 0"><a href="${esc(link)}" style="background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">Start your ${what}</a></p>
 <p>Password: <code style="font-size:16px;background:#f2f2f2;padding:2px 8px;border-radius:4px">${esc(iv.password)}</code><br>Use the email address this message was sent to.</p>
 <p style="color:#666;font-size:13px">${esc(lines[3])}</p></div>`;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject: `Your voice interview for ${iv.title} at ${iv.company}`, html, text: lines.join("\n\n") }),
+    body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject: `Your ${what} for ${iv.title} at ${iv.company}`, html, text: lines.join("\n\n") }),
     signal: AbortSignal.timeout(15_000),
   });
   if (res.ok) return;
@@ -91,31 +144,45 @@ export async function sendInvite(jobId: string, to: string) {
   console.error("resend rejected", res.status, detail);
 }
 
-type IvRow = { job_id: string; slug: string; password: string; questions: string; deadline: number; title: string; company: string; description: string; poster_id: string; closed_at: number | null };
+type IvRow = { job_id: string; slug: string; password: string; kind: Kind; questions: string; deadline: number; title: string; company: string; description: string; poster_id: string; closed_at: number | null };
 const interviewBySlug = (slug: string) =>
   env.DB.prepare("SELECT i.*, j.title, j.company, j.description, j.poster_id, j.closed_at FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.slug = ?")
     .bind(slug).first<IvRow>();
 const isOpen = (iv: IvRow) => iv.deadline > Date.now() && iv.closed_at === null;
 
-type SessRow = { id: string; job_id: string; applicant_id: string; status: SessionStatus; profile: string | null; started_at: number | null };
+type SessRow = { id: string; job_id: string; applicant_id: string; status: SessionStatus; profile: string | null; answers: string | null; started_at: number | null };
+// Answers still count this long after the clock hits zero (slow networks, the last click)
+const GRACE = 15_000;
+const testEnds = (startedAt: number, questions: number) => startedAt + mcqSeconds(questions) * 1000;
 
 export async function candidateView(slug: string, sessionId: string | undefined): Promise<CandidateView | null> {
   const iv = await interviewBySlug(slug);
   if (!iv) return null;
   const s = sessionId
     ? await env.DB.prepare(
-        `SELECT s.status, s.profile, s.started_at, u.name, u.location, a.phone FROM interview_sessions s
+        `SELECT s.id, s.status, s.profile, s.answers, s.started_at, u.name, u.location, a.phone FROM interview_sessions s
          JOIN users u ON u.id = s.applicant_id
          JOIN applications a ON a.job_id = s.job_id AND a.applicant_id = s.applicant_id
          WHERE s.id = ? AND s.job_id = ?`,
-      ).bind(sessionId, iv.job_id).first<{ status: SessionStatus; profile: string | null; started_at: number | null; name: string; location: string | null; phone: string | null }>()
+      ).bind(sessionId, iv.job_id).first<{ id: string; status: SessionStatus; profile: string | null; answers: string | null; started_at: number | null; name: string; location: string | null; phone: string | null }>()
     : null;
+  const questions = JSON.parse(iv.questions) as string[] | Mcq[];
+  // A test whose time ran out while the tab was closed is submitted with what was saved
+  if (s?.status === "live" && iv.kind === "mcq" && testEnds(s.started_at!, questions.length) + GRACE < Date.now()) {
+    await finishMcq(s.id);
+    s.status = "done";
+  }
   return {
-    slug, title: iv.title, company: iv.company, deadline: iv.deadline, questions: JSON.parse(iv.questions).length, open: isOpen(iv),
+    slug, kind: iv.kind, title: iv.title, company: iv.company, deadline: iv.deadline, questions: questions.length, open: isOpen(iv),
     session: s && {
       status: s.status,
       startedAt: s.started_at,
       prefill: s.profile ? JSON.parse(s.profile) : { name: s.name, city: s.location ?? "", phone: s.phone ?? "" },
+      test: s.status === "live" && iv.kind === "mcq" ? {
+        questions: (questions as Mcq[]).map(({ q, options }) => ({ q, options })),
+        answers: cleanAnswers(JSON.parse(s.answers ?? "[]"), questions as Mcq[]),
+        left: testEnds(s.started_at!, questions.length) - Date.now(), // ms, so the client clock doesn't matter
+      } : null,
     },
   };
 }
@@ -155,6 +222,7 @@ export async function saveProfile(slug: string, sessionId: string | undefined, p
 /** Checks the candidate may (re)join now and builds the agent's job metadata. */
 async function attempt(slug: string, sessionId: string | undefined) {
   const { iv, s } = await sessionFor(slug, sessionId);
+  if (iv.kind !== "voice") throw new Fail("This link is for a written test, not a voice interview.");
   const now = Date.now();
   if (s.status === "live" && s.started_at! + INTERVIEW.seconds * 1000 < now) throw new Fail("Your interview time is over.");
   if (s.status !== "onboarded" && s.status !== "live") throw new Fail(s.status === "verified" ? "Fill in your details first." : "You've already completed this interview.");
@@ -208,6 +276,59 @@ export async function warmInterview(slug: string, sessionId: string | undefined)
   if (!agent_dispatches.some((d) => d.agent_name === env.LIVEKIT_AGENT_NAME)) {
     await api("CreateDispatch", { room: s.id, agent_name: env.LIVEKIT_AGENT_NAME, metadata });
   }
+}
+
+/** Starts the MCQ clock (once; a reload resumes it). The page then refreshes to get the questions. */
+export async function startTest(slug: string, sessionId: string | undefined) {
+  const { iv, s } = await sessionFor(slug, sessionId);
+  if (iv.kind !== "mcq") throw new Fail("This link is for a voice interview.");
+  if (s.status === "verified") throw new Fail("Fill in your details first.");
+  if (s.status !== "onboarded") return;
+  if (!isOpen(iv)) throw new Fail("This test has closed.");
+  const n = (JSON.parse(iv.questions) as Mcq[]).length;
+  await env.DB.prepare("UPDATE interview_sessions SET status = 'live', started_at = ?, answers = ? WHERE id = ? AND status = 'onboarded'")
+    .bind(Date.now(), JSON.stringify(Array(n).fill(-1)), s.id).run();
+}
+
+/** Saves one pick (-1 clears it) while the clock runs. Past the time limit, submits what's saved instead. */
+export async function saveAnswer(slug: string, sessionId: string | undefined, index: number, pick: number) {
+  const { iv, s } = await sessionFor(slug, sessionId);
+  if (iv.kind !== "mcq" || s.status !== "live") throw new Fail("This test has already been submitted.");
+  const questions = JSON.parse(iv.questions) as Mcq[];
+  if (testEnds(s.started_at!, questions.length) + GRACE < Date.now()) {
+    await finishMcq(s.id);
+    throw new Fail("Time's up. Your saved answers were submitted.");
+  }
+  const q = questions[index];
+  if (!Number.isInteger(index) || !q || !Number.isInteger(pick) || pick < -1 || pick >= q.options.length) throw new Fail("Invalid answer.");
+  await env.DB.prepare("UPDATE interview_sessions SET answers = json_set(answers, ?, ?) WHERE id = ? AND status = 'live'")
+    .bind(`$[${index}]`, pick, s.id).run();
+}
+
+export async function submitTest(slug: string, sessionId: string | undefined) {
+  const { iv, s } = await sessionFor(slug, sessionId);
+  if (iv.kind === "mcq" && s.status === "live") await finishMcq(s.id);
+}
+
+/** Grades a live MCQ attempt from its saved picks (no AI: the key decides) and tells the poster. Safe to call twice. */
+async function finishMcq(sessionId: string) {
+  const r = await env.DB.prepare(
+    `SELECT s.answers, s.job_id, s.applicant_id, i.questions, j.poster_id FROM interview_sessions s
+     JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'mcq' JOIN jobs j ON j.id = s.job_id WHERE s.id = ? AND s.status = 'live'`,
+  ).bind(sessionId).first<{ answers: string | null; job_id: string; applicant_id: string; questions: string; poster_id: string }>();
+  if (!r) return;
+  const questions = JSON.parse(r.questions) as Mcq[];
+  const answers = cleanAnswers(JSON.parse(r.answers ?? "[]"), questions);
+  const report = gradeMcq(questions, answers);
+  const upd = await env.DB.prepare("UPDATE interview_sessions SET status = 'done', answers = ?, report = ?, score = ?, ended_at = ? WHERE id = ? AND status = 'live'")
+    .bind(JSON.stringify(answers), JSON.stringify(report), report.score, Date.now(), sessionId).run();
+  if (upd.meta.changes) await pingPoster(r.poster_id, r.job_id, r.applicant_id);
+}
+
+/** The poster's open applicant list refetches on this. */
+async function pingPoster(posterId: string, jobId: string, applicantId: string) {
+  const status = await env.DB.prepare("SELECT status FROM applications WHERE job_id = ? AND applicant_id = ?").bind(jobId, applicantId).first<"submitted">("status");
+  if (status) sendTo(posterId, { t: "app", jobId, applicantId, status });
 }
 
 /** LiveKit access token: an HS256 JWT signed with the project secret (same claims as the server SDK, no dependency). */
@@ -265,19 +386,23 @@ export async function evaluate(sessionId: string, final = true) {
   }
   await env.DB.prepare("UPDATE interview_sessions SET status = ?, report = ?, score = ? WHERE id = ?")
     .bind(report ? "done" : "failed", report && JSON.stringify(report), report?.score ?? null, sessionId).run();
-  // The poster's open applicant list refetches on this
-  const status = await env.DB.prepare("SELECT status FROM applications WHERE job_id = ? AND applicant_id = ?").bind(r.job_id, r.applicant_id).first<"submitted">("status");
-  if (status) sendTo(r.poster_id, { t: "app", jobId: r.job_id, applicantId: r.applicant_id, status });
+  await pingPoster(r.poster_id, r.job_id, r.applicant_id);
 }
 
 /** Full result for the poster, or null if they don't own the job. */
 export async function interviewResult(posterId: string, jobId: string, applicantId: string): Promise<InterviewResult | null> {
   const s = await env.DB.prepare(
-    `SELECT s.* FROM interview_sessions s JOIN jobs j ON j.id = s.job_id AND j.poster_id = ?1 WHERE s.job_id = ?2 AND s.applicant_id = ?3`,
-  ).bind(posterId, jobId, applicantId).first<SessRow & { transcript: string | null; report: string | null; ended_at: number | null }>();
+    `SELECT s.*, i.kind, i.questions FROM interview_sessions s JOIN jobs j ON j.id = s.job_id AND j.poster_id = ?1 JOIN interviews i ON i.job_id = s.job_id
+     WHERE s.job_id = ?2 AND s.applicant_id = ?3`,
+  ).bind(posterId, jobId, applicantId).first<SessRow & { kind: Kind; questions: string; transcript: string | null; report: string | null; ended_at: number | null }>();
   if (!s) return null;
   const parse = <T,>(v: string | null) => (v ? (JSON.parse(v) as T) : null);
-  return { status: s.status, profile: parse(s.profile), transcript: parse(s.transcript) ?? [], report: parse(s.report), startedAt: s.started_at, endedAt: s.ended_at };
+  const answers = s.status === "done" ? parse<number[]>(s.answers) : null;
+  const review = s.kind === "mcq" && answers ? (JSON.parse(s.questions) as Mcq[]).map((q, i) => ({ ...q, picked: answers[i] ?? -1 })) : [];
+  return {
+    kind: s.kind, status: s.status, profile: parse(s.profile), transcript: parse(s.transcript) ?? [], report: parse(s.report), review,
+    startedAt: s.started_at, endedAt: s.ended_at,
+  };
 }
 
 /** Poster retries a failed evaluation. */
@@ -290,11 +415,17 @@ export async function retryEvaluation(posterId: string, jobId: string, applicant
 }
 
 /**
- * Cron: jobs whose interview deadline passed stop taking applications, and gradings still "processing" an hour after
- * the call (their queue message ended up in the DLQ) become "failed" so the poster sees a Retry button instead of a spinner.
+ * Cron: jobs whose interview deadline passed stop taking applications, gradings still "processing" an hour after
+ * the call (their queue message ended up in the DLQ) become "failed" so the poster sees a Retry button instead of a spinner,
+ * and MCQ tests abandoned mid-way are submitted with what was saved once their time is up.
  */
 export async function closeExpired() {
   const now = Date.now();
+  const { results: stale } = await env.DB.prepare(
+    `SELECT s.id FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id
+     WHERE i.kind = 'mcq' AND s.status = 'live' AND s.started_at + json_array_length(i.questions) * ?1 + ?2 < ?3`,
+  ).bind(MCQ.secondsPerQuestion * 1000, GRACE, now).all<{ id: string }>();
+  await Promise.all(stale.map((s) => finishMcq(s.id)));
   await env.DB.batch([
     env.DB.prepare("UPDATE jobs SET closed_at = ?1 WHERE closed_at IS NULL AND id IN (SELECT job_id FROM interviews WHERE deadline <= ?1)").bind(now),
     env.DB.prepare("UPDATE interview_sessions SET status = 'failed' WHERE status = 'processing' AND ended_at < ?").bind(now - 3_600_000),

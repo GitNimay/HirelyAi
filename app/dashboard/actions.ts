@@ -3,7 +3,8 @@
 import { env, waitUntil } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
 import { Fail, failed, text, viewer, writer } from "@/lib/guard";
-import { insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
+import { generateMcq, insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
+import type { Kind } from "@/lib/interview-fields";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
 import { canPostJobs, roleOf } from "@/lib/companies";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
@@ -362,7 +363,10 @@ async function createJob(input: Record<string, unknown>) {
   return getJob(me, id);
 }
 
-/** The poster edits a listing. Company stays; an existing voice interview's questions and deadline can change, but it can't be added or removed. */
+/**
+ * The poster edits a listing. Company stays; an existing screening's questions and deadline can change, but it can't be
+ * added, removed or switched between voice and MCQ. MCQ questions lock once a candidate has started (their picks index them).
+ */
 export async function updateJob(jobId: string, input: Record<string, unknown>) {
   return editJob(String(jobId), input ?? {}).then((job) => ({ job: job! }), failed);
 }
@@ -370,10 +374,15 @@ export async function updateJob(jobId: string, input: Record<string, unknown>) {
 async function editJob(id: string, input: Record<string, unknown>) {
   const me = await writer();
   const job = jobFields(input);
-  const current = await env.DB.prepare("SELECT i.deadline FROM jobs j LEFT JOIN interviews i ON i.job_id = j.id WHERE j.id = ? AND j.poster_id = ?")
-    .bind(id, me).first<{ deadline: number | null }>();
+  const current = await env.DB.prepare(
+    `SELECT i.deadline, i.kind, i.questions, EXISTS (SELECT 1 FROM interview_sessions s WHERE s.job_id = j.id AND s.started_at IS NOT NULL) AS started
+     FROM jobs j LEFT JOIN interviews i ON i.job_id = j.id WHERE j.id = ? AND j.poster_id = ?`,
+  ).bind(id, me).first<{ deadline: number | null; kind: Kind | null; questions: string | null; started: number }>();
   if (!current) throw new Fail("Job not found");
-  const interview = current.deadline === null ? null : parseInterview({ ...input, interview: "on" }, current.deadline);
+  const interview = current.deadline === null ? null : parseInterview(input, { kind: current.kind!, deadline: current.deadline });
+  if (interview?.kind === "mcq" && current.started && JSON.stringify(interview.questions) !== current.questions) {
+    throw new Fail("Test questions can't change after a candidate has started the test");
+  }
   await env.DB.batch([
     env.DB.prepare("UPDATE jobs SET title = ?, location = ?, workplace = ?, type = ?, level = ?, salary = ?, description = ? WHERE id = ? AND poster_id = ?")
       .bind(job.title, job.location, job.workplace, job.type, job.level, job.salary, job.description, id, me),
@@ -539,6 +548,16 @@ export const loadUnseen = async () => unseenCount(await viewer());
 /** The poster's view of one applicant's voice interview: onboarding answers, transcript and AI evaluation. */
 export async function loadInterview(jobId: string, applicantId: string) {
   return interviewResult(await viewer(), String(jobId), String(applicantId));
+}
+
+/** AI-drafted MCQs for the post form (topic, difficulty, count, optional context). */
+export async function generateQuestions(input: Record<string, unknown>) {
+  try {
+    await writer();
+    return { questions: await generateMcq(input ?? {}) };
+  } catch (e) {
+    return failed(e);
+  }
 }
 
 export async function retryInterview(jobId: string, applicantId: string) {
