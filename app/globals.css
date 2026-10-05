@@ -267,3 +267,14 @@ select option {
   background-color: var(--background);
   background-image: repeating-linear-gradient(45deg, var(--border) 0 1px, transparent 1px 12px);
 }
+
+/* Landing page scales with the screen: rem grows past 1440px wide (16px → 20px at 1920 → 24px cap),
+   so text, spacing and the 75rem column all grow together. Dashboard keeps its fixed 16px. */
+html:has([data-landing]) {
+  font-size: clamp(16px, calc(100vw / 120 + 4px), 24px);
+}
+/* Icons take a px size prop; map the ones the landing uses onto rem so they keep pace with the text. */
+[data-landing] svg[width="12"] { width: 0.75rem; height: 0.75rem; }
+[data-landing] svg[width="14"] { width: 0.875rem; height: 0.875rem; }
+[data-landing] svg[width="16"] { width: 1rem; height: 1rem; }
+[data-landing] svg[width="24"] { width: 1.5rem; height: 1.5rem; }
