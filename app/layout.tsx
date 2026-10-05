@@ -27,8 +27,8 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // Saved by the account menu. No cookie (or "system") = follow the OS, see globals.css
-  const theme = (await cookies()).get("theme")?.value;
+  // Saved by the account menu / theme toggle. No cookie = light; "system" = follow the OS, see globals.css
+  const theme = (await cookies()).get("theme")?.value ?? "light";
   return (
     <html
       lang="en"

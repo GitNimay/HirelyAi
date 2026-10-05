@@ -50,6 +50,9 @@ export function Logo({ size = 48, faint = true }: { size?: number; faint?: boole
   );
 }
 
+/** Under the sign-in / sign-up footers: back to the landing page. */
+const homeLink = <Link href="/" className="mt-3 block text-xs text-muted hover:text-foreground">Go to home</Link>;
+
 /** The auth card. Until Clerk has loaded in the browser the form is placeholders; with `busy` (a status label) it stays so, above `children`. */
 export function Shell({ title, subtitle, children, footer, busy }: { title: string; subtitle: ReactNode; children?: ReactNode; footer?: ReactNode; busy?: string }) {
   const { isLoaded } = useAuth();
@@ -282,7 +285,7 @@ export function SignInForm() {
     <Shell
       title="Welcome back"
       subtitle="Log in to your account"
-      footer={<>Don&apos;t have an account? <Link href="/sign-up" className="text-link hover:underline">Sign up</Link></>}
+      footer={<>Don&apos;t have an account? <Link href="/sign-up" className="text-link hover:underline">Sign up</Link>{homeLink}</>}
     >
       <AuthBody
         cta="Log in"
@@ -308,7 +311,7 @@ export function SignUpForm() {
     <Shell
       title="Create your account"
       subtitle="Join Hire Excellence to connect and grow"
-      footer={<>Already have an account? <Link href="/sign-in" className="text-link hover:underline">Log in</Link></>}
+      footer={<>Already have an account? <Link href="/sign-in" className="text-link hover:underline">Log in</Link>{homeLink}</>}
     >
       <AuthBody
         cta="Sign up"
