@@ -25,7 +25,7 @@ export function HeroVideo() {
         aria-label={muted ? "Play with sound" : "Mute"}
         className="relative w-[92%] border border-white/40 bg-black shadow-[0_24px_60px_rgb(0_0_0/0.35)] sm:w-[76%]"
       >
-        <video ref={ref} src="/landing/showreel.mp4" autoPlay loop muted playsInline preload="metadata" className="block aspect-video w-full" />
+        <video ref={ref} src="/landing/motion.mp4" autoPlay loop muted playsInline preload="metadata" className="block aspect-video w-full" />
         <span className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-black/60 px-2.5 py-1.5 text-xs text-white backdrop-blur">
           <Icon d={muted ? speakerOff : speakerOn} size={14} />
           {muted ? "Tap for sound" : "Sound on"}
