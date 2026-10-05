@@ -1,3 +1,4 @@
+import { Tiny5 } from "next/font/google";
 import Link from "next/link";
 import { ThemeToggle } from "./account-menu";
 import { Logo } from "./auth";
@@ -6,6 +7,8 @@ import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, Vo
 import { Icon, btnLg, btnOutline, btnPrimary } from "./ui";
 
 /* Landing page. Type scale is three sizes (display, text-sm, text-xs) in two weights (normal, medium). */
+
+const pixel = Tiny5({ subsets: ["latin"], weight: "400" });
 
 const chevron = "m9 18 6-6-6-6";
 const github =
@@ -116,6 +119,13 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               <path d={github} />
             </svg>
           </a>
+        </div>
+        <div aria-hidden className="-mx-4 border-t border-border px-4 py-12 sm:-mx-8 sm:px-8">
+          <svg viewBox="0 0 1000 120" className={`${pixel.className} w-full text-border`}>
+            <text x="0" y="96" textLength="1000" lengthAdjust="spacingAndGlyphs" fontSize="120" fill="none" stroke="currentColor" strokeWidth="1.5">
+              Hire Excellence
+            </text>
+          </svg>
         </div>
       </footer>
     </div>
