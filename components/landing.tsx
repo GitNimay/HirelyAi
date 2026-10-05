@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ThemeToggle } from "./account-menu";
 import { Logo } from "./auth";
 import { HeroVideo } from "./hero-video";
+import { HowItWorks } from "./landing-steps";
 import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, VoiceVisual } from "./landing-features";
 import { Icon, btnLg, btnOutline, btnPrimary } from "./ui";
 
@@ -33,7 +34,7 @@ const features: { tag: string; title: string; body: string; Visual: () => React.
 
 export function Landing({ signedIn }: { signedIn: boolean }) {
   const cta = signedIn ? { href: "/dashboard", label: "Dashboard" } : { href: "/sign-up", label: "Get started" };
-  const links = signedIn ? [["Features", "#features"]] : [["Features", "#features"], ["Log in", "/sign-in"]];
+  const links = signedIn ? [["Features", "#features"], ["How it works", "#how-it-works"]] : [["Features", "#features"], ["How it works", "#how-it-works"], ["Log in", "/sign-in"]];
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col border-border sm:border-x">
       <header className="sticky top-0 z-10 flex h-14 items-stretch border-b border-border bg-background/80 backdrop-blur">
@@ -92,6 +93,10 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           </div>
         </section>
 
+        <HowItWorks>
+          <span className={eyebrow}>How it works</span>
+          <h2 className={`${display} mt-6`}>From job post<br />to shortlist.</h2>
+        </HowItWorks>
       </main>
 
       <footer className="border-t border-border px-4 pt-12 sm:px-8">
