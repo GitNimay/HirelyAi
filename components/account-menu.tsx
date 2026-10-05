@@ -22,6 +22,20 @@ export function applyTheme(t: Theme) {
   else document.documentElement.dataset.theme = t;
 }
 
+/** One-click light/dark flip for public pages. Icons swap via CSS, so no state and no hydration mismatch. */
+export function ThemeToggle() {
+  const flip = () => {
+    const cur = document.documentElement.dataset.theme ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    applyTheme(cur === "light" ? "dark" : "light");
+  };
+  return (
+    <button type="button" onClick={flip} aria-label="Toggle light and dark mode" className="flex items-center px-4 text-muted transition-colors hover:text-foreground">
+      <Icon d={icons.sun} size={16} className="light:hidden" />
+      <Icon d={icons.moon} size={16} className="hidden light:block" />
+    </button>
+  );
+}
+
 /**
  * Account settings, theme and log out. In the sidebar it's a drop-up under your name; `compact` is a gear
  * button that drops down, for phones (where the sidebar is hidden) in your profile's header.

@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { Landing } from "@/components/landing";
 
 export default async function Home() {
+  // Everyone gets the landing page; signed-in visitors see "Dashboard" in place of the sign-up prompts
   const { userId } = await auth();
-  redirect(userId ? "/dashboard" : "/sign-in");
+  return <Landing signedIn={!!userId} />;
 }
