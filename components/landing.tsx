@@ -42,7 +42,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
   const cta = signedIn ? { href: "/dashboard", label: "Dashboard" } : { href: "/sign-up", label: "Get started" };
   const links = signedIn ? [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"]] : [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"], ["Log in", "/sign-in"]];
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col border-border sm:border-x">
+    <div data-landing className="mx-auto flex w-full max-w-[75rem] flex-1 flex-col border-border sm:border-x">
       <header className="sticky top-0 z-10 flex h-14 items-stretch border-b border-border bg-background/80 backdrop-blur">
         <Link href="/" aria-label="Hire Excellence" className="flex w-14 items-center justify-center border-r border-border">
           <Logo size={24} faint={false} />

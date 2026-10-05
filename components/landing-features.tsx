@@ -124,7 +124,7 @@ export function McqVisual() {
                 const on = picked && i === q.pick;
                 return (
                   <div key={o} className={`flex items-center gap-2 border px-2 py-1.5 text-xs transition-colors duration-300 ${on ? "border-foreground bg-background" : "border-border"}`}>
-                    <span className={`flex size-4 items-center justify-center border text-[10px] transition-colors duration-300 ${on ? "border-foreground bg-foreground text-background" : "border-border text-muted"}`}>
+                    <span className={`flex size-4 items-center justify-center border text-[0.625rem] transition-colors duration-300 ${on ? "border-foreground bg-foreground text-background" : "border-border text-muted"}`}>
                       {"ABC"[i]}
                     </span>
                     {o}
@@ -159,7 +159,7 @@ export function ScoreVisual() {
   return (
     <Frame label="Grading" tone="pink" frameRef={ref}>
       <div className="flex items-center gap-2.5 border-b border-border pb-2.5">
-        <span className="flex size-6 items-center justify-center rounded-full bg-surface-hover text-[10px] font-medium text-muted">PS</span>
+        <span className="flex size-6 items-center justify-center rounded-full bg-surface-hover text-[0.625rem] font-medium text-muted">PS</span>
         <span className="text-xs font-medium">Priya S.</span>
         <span className="ml-auto text-xs text-muted">Frontend Engineer</span>
       </div>
@@ -182,7 +182,7 @@ export function ScoreVisual() {
           )}
         </AnimatePresence>
       </div>
-      <ul className="mt-3 h-[66px] space-y-1.5">
+      <ul className="mt-3 h-[4.125rem] space-y-1.5">
         <AnimatePresence>
           {NOTES.slice(0, Math.max(0, step - 1)).map((n) => (
             <motion.li
@@ -239,7 +239,7 @@ export function ResumeVisual() {
         </span>
       </div>
       <div className="mt-3 flex items-center gap-2.5">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-hover text-[10px] font-medium text-muted">PS</span>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-hover text-[0.625rem] font-medium text-muted">PS</span>
         <span className="min-w-0 flex-1 text-xs">
           <Fill on={step >= 2} w="45%" className="font-medium">Priya Sharma</Fill>
           <Fill on={step >= 2} w="70%" className="text-muted">Frontend Engineer · Pune</Fill>
@@ -249,7 +249,7 @@ export function ResumeVisual() {
       <div className="mt-1.5 space-y-2">
         {JOBS.map((j, i) => (
           <div key={j.co} className="flex items-center gap-2.5 text-xs">
-            <span className="flex size-6 shrink-0 items-center justify-center border border-border text-[10px] font-medium text-muted">{j.co[0]}</span>
+            <span className="flex size-6 shrink-0 items-center justify-center border border-border text-[0.625rem] font-medium text-muted">{j.co[0]}</span>
             <span className="min-w-0 flex-1">
               <Fill on={step >= 3 + i} w="60%">{j.role} · {j.co}</Fill>
             </span>
@@ -278,15 +278,15 @@ export function PipelineVisual() {
             const here = PEOPLE.filter((p) => p.at[step] === ci);
             return (
               <div key={c} className="min-w-0">
-                <p className="flex justify-between text-[10px] text-muted">
+                <p className="flex justify-between text-[0.625rem] text-muted">
                   <span className="truncate">{c}</span>
                   <span className="tabular-nums">{here.length}</span>
                 </p>
-                <div className="mt-1.5 min-h-[104px] space-y-1.5 bg-background p-1">
+                <div className="mt-1.5 min-h-[6.5rem] space-y-1.5 bg-background p-1">
                   {here.map((p) => (
                     <motion.div key={p.id} layoutId={p.id} transition={{ duration: 0.5, ease }} className="flex items-center gap-1.5 border border-border bg-surface px-1.5 py-1.5">
-                      <span className="min-w-0 truncate text-[10px] font-medium">{p.name}</span>
-                      <span className="ml-auto text-[10px] text-muted tabular-nums">{p.score}</span>
+                      <span className="min-w-0 truncate text-[0.625rem] font-medium">{p.name}</span>
+                      <span className="ml-auto text-[0.625rem] text-muted tabular-nums">{p.score}</span>
                     </motion.div>
                   ))}
                 </div>
