@@ -1,15 +1,13 @@
-import { Tiny5 } from "next/font/google";
 import Link from "next/link";
 import { ThemeToggle } from "./account-menu";
 import { Logo } from "./auth";
 import { HeroVideo } from "./hero-video";
 import { HowItWorks } from "./landing-steps";
+import { Wordmark } from "./landing-wordmark";
 import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, VoiceVisual } from "./landing-features";
 import { Icon, btnLg, btnOutline, btnPrimary } from "./ui";
 
 /* Landing page. Type scale is three sizes (display, text-sm, text-xs) in two weights (normal, medium). */
-
-const pixel = Tiny5({ subsets: ["latin"], weight: "400" });
 
 const chevron = "m9 18 6-6-6-6";
 const github =
@@ -31,10 +29,17 @@ const features: { tag: string; title: string; body: string; Visual: () => React.
   { tag: "Trust", Visual: CompanyVisual, title: "Verified company pages", body: "One page per domain, verified by work email. No look-alikes." },
 ];
 
+const faqs: [string, string][] = [
+  ["Is it free to use?", "Yes. Creating a profile, posting jobs and applying are free."],
+  ["How long is the AI interview?", "About five minutes, taken any time before the job's deadline."],
+  ["Who sees my interview?", "Only the recruiters of the job you applied to."],
+  ["Can I skip the voice interview?", "If the recruiter allows it, take a timed MCQ test instead."],
+  ["How are companies verified?", "Each page is tied to one domain and verified by a work email."],
+];
 
 export function Landing({ signedIn }: { signedIn: boolean }) {
   const cta = signedIn ? { href: "/dashboard", label: "Dashboard" } : { href: "/sign-up", label: "Get started" };
-  const links = signedIn ? [["Features", "#features"], ["How it works", "#how-it-works"]] : [["Features", "#features"], ["How it works", "#how-it-works"], ["Log in", "/sign-in"]];
+  const links = signedIn ? [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"]] : [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"], ["Log in", "/sign-in"]];
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col border-border sm:border-x">
       <header className="sticky top-0 z-10 flex h-14 items-stretch border-b border-border bg-background/80 backdrop-blur">
@@ -97,6 +102,24 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <span className={eyebrow}>How it works</span>
           <h2 className={`${display} mt-6`}>From job post<br />to shortlist.</h2>
         </HowItWorks>
+
+        <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
+          <div className="flex flex-col items-center text-center">
+            <span className={eyebrow}>FAQ</span>
+            <h2 className={`${display} mt-6`}>Questions, answered.</h2>
+          </div>
+          <div className="mx-auto mt-16 max-w-2xl border-t border-border">
+            {faqs.map(([q, a]) => (
+              <details key={q} className="group border-b border-border">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                  {q}
+                  <span className="text-muted transition-transform group-open:rotate-90"><Icon d={chevron} size={14} /></span>
+                </summary>
+                <p className="-mt-1 pb-5 text-sm text-muted">{a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-border px-4 pt-12 sm:px-8">
@@ -126,11 +149,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           </a>
         </div>
         <div aria-hidden className="-mx-4 border-t border-border px-4 py-12 sm:-mx-8 sm:px-8">
-          <svg viewBox="0 0 1000 120" className={`${pixel.className} w-full text-border`}>
-            <text x="0" y="96" textLength="1000" lengthAdjust="spacingAndGlyphs" fontSize="120" fill="none" stroke="currentColor" strokeWidth="1.5">
-              Hire Excellence
-            </text>
-          </svg>
+          <Wordmark />
         </div>
       </footer>
     </div>
