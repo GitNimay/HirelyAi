@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AccountMenu } from "@/components/account-menu";
 import { Logo } from "@/components/auth";
 import { Nav } from "@/components/nav";
+import { PostButton } from "@/components/post-button";
 import { QuickNotifications } from "@/components/notifications";
 import { ProfileCard } from "@/components/profile-card";
 import { getSummary, signedIn } from "@/lib/profile";
@@ -31,7 +32,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <span className="hidden text-sm font-semibold tracking-tight xl:inline">Hire Excellence</span>
         </Link>
         <Nav unseen={unseen} me={me?.handle ?? ""} />
-        <AccountMenu name={name} email={email} imageUrl={me?.imageUrl} />
+        <div className="mt-auto space-y-4 border-t border-border pt-4">
+          <PostButton viewer={{ id: userId, name, imageUrl: me?.imageUrl }} />
+          <AccountMenu name={name} email={email} imageUrl={me?.imageUrl} />
+        </div>
       </aside>
       {/* Phone: bottom tab bar (the aside is hidden) */}
       <div className="sm:hidden"><Nav unseen={unseen} me={me?.handle ?? ""} /></div>

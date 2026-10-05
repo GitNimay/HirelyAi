@@ -66,6 +66,14 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds, si
     else if (e.t === "post" && !single && !list && e.authorId !== viewer.id && (tab === "for-you" || following.has(e.authorId))) setFresh((n) => n + 1);
   });
 
+  // Posts made from the sidebar's Post button (PostButton) land at the top of the home timeline
+  useEffect(() => {
+    if (single || list) return;
+    const onPost = (e: Event) => setPage((pg) => ({ ...pg, posts: [(e as CustomEvent<FeedPost>).detail, ...pg.posts] }));
+    window.addEventListener("posted", onPost);
+    return () => window.removeEventListener("posted", onPost);
+  }, [single, list]);
+
   const loadMore = useEffectEvent(() => {
     if (page.next && !loading) load(tab, true);
   });
@@ -339,7 +347,7 @@ function MediaButtons({ draft, disabled }: { draft: MediaDraft; disabled: boolea
   );
 }
 
-function Composer({ viewer, company, onPosted }: { viewer: Viewer; company?: AsCompany; onPosted: (p: FeedPost) => void }) {
+export function Composer({ viewer, company, onPosted }: { viewer: Viewer; company?: AsCompany; onPosted: (p: FeedPost) => void }) {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
