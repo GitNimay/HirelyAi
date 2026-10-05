@@ -15,7 +15,7 @@ function enter(e: React.MouseEvent<SVGTSpanElement>) {
   const el = e.currentTarget;
   gsap.killTweensOf(el);
   gsap.set(el, { opacity: 1, attr: { "stroke-dashoffset": 0 } });
-  gsap.to(el, { attr: { "stroke-dashoffset": -LOOP }, duration: 8, ease: "none", repeat: -1 });
+  gsap.to(el, { attr: { "stroke-dashoffset": -LOOP }, duration: 4, ease: "none", repeat: -1 });
 }
 
 function leave(e: React.MouseEvent<SVGTSpanElement>) {
