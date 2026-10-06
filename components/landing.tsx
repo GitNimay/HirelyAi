@@ -5,7 +5,7 @@ import { HeroVideo } from "./hero-video";
 import { HowItWorks } from "./landing-steps";
 import { Wordmark } from "./landing-wordmark";
 import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, VoiceVisual } from "./landing-features";
-import { Icon, btnLg, btnOutline, btnPrimary } from "./ui";
+import { Icon, btnLg, btnOutline, btnPrimary, icons } from "./ui";
 
 /* Landing page. Type scale is three sizes (display, text-sm, text-xs) in two weights (normal, medium). */
 
@@ -28,6 +28,21 @@ const features: { tag: string; title: string; body: string; Visual: () => React.
   { tag: "Profile", Visual: ResumeVisual, title: "Resume to profile", body: "Upload a resume and the profile fills itself. Export an ATS-clean PDF." },
   { tag: "Pipeline", Visual: PipelineVisual, title: "One hiring pipeline", body: "Submitted, viewed, shortlisted, rejected. The interview rides along." },
   { tag: "Trust", Visual: CompanyVisual, title: "Verified company pages", body: "One page per domain, verified by work email. No look-alikes." },
+];
+
+const sides = (signedIn: boolean) => [
+  {
+    tag: "For candidates", icon: icons.network, title: "Get heard, not filtered.",
+    body: "Every applicant gets a real first round, so your experience speaks before a keyword filter does.",
+    points: ["Interview any time before the deadline", "Profile filled from your resume", "ATS-clean PDF export", "Hear back in days, not weeks"],
+    cta: signedIn ? { href: "/dashboard/jobs", label: "Browse jobs" } : { href: "/sign-up", label: "Find a job" },
+  },
+  {
+    tag: "For recruiters", icon: icons.company, title: "Meet the right people first.",
+    body: "Skip the phone screens. Open a ranked shortlist with the reasoning behind every score.",
+    points: ["No interviews to schedule", "Score and fit verdict per applicant", "Strengths and concerns, in writing", "A verified page for your company"],
+    cta: signedIn ? { href: "/dashboard/jobs/post", label: "Post a job" } : { href: "/sign-up", label: "Start hiring" },
+  },
 ];
 
 const faqs: [string, string][] = [
@@ -103,6 +118,36 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <span className={eyebrow}>How it works</span>
           <h2 className={`${display} mt-6`}>From job post<br />to shortlist.</h2>
         </HowItWorks>
+
+        <section id="both-sides" className="scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
+          <div className="flex flex-col items-center text-center">
+            <span className={eyebrow}>Built for both sides</span>
+            <h2 className={`${display} mt-6 max-w-2xl`}>One interview,<br />two sides served.</h2>
+          </div>
+          <div className="mx-auto mt-16 grid max-w-4xl gap-x-16 gap-y-16 sm:grid-cols-2">
+            {sides(signedIn).map((s, i) => (
+              <article key={s.tag} className="flex flex-col">
+                <div className="flex items-center gap-2 text-muted">
+                  <Icon d={s.icon} size={14} className="shrink-0" />
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted">{s.tag}</span>
+                </div>
+                <h3 className="mt-8 text-sm font-medium">{s.title}</h3>
+                <p className="mt-1.5 max-w-sm text-sm text-muted">{s.body}</p>
+                <ul className="mt-8 flex-1 space-y-3 text-sm">
+                  {s.points.map((p) => (
+                    <li key={p} className="flex items-center gap-3">
+                      <Icon d={icons.check} size={14} className="shrink-0 text-muted" />
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+                <Link href={s.cta.href} className={`${i ? btnPrimary : btnOutline} ${btnLg} mt-10 self-start`}>
+                  {s.cta.label} <Icon d={chevron} size={14} />
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
 
         <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
           <div className="flex flex-col items-center text-center">
