@@ -24,8 +24,8 @@ function useStep(count: number, ms: number) {
   return [ref, reduce ? count - 1 : step] as const;
 }
 
-// One pastel per tile. Light mode paints it flat; dark mode keeps only a faint tint of the hue (plus a tinted
-// border), since a full-strength or a darkened pastel both look muddy on the dark background.
+// One pastel per tile. Light mode paints it flat. Dark mode sits on the neutral surface and keeps the hue only as
+// a soft glow behind the mini screen, since a full-strength or a darkened pastel both look muddy on dark.
 const TONES = {
   lime: "#eef5a3",
   lavender: "#d6c9f8",
@@ -44,8 +44,9 @@ function Frame({ label, tone, frameRef, children }: { label: string; tone: keyof
       className="relative flex aspect-[4/3] items-center justify-center overflow-hidden border"
       style={{
         "--tone": TONES[tone],
-        background: "light-dark(var(--tone), color-mix(in oklab, var(--tone) 15%, var(--background)))",
-        borderColor: "light-dark(var(--border), color-mix(in oklab, var(--tone) 32%, var(--background)))",
+        backgroundColor: "light-dark(var(--tone), var(--surface))",
+        backgroundImage: "radial-gradient(ellipse 70% 60% at 50% 55%, light-dark(transparent, color-mix(in oklab, var(--tone) 12%, transparent)), transparent)",
+        borderColor: "var(--border)",
       } as React.CSSProperties}
     >
       <span className="absolute left-4 top-3 font-mono text-xs uppercase tracking-wider text-foreground/60">{label}</span>
