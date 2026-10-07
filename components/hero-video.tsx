@@ -18,7 +18,7 @@ export function HeroVideo() {
     setMuted(v.muted);
   };
   return (
-    <div className="relative mt-16 flex aspect-[16/10] w-full items-center justify-center overflow-hidden border border-border bg-[url(/landing/hero-bg.webp)] bg-cover bg-center sm:aspect-[2/1]">
+    <div className="relative mt-12 flex aspect-[16/10] w-full items-center justify-center overflow-hidden border border-border bg-[url(/landing/hero-bg.webp)] bg-cover bg-center sm:mt-16 sm:aspect-[2/1]">
       <button
         type="button"
         onClick={toggle}

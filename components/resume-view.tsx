@@ -19,7 +19,7 @@ export function ResumeSections({ r, own, companies = {}, experience }: { r: Resu
         <Block title="Contact">
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
             {[["Email", r.email], ["Phone", r.phone], ["City", r.city], ["Status", STATUSES[r.status]]].map(([k, v]) => (
-              <div key={k}><dt className="text-xs text-muted">{k}</dt><dd className="truncate">{v || "—"}</dd></div>
+              <div key={k}><dt className="text-xs text-muted">{k}</dt><dd className="break-words sm:truncate">{v || "—"}</dd></div>
             ))}
           </dl>
         </Block>
@@ -82,14 +82,14 @@ function Item({ title, sub, when, body, icon = icons.jobs, lead, action }: { tit
       {lead ?? <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-muted"><Icon d={icon} size={16} /></span>}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <h3 className="text-sm font-medium">{title}</h3>
+          <h3 className="break-words text-sm font-medium">{title}</h3>
           <span className="flex items-center gap-1">
             {when && <span className="text-xs text-muted">{when}</span>}
             {action}
           </span>
         </div>
-        {sub && <p className="text-sm text-muted">{sub}</p>}
-        {body && <p className="mt-1.5 whitespace-pre-line text-sm text-muted">{body}</p>}
+        {sub && <p className="break-words text-sm text-muted">{sub}</p>}
+        {body && <p className="mt-1.5 whitespace-pre-line break-words text-sm text-muted">{body}</p>}
       </div>
     </div>
   );

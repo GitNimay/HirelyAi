@@ -6,8 +6,8 @@ const STEPS = ["Your details", "Choose a method", "Review profile", "All set"];
 /** components/onboarding.tsx: title | card | steps, with the details card as placeholders. */
 export default function OnboardingLoading() {
   return (
-    <div className="flex min-h-screen flex-1 flex-col">
-      <header className="flex h-16 items-center justify-between px-5 sm:px-8">
+    <div className="flex min-h-dvh flex-1 flex-col sm:min-h-screen">
+      <header className="flex h-16 items-center justify-between px-4 sm:px-8">
         <span className="flex items-center gap-2.5">
           <Logo size={28} />
           <span className="text-sm font-medium tracking-tight">Hire Excellence</span>

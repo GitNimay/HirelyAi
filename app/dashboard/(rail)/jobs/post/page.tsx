@@ -13,7 +13,7 @@ export default async function PostJobPage({ searchParams }: { searchParams: Prom
   if (companies.length) return <PostJobForm companies={companies} initialCompany={(await searchParams).company} />;
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+      <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
         <Link href="/dashboard/jobs" aria-label="Back to jobs" className={backBtn}><Icon d={icons.back} size={18} /></Link>
         <h1 className="text-sm font-medium">Post a job</h1>
       </header>

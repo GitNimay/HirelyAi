@@ -22,8 +22,8 @@ export default async function ResumeTab({ params }: { params: Promise<{ handle: 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted">Jobs you apply to get this profile. Contact details stay private.</p>
         <div className="flex gap-2">
-          <a href="/api/resume" download className={btnOutline}><Icon d={download} size={14} />Download PDF</a>
-          <Link href="/settings/resume" className={btnPrimary}><Icon d={icons.edit} size={14} />Edit resume</Link>
+          <a href="/api/resume" download className={`${btnOutline} min-h-10 sm:min-h-0`}><Icon d={download} size={14} />Download PDF</a>
+          <Link href="/settings/resume" className={`${btnPrimary} min-h-10 sm:min-h-0`}><Icon d={icons.edit} size={14} />Edit resume</Link>
         </div>
       </div>
       <ProfileVisibility resumePublic={profile.resumePublic} openToWork={profile.openToWork} />

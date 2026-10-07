@@ -1,5 +1,5 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { cookies } from "next/headers";
 import { Feedback } from "@/components/kit";
@@ -31,6 +31,9 @@ export const metadata: Metadata = {
     ],
   },
 };
+
+// viewportFit cover lets env(safe-area-inset-*) report the iPhone notch and home indicator
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Saved by the account menu / theme toggle. No cookie = light; "system" = follow the OS, see globals.css

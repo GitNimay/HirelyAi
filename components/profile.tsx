@@ -11,7 +11,6 @@ import type { FollowDir, FollowPerson } from "@/lib/network";
 import { isVideo } from "@/lib/media";
 import type { Connection, Profile, Reply } from "@/lib/profile";
 import { AVATAR_PX, COVER_PX, LIMITS, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl } from "@/lib/profile-fields";
-import { AccountMenu } from "./account-menu";
 import { field, Field } from "./jobs";
 import { ask, BackButton, leaveIfClean, TabLabel, toast, useUnsavedGuard } from "./kit";
 import { PendingButton } from "./network";
@@ -72,14 +71,14 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
   const follow = () => run({ following: !rel.following }, () => actions.toggleFollow(profile.id));
   const connection: Record<Connection, React.ReactNode> = {
     none: (
-      <button type="button" className={btnPrimary} disabled={busy} onClick={() => run({ connection: "sent" }, () => actions.connect(profile.id), true)}>
+      <button type="button" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy} onClick={() => run({ connection: "sent" }, () => actions.connect(profile.id), true)}>
         <Icon d={icons.connect} size={14} />
         Connect
       </button>
     ),
     sent: <PendingButton disabled={busy} onClick={() => run({ connection: "none" }, () => actions.withdrawInvite(profile.id), true)} />,
     received: (
-      <button type="button" className={btnPrimary} disabled={busy} onClick={() => run({ connection: "connected", following: true }, () => actions.acceptInvite(profile.id), true)}>
+      <button type="button" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy} onClick={() => run({ connection: "connected", following: true }, () => actions.acceptInvite(profile.id), true)}>
         Accept
       </button>
     ),
@@ -87,7 +86,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
       <button
         type="button"
         title="Remove connection"
-        className={btnOutline}
+        className={`${btnOutline} min-h-10 sm:min-h-0`}
         disabled={busy}
         onClick={async () =>
           (await ask({ title: `Remove ${profile.name}?`, body: "They won't be notified. You can send a new invitation later.", confirm: "Remove connection", danger: true })) &&
@@ -102,18 +101,12 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
 
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+      <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
         <BackButton />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-medium leading-tight">{profile.name}</h1>
           <p className="text-xs text-muted">{profile.counts.posts} {profile.counts.posts === 1 ? "post" : "posts"}</p>
         </div>
-        {/* Phones have no sidebar: settings, theme and log out live here */}
-        {own && (
-          <div className="sm:hidden">
-            <AccountMenu name={profile.name} compact />
-          </div>
-        )}
       </header>
 
       <section>
@@ -123,20 +116,21 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
         </div>
 
         <div className="px-4">
-          <div className="flex items-end justify-between">
-            <div className="-mt-12 rounded-full border-4 border-background bg-background">
+          <div className="flex items-end justify-between gap-3">
+            {/* Phones: 80px avatar (the Avatar sets an inline size, so the child is sized here) */}
+            <div className="-mt-10 shrink-0 rounded-full border-4 border-background bg-background sm:-mt-12 [&>*]:size-20! sm:[&>*]:size-24!">
               <Avatar name={profile.name} src={profile.imageUrl ?? undefined} size={96} />
             </div>
-            <div className="flex gap-2 pt-3">
+            <div className="flex min-w-0 flex-wrap justify-end gap-2 pt-3">
               {own ? (
-                <Link href="/settings/profile" className={btnOutline}>
+                <Link href="/settings/profile" className={`${btnOutline} min-h-10 sm:min-h-0`}>
                   <Icon d={icons.edit} size={14} />
                   Edit profile
                 </Link>
               ) : (
                 <>
                   {connection[rel.connection]}
-                  <button type="button" aria-pressed={rel.following} className={btnOutline} disabled={busy} onClick={follow}>
+                  <button type="button" aria-pressed={rel.following} className={`${btnOutline} min-h-10 sm:min-h-0`} disabled={busy} onClick={follow}>
                     {rel.following ? "Following" : "Follow"}
                   </button>
                 </>
@@ -145,14 +139,14 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
           </div>
 
           <div className="mt-3">
-            <h2 className="font-display text-xl font-normal leading-tight text-balance">{profile.name}</h2>
-            <p className="mt-0.5 flex items-center gap-2 text-sm text-muted">
-              <span>@{profile.handle ?? profile.id}</span>
+            <h2 className="font-display text-xl font-normal leading-tight break-words text-balance">{profile.name}</h2>
+            <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted">
+              <span className="min-w-0 truncate">@{profile.handle ?? profile.id}</span>
               {!own && rel.followsYou && <span className="rounded-md bg-surface-hover px-1.5 py-0.5 text-xs">Follows you</span>}
               {profile.openToWork && <span className="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">Open to work</span>}
             </p>
           </div>
-          {profile.headline && <p className="mt-2 text-sm">{profile.headline}</p>}
+          {profile.headline && <p className="mt-2 break-words text-sm">{profile.headline}</p>}
           {profile.bio && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{profile.bio}</p>}
 
           <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
@@ -163,7 +157,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
               </li>
             )}
             {profile.website && (
-              <li className="flex min-w-0 items-center gap-1.5">
+              <li className="flex min-w-0 max-w-full items-center gap-1.5">
                 <Icon d={link} size={15} />
                 <a href={profile.website} target="_blank" rel="noopener noreferrer nofollow" className="truncate text-link hover:underline">
                   {shortUrl(profile.website)}
@@ -178,7 +172,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
             )}
           </ul>
 
-          <dl className="mt-3 flex gap-4 text-sm">
+          <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {([
               ["connections", profile.counts.connections, own ? "/dashboard/network?tab=connections" : null],
               ["following", profile.counts.following, `${base}/following`],
@@ -209,7 +203,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
           )}
         </div>
 
-        <nav aria-label="Profile sections" className="mt-3 flex border-b border-border">
+        <nav aria-label="Profile sections" className="mt-3 flex overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map((t) => {
             const active = pathname === t.href;
             return (
@@ -217,7 +211,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
                 key={t.href}
                 href={t.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex h-12 flex-1 items-center justify-center text-sm transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:bg-surface ${active ? "font-medium text-foreground" : "text-muted"}`}
+                className={`flex h-12 flex-1 items-center justify-center whitespace-nowrap px-3 text-sm transition-colors sm:px-0 outline-none hover:bg-surface hover:text-foreground focus-visible:bg-surface ${active ? "font-medium text-foreground" : "text-muted"}`}
               >
                 <TabLabel on={active}>{t.label}</TabLabel>
               </Link>
@@ -305,16 +299,16 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   }
 
   const coverSrc = cover?.url ?? (coverRemoved ? null : profile.coverUrl);
-  const overlay = "absolute flex size-9 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:opacity-50";
+  const overlay = "absolute flex size-10 items-center sm:size-9 justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:opacity-50";
 
   return (
     <form onSubmit={submit} onChange={() => setDirty(true)} className="space-y-4 pb-8">
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+        <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
           <Link href={back} onClick={leave} aria-label="Back to profile" className={backBtn}>
             <Icon d={icons.back} size={18} />
           </Link>
           <h1 className="flex-1 text-sm font-medium">Edit profile</h1>
-          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
+          <button aria-busy={busy} type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy}>Save</button>
         </header>
         <div className="relative aspect-[3/1] bg-gradient-to-br from-surface-hover to-surface">
           {/* eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media */}
@@ -384,8 +378,8 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           </Field>
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
-            <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
-            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
+            <Link href={back} onClick={leave} className={`${btnGhost} min-h-10 sm:min-h-0`}>Cancel</Link>
+            <button aria-busy={busy} type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy}>Save</button>
           </div>
         </div>
     </form>
@@ -476,7 +470,7 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
                   <span className="shrink-0 text-muted" suppressHydrationWarning>· {ago(r.createdAt)}</span>
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{r.body}</p>
-                <Link href={`/dashboard/post/${r.post.id}`} className="mt-3 block rounded-lg border border-border p-3 text-sm transition-colors hover:bg-surface">
+                <Link href={`/dashboard/post/${r.post.id}`} className="mt-3 block break-words rounded-lg border border-border p-3 text-sm transition-colors hover:bg-surface">
                   <span className="font-medium">{r.post.author.name}</span>
                   <p className="mt-0.5 line-clamp-2 text-muted">{r.post.body || (r.post.hasMedia ? "Photo or video" : "")}</p>
                 </Link>
@@ -555,7 +549,7 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
                 {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
               </div>
               {p.id !== viewerId && (
-                <button type="button" aria-pressed={p.iFollow} disabled={busy === p.id} onClick={() => follow(p)} className={p.iFollow ? btnOutline : btnPrimary}>
+                <button type="button" aria-pressed={p.iFollow} disabled={busy === p.id} onClick={() => follow(p)} className={`${p.iFollow ? btnOutline : btnPrimary} min-h-10 sm:min-h-0`}>
                   {p.iFollow ? "Following" : "Follow"}
                 </button>
               )}

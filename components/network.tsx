@@ -149,10 +149,11 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
-        <div className="flex h-14 items-center justify-between px-4">
-          <h1 className="text-sm font-medium">My Network</h1>
-          <dl className="flex gap-4 text-xs text-muted">
+      <header className="sticky top-14 sm:top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+        <div className="flex h-14 items-center justify-between gap-3 px-4">
+          <h1 className="shrink-0 text-sm font-medium">My Network</h1>
+          {/* Phone: the three counts scroll sideways rather than squeezing the title */}
+          <dl className="flex min-w-0 gap-3 overflow-x-auto whitespace-nowrap text-xs text-muted [scrollbar-width:none] sm:gap-4 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
             {(["connections", "following", "followers"] as const).map((k) => (
               <div key={k} className="flex flex-row-reverse gap-1">
                 <dt className="capitalize">{k}</dt>
@@ -182,7 +183,7 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
               onChange={(e) => setFind(e.target.value)}
               placeholder="Search people by name or headline"
               aria-label="Search people"
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none max-sm:text-base"
             />
           </label>
         </div>
@@ -262,7 +263,7 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search connections"
                 aria-label="Search connections"
-                className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none max-sm:text-base"
               />
             </label>
           }

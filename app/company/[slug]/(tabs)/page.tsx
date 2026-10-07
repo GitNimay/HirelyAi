@@ -22,7 +22,7 @@ export default async function AboutTab({ params }: { params: Promise<{ slug: str
     <div className="space-y-5 px-4 py-5">
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Overview</h2>
-        <p className="whitespace-pre-line text-sm text-muted">{c.about || (c.me.role ? "Add an overview so members know what the company does." : "No overview yet.")}</p>
+        <p className="whitespace-pre-line break-words text-sm text-muted">{c.about || (c.me.role ? "Add an overview so members know what the company does." : "No overview yet.")}</p>
       </section>
       <dl className="space-y-3 border-t border-border pt-5 text-sm">
         {details.filter(([, v]) => v).map(([k, v]) => (

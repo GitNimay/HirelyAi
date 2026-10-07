@@ -22,11 +22,11 @@ export function Modal({ title, onClose, wide, children }: { title: string; onClo
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       aria-label={title}
-      className={`m-auto w-[calc(100%-2rem)] rounded-xl border border-border bg-background p-0 text-foreground shadow-(--shadow-pop) backdrop:bg-black/60 light:backdrop:bg-black/30 transition-[opacity,scale] duration-150 ease-out starting:open:opacity-0 motion-safe:starting:open:scale-[0.98] ${wide ? "max-w-4xl" : "max-w-lg"}`}
+      className={`m-auto w-[calc(100%-2rem)] max-sm:max-h-[85dvh] max-sm:overflow-y-auto rounded-xl border border-border bg-background p-0 text-foreground shadow-(--shadow-pop) backdrop:bg-black/60 light:backdrop:bg-black/30 transition-[opacity,scale] duration-150 ease-out starting:open:opacity-0 motion-safe:starting:open:scale-[0.98] ${wide ? "max-w-4xl" : "max-w-lg"}`}
     >
       <div className="flex h-14 items-center justify-between border-b border-border px-5">
         <h2 className="text-sm font-medium">{title}</h2>
-        <button type="button" onClick={onClose} aria-label="Close" className={`${btnGhost} px-2`}>
+        <button type="button" onClick={onClose} aria-label="Close" className={`${btnGhost} px-2 max-sm:w-10`}>
           <Icon d={icons.close} size={16} />
         </button>
       </div>
@@ -77,7 +77,7 @@ export function Feedback() {
   return (
     <>
       {/* Bottom-right (above the phone tab bar); newest at the bottom, springs in from the right, older ones glide up */}
-      <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-20 z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-6 sm:right-6">
+      <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-6 sm:right-6">
         <AnimatePresence initial={false}>
           {toasts.map((t) => (
             <motion.div
@@ -93,7 +93,7 @@ export function Feedback() {
                 <Icon d={t.tone ? icons.close : icons.check} size={14} />
               </span>
               <p className="flex-1 font-medium">{t.text}</p>
-              <button type="button" aria-label="Dismiss" onClick={() => dismiss(t.id)} className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-foreground">
+              <button type="button" aria-label="Dismiss" onClick={() => dismiss(t.id)} className="flex size-7 shrink-0 items-center justify-center rounded-md max-sm:size-10 text-muted transition-colors hover:bg-surface-hover hover:text-foreground">
                 <Icon d={icons.close} size={14} />
               </button>
             </motion.div>
@@ -186,7 +186,7 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
       <div
         data-open={open || undefined}
         inert={!open}
-        className={cn("dd absolute z-20 rounded-xl border border-border bg-surface text-sm shadow-(--shadow-pop)", panelClassName)}
+        className={cn("dd absolute z-20 rounded-xl border border-border bg-surface text-sm shadow-(--shadow-pop) max-sm:max-w-[calc(100vw-2rem)]", panelClassName)}
       >
         <div>
           <div
@@ -297,7 +297,7 @@ export function Select({ options, value, defaultValue, onChange, name, required,
       <div
         data-open={open || undefined}
         inert={!open}
-        className={cn("dd absolute left-0 top-full z-30 mt-1 w-full min-w-max rounded-xl border border-border bg-surface text-sm text-foreground shadow-(--shadow-pop)", panelClassName)}
+        className={cn("dd absolute left-0 top-full z-30 mt-1 w-full min-w-max max-sm:w-max max-sm:min-w-0 max-sm:max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-surface text-sm text-foreground shadow-(--shadow-pop)", panelClassName)}
       >
         <div>
           <ul
@@ -318,7 +318,7 @@ export function Select({ options, value, defaultValue, onChange, name, required,
                 onMouseEnter={() => setActive(i)}
                 onClick={() => pick(o.value)}
                 style={{ "--i": Math.min(i, 8) } as CSSProperties}
-                className={cn("dd-item flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-2", i === active && "bg-surface-hover")}
+                className={cn("dd-item flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-2 max-sm:py-2.5", i === active && "bg-surface-hover")}
               >
                 {o.label}
                 {o.value === current && <Icon d={icons.check} size={14} className="shrink-0" />}
@@ -358,7 +358,7 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, fill }: {
 
   return (
     <LayoutGroup id={group}>
-    <div ref={strip} role="tablist" aria-label={label} onKeyDown={onKeyDown} {...hover.handlers} className={fill ? "relative flex h-14" : "relative flex h-10 px-2"}>
+    <div ref={strip} role="tablist" aria-label={label} onKeyDown={onKeyDown} {...hover.handlers} className={fill ? "relative flex h-14 max-sm:overflow-x-auto" : "relative flex h-10 px-2 max-sm:overflow-x-auto"}>
       <FluidHoverHighlight hover={hover} className={fill ? "bg-surface" : "rounded-md bg-surface"} />
       {tabs.map((t) => {
         const on = t.id === value;

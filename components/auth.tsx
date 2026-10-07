@@ -36,7 +36,7 @@ const btn =
 const btnSecondary = `${btn} relative tx-secondary`;
 const btnPrimary = `${btn} tx-primary`;
 const input =
-  "h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring";
+  "h-10 w-full rounded-lg border border-border bg-surface px-3 text-base text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring sm:text-sm";
 
 // White mark on dark, black mark on light
 // `faint` is the quiet watermark look of the auth screens; the app shell shows the mark at full strength
@@ -57,7 +57,7 @@ const homeLink = <Link href="/" className="mt-3 block text-xs text-muted hover:t
 export function Shell({ title, subtitle, children, footer, busy }: { title: string; subtitle: ReactNode; children?: ReactNode; footer?: ReactNode; busy?: string }) {
   const { isLoaded } = useAuth();
   return (
-    <main className="flex min-h-screen flex-1 items-center justify-center px-4 py-12">
+    <main className="flex min-h-dvh flex-1 items-center justify-center px-4 py-8 sm:min-h-screen sm:py-12">
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo />

@@ -13,14 +13,14 @@ export default async function CompaniesPage({ searchParams }: PageProps<"/dashbo
 
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
+      <header className="sticky top-14 sm:top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
         <h1 className="text-sm font-medium">Companies</h1>
         <Link href="/dashboard/companies/new" className={btnOutline}><Icon d={icons.plus} size={14} />Create a page</Link>
       </header>
       <form role="search" className="border-b border-border px-4 py-3">
         <label className="flex h-10 items-center gap-2 rounded-md border border-border px-3 transition-colors focus-within:border-ring">
           <Icon d={icons.search} size={16} className="text-muted" />
-          <input type="search" name="q" defaultValue={q} placeholder="Search companies" aria-label="Search companies" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted" />
+          <input type="search" name="q" defaultValue={q} placeholder="Search companies" aria-label="Search companies" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted max-sm:text-base" />
         </label>
       </form>
       {mine.length > 0 && <List title="Your pages" items={mine.map((c) => ({ ...c, note: c.role ? (c.role === "owner" ? "Owner" : "Admin") : "Verified employee" }))} />}
@@ -32,7 +32,7 @@ export default async function CompaniesPage({ searchParams }: PageProps<"/dashbo
 function List({ title, items, empty }: { title: string; items: (CompanyCard & { note?: string })[]; empty?: string }) {
   return (
     <section aria-label={title}>
-      <h2 className="border-b border-border px-4 py-3 text-sm font-medium">{title}</h2>
+      <h2 className="break-words border-b border-border px-4 py-3 text-sm font-medium">{title}</h2>
       {items.length === 0 ? (
         <p className="px-4 py-12 text-center text-sm text-muted">{empty}</p>
       ) : (

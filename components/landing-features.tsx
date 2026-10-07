@@ -41,7 +41,7 @@ function Frame({ label, tone, frameRef, children }: { label: string; tone: keyof
     <div
       ref={frameRef}
       aria-hidden
-      className="relative flex aspect-[4/3] items-center justify-center overflow-hidden border"
+      className="relative flex aspect-[6/5] items-center justify-center overflow-hidden border sm:aspect-[4/3]"
       style={{
         "--tone": TONES[tone],
         backgroundColor: "light-dark(var(--tone), var(--surface))",
@@ -50,7 +50,7 @@ function Frame({ label, tone, frameRef, children }: { label: string; tone: keyof
       } as React.CSSProperties}
     >
       <span className="absolute left-4 top-3 font-mono text-xs uppercase tracking-wider text-foreground/60">{label}</span>
-      <div className="mt-6 w-[80%] border border-border bg-surface p-4 shadow-pop">{children}</div>
+      <div className="mt-6 w-[88%] border border-border bg-surface p-4 shadow-pop sm:w-[80%]">{children}</div>
     </div>
   );
 }

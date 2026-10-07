@@ -7,12 +7,12 @@ export default function EditProfileLoading() {
       <PageHeader title="Edit profile" back className="gap-4 px-4" action={<Skeleton className="h-8 w-14 rounded-lg" />} />
       <Loading label="Loading your profile…" className="space-y-4">
         <Skeleton className="aspect-[3/1] rounded-none" />
-        <div className="px-5">
+        <div className="px-4 sm:px-5">
           <div className="-mt-14 w-fit rounded-full border-4 border-background bg-background">
             <Skeleton className="size-[88px] rounded-full" />
           </div>
         </div>
-        <div className="space-y-4 px-5">
+        <div className="space-y-4 px-4 sm:px-5">
           <FieldSkeleton w="10%" />
           <FieldSkeleton w="45%" />
           <FieldSkeleton w="12%" h="h-[98px]" />

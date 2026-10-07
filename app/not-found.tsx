@@ -6,7 +6,7 @@ export const metadata = { title: "Page not found | Hire Excellence" };
 
 export default function NotFound() {
   return (
-    <main className="flex min-h-screen flex-1 items-center justify-center px-4 py-12">
+    <main className="flex min-h-dvh flex-1 items-center justify-center px-4 py-12">
       <div className="flex w-full max-w-[360px] flex-col items-center text-center">
         <Logo />
         <h1 className="mt-6 font-display text-2xl font-normal text-balance">Page not found</h1>

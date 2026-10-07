@@ -146,14 +146,14 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
       <form onSubmit={submitDetails} noValidate className="space-y-5">
         <Head title="Tell us about yourself" sub="Recruiters use these to reach you. Only people you apply to see your phone number." />
         <F label="Full name" bad={show && detailsBad.name}>
-          <input value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })} maxLength={50} autoComplete="name" autoFocus placeholder="Ada Lovelace" className={`${input} h-10 ${show && detailsBad.name ? "border-danger" : "border-border"}`} />
+          <input value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })} maxLength={50} autoComplete="name" autoFocus placeholder="Ada Lovelace" className={`${input} h-10 max-sm:text-base ${show && detailsBad.name ? "border-danger" : "border-border"}`} />
         </F>
         <div className="grid gap-5 sm:grid-cols-2">
           <F label="Phone number" bad={show && detailsBad.phone}>
-            <input value={r.phone} onChange={(e) => setR({ ...r, phone: e.target.value })} type="tel" maxLength={30} autoComplete="tel" placeholder="+91 98765 43210" className={`${input} h-10 ${show && detailsBad.phone ? "border-danger" : "border-border"}`} />
+            <input value={r.phone} onChange={(e) => setR({ ...r, phone: e.target.value })} type="tel" maxLength={30} autoComplete="tel" placeholder="+91 98765 43210" className={`${input} h-10 max-sm:text-base ${show && detailsBad.phone ? "border-danger" : "border-border"}`} />
           </F>
           <F label="Current city" bad={show && detailsBad.city}>
-            <input value={r.city} onChange={(e) => setR({ ...r, city: e.target.value })} maxLength={60} autoComplete="address-level2" placeholder="Pune" className={`${input} h-10 ${show && detailsBad.city ? "border-danger" : "border-border"}`} />
+            <input value={r.city} onChange={(e) => setR({ ...r, city: e.target.value })} maxLength={60} autoComplete="address-level2" placeholder="Pune" className={`${input} h-10 max-sm:text-base ${show && detailsBad.city ? "border-danger" : "border-border"}`} />
           </F>
         </div>
         <F label="Which describes you best?">
@@ -234,11 +234,11 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
         <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email || "your email"}. This confirms the address recruiters will use to reach you, even if you signed in with Google, GitHub or X.`} />
         <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         {error && <Alert>{error}</Alert>}
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
+        <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
           <button type="button" onClick={() => go("review")} className={btnGhost} disabled={busy}><Icon d={icons.back} size={14} />Back</button>
-          <span className="flex items-center gap-4">
+          <span className="flex w-full flex-col-reverse items-center gap-3 sm:w-auto sm:flex-row sm:gap-4">
             <button type="button" onClick={sendCode} className="text-sm text-link hover:underline disabled:opacity-60" disabled={busy}>Resend code</button>
-            <button aria-busy={busy} type="submit" className={primary} disabled={busy || code.length !== 6}>Verify & create profile</button>
+            <button aria-busy={busy} type="submit" className={`${primary} w-full sm:w-auto`} disabled={busy || code.length !== 6}>Verify & create profile</button>
           </span>
         </div>
       </form>
@@ -282,8 +282,8 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
 export function StepFrame({ title, steps, current, stepKey, action, children }: { title: string; steps: string[]; current: number; stepKey: string; action?: ReactNode; children: ReactNode }) {
   const reduce = useReducedMotion();
   return (
-    <div className="flex min-h-screen flex-1 flex-col">
-      <header className="flex h-16 items-center justify-between px-5 sm:px-8">
+    <div className="flex min-h-dvh flex-1 flex-col sm:min-h-screen">
+      <header className="flex h-16 items-center justify-between px-4 sm:px-8">
         <span className="flex items-center gap-2.5">
           <Logo size={28} />
           <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
@@ -357,7 +357,7 @@ export function ThemeToggle() {
       type="button"
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       onClick={() => applyTheme(dark ? "light" : "dark")}
-      className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted transition-[background-color,color,transform,scale] duration-150 outline-none hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted sm:size-8 transition-[background-color,color,transform,scale] duration-150 outline-none hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon d={dark === false ? icons.moon : icons.sun} size={16} />
     </button>

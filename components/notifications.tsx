@@ -124,7 +124,7 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+      <header className="sticky top-14 z-10 border-b border-border bg-background/80 backdrop-blur sm:top-0">
         <div className="flex h-14 items-center justify-between px-4">
           <h1 className="text-sm font-medium">Notifications</h1>
           {page.items.some((n) => !n.read) && (
@@ -134,15 +134,17 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
             </button>
           )}
         </div>
-        <Tabs
-          label="Notification types"
-          tabs={TABS}
-          value={tab}
-          onChange={(t) => {
-            setTab(t);
-            setParam("tab", t === "all" ? null : t);
-          }}
-        />
+        <div className="overflow-x-auto [scrollbar-width:none] sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+          <Tabs
+            label="Notification types"
+            tabs={TABS}
+            value={tab}
+            onChange={(t) => {
+              setTab(t);
+              setParam("tab", t === "all" ? null : t);
+            }}
+          />
+        </div>
       </header>
 
       {items.length === 0 ? (
@@ -186,7 +188,7 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
       <Link
         href={n.link}
         onClick={() => onOpen(n)}
-        className="flex gap-3 px-4 py-3 pr-12 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex gap-3 px-4 py-3 pr-14 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:pr-12"
       >
         <span className="relative shrink-0 self-start">
           <Avatar name={first?.name ?? "?"} src={first?.imageUrl ?? undefined} size={40} />
@@ -200,7 +202,7 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
           </span>
           {hasPreview(n.type) && n.body && <span className="mt-0.5 line-clamp-2 block break-words text-xs text-muted">{n.body}</span>}
           <span className="mt-1 flex items-center gap-2 text-xs tabular-nums text-muted">
-            {ago(n.at)}
+            <span className="shrink-0 whitespace-nowrap">{ago(n.at)}</span>
             {!n.read && (
               <>
                 <span aria-hidden className="size-1.5 rounded-full bg-link" />
@@ -215,7 +217,7 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
         title="Delete notification"
         aria-label="Delete notification"
         onClick={() => onRemove(n)}
-        className={`${btnGhost} absolute right-3 top-3 px-2 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100`}
+        className={`${btnGhost} absolute right-2 top-1.5 min-h-10 min-w-10 px-2 sm:right-3 sm:top-3 sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100`}
       >
         <Icon d={icons.trash} size={14} />
       </button>

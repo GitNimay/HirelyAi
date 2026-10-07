@@ -44,20 +44,21 @@ export const icons = {
 };
 
 // A quick ease-out, a press that sinks, icons thicken on hover. Focus uses the global :focus-visible outline.
+// On phones the 32px height grows to a 40px tap target (max-sm: is phone-only, so desktop is unchanged).
 export const btn =
-  "inline-flex h-8 shrink-0 select-none items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-[background-color,color,box-shadow,transform,scale,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:duration-75 motion-safe:active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:transition-[stroke-width] [&_svg]:duration-100 hover:[&_svg]:stroke-[2.25]";
+  "inline-flex h-8 max-sm:h-10 shrink-0 select-none items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-[background-color,color,box-shadow,transform,scale,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:duration-75 motion-safe:active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:transition-[stroke-width] [&_svg]:duration-100 hover:[&_svg]:stroke-[2.25]";
 // Texture look (cult-ui texture-button), see tx-* in globals.css. Ghost stays flat for toolbar/icon actions.
 export const btnPrimary = `${btn} tx-primary`;
 export const btnOutline = `${btn} tx-secondary`;
 export const btnGhost = `${btn} text-muted hover:bg-surface-hover hover:text-foreground active:bg-surface`;
 export const btnDanger = `${btn} tx-danger`;
-/** Form controls are 40px (Geist medium); toolbar and inline buttons stay 32px (`btn`). */
+/** Form controls are 40px (Geist medium); toolbar and inline buttons stay 32px on desktop (`btn`, 40px on phones). */
 export const btnLg = "h-10 px-4";
 /** Icon-only back button in sticky page headers: 32px target, optically aligned to the header's padding. */
-export const backBtn = "-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:transition-[stroke-width] hover:[&_svg]:stroke-[2.25]";
+export const backBtn = "-ml-1.5 max-sm:-ml-2.5 flex size-8 max-sm:size-10 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:transition-[stroke-width] hover:[&_svg]:stroke-[2.25]";
 /** One row in a dropdown menu (see Menu in kit.tsx). */
 // No hover fill: Menu's fluid highlight slides under the rows (hence `relative`, to paint above it)
-export const menuItem = "dd-item relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none";
+export const menuItem = "dd-item relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 max-sm:py-2.5 text-left outline-none";
 
 /** Compact relative time: now, 5m, 3h, 2d, then a date. */
 export function ago(ms: number) {

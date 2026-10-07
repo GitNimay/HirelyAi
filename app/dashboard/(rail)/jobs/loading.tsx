@@ -9,16 +9,16 @@ export default function JobsLoading() {
       <PageHeader
         title="Jobs"
         tabs={["Search", "Saved", "Applied", "Posted"]}
-        action={<Link href="/dashboard/jobs/post" className={btnOutline}><Icon d={icons.plus} size={14} />Post a job</Link>}
+        action={<Link href="/dashboard/jobs/post" className={`${btnOutline} h-10 sm:h-8`}><Icon d={icons.plus} size={14} />Post a job</Link>}
       />
       <div aria-hidden className="space-y-2 border-b border-border px-4 py-3">
-        <div className="flex gap-2">
-          <Skeleton className="h-10 flex-[3]" />
-          <Skeleton className="h-10 flex-[2]" />
-          <Skeleton className="h-10 w-[74px]" />
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Skeleton className="h-10 sm:flex-[3]" />
+          <Skeleton className="h-10 sm:flex-[2]" />
+          <Skeleton className="h-10 w-full sm:w-[74px]" />
         </div>
         <div className="flex flex-wrap gap-2">
-          {[104, 96, 84, 96].map((w, i) => <Skeleton key={i} className="h-8 rounded-full" style={{ width: w }} />)}
+          {[104, 96, 84, 96].map((w, i) => <Skeleton key={i} className="h-10 rounded-full sm:h-8" style={{ width: w }} />)}
         </div>
       </div>
       <JobRowsSkeleton />

@@ -59,7 +59,7 @@ export function HumanCheck({ sitekey, action, next }: { sitekey: string; action:
   }
 
   return (
-    <main className="flex min-h-screen flex-1 items-center justify-center px-4 py-12">
+    <main className="flex min-h-dvh flex-1 items-center justify-center px-4 py-8 sm:min-h-screen sm:py-12">
       <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onReady={render} />
       <div className="flex w-full max-w-[360px] flex-col items-center text-center">
         <Logo />
