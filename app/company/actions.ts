@@ -4,6 +4,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
 import { roleOf, searchCompanies } from "@/lib/companies";
 import { cleanCompany, onDomain, type CleanCompany, type CompanyInput } from "@/lib/company-fields";
+import { track } from "@/lib/analytics";
 import { failed, Fail, ownImage, viewer, writer } from "@/lib/guard";
 import { cleanHandle } from "@/lib/profile-fields";
 
@@ -43,6 +44,7 @@ export async function createCompany(input: PageInput) {
       env.DB.prepare("INSERT INTO company_admins (company_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)").bind(id, me, now),
       env.DB.prepare("INSERT INTO company_follows (user_id, company_id, created_at) VALUES (?, ?, ?)").bind(me, id, now),
     ]).catch((e) => taken(e, c));
+    await track(me, "company created", { company_id: id, has_logo: !!logo, has_domain: !!c.domain });
     return { slug: c.slug };
   } catch (e) {
     return failed(e);
@@ -107,6 +109,7 @@ export async function verifyWorkEmail(companyId: string) {
     if (!email) throw new Fail(`Add and verify your @${domain} email in Settings → Account, then try again.`);
     await env.DB.prepare("INSERT OR REPLACE INTO company_verifications (company_id, user_id, email, verified_at) VALUES (?, ?, ?, ?)")
       .bind(id, me, email, Date.now()).run();
+    await track(me, "company work email verified", { company_id: id });
     return { email };
   } catch (e) {
     return failed(e);

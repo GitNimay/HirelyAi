@@ -22,7 +22,10 @@
   "vars": {
     "APP_URL": "https://hire-excellence.n1m35h.in",
     "TURNSTILE_SITEKEY": "0x4AAAAAAFKgly4uoUxya8AM",
-    "TURNSTILE_HOSTNAMES": "hire-excellence.n1m35h.in"
+    "TURNSTILE_HOSTNAMES": "hire-excellence.n1m35h.in",
+    // PostHog project key: public by design (the browser bundle carries it too), it can only send events
+    "POSTHOG_KEY": "phc_rTtErsBvXcrQRyKTx4KWsFNZjoZX74twxaqLNMbUK8Rv",
+    "POSTHOG_HOST": "https://us.i.posthog.com"
   },
   "d1_databases": [
     {

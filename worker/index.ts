@@ -1,6 +1,7 @@
 import { createClerkClient } from "@clerk/backend";
 import { DurableObject } from "cloudflare:workers";
 import app from "vinext/server/app-router-entry";
+import { capture } from "../lib/analytics";
 import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../lib/human";
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/interview";
 import { cleanTranscript } from "../lib/interview-fields";
@@ -115,6 +116,7 @@ export default {
       const body = (await request.json().catch(() => ({}))) as { sessionId?: unknown; transcript?: unknown };
       const sessionId = String(body.sessionId);
       if (!(await acceptTranscript(sessionId, cleanTranscript(body.transcript)))) return new Response(null, { status: 409 });
+      capture(sessionId, "interview completed", { kind: "voice", $process_person_profile: false });
       // Grading takes up to a minute or two: the queue gives it retries and a 15 minute budget (waitUntil only gets 30 s)
       await enqueue({ t: "evaluate", sessionId });
       return new Response(null, { status: 204 });
@@ -125,6 +127,15 @@ export default {
       const body = (await request.json().catch(() => ({}))) as { token?: unknown };
       if (!(await verifyTurnstile(body.token, request.headers.get("CF-Connecting-IP")))) return Response.json({ ok: false }, { status: 403 });
       return Response.json({ ok: true }, { headers: { "Set-Cookie": await passCookie(url), "Cache-Control": "no-store" } });
+    }
+    // PostHog through our own origin (components/analytics.tsx): ad blockers drop *.posthog.com, and the CSP stays 'self'
+    if (url.pathname.startsWith("/relay/")) {
+      const path = url.pathname.slice("/relay".length);
+      const host = /^\/(static|array)\//.test(path) ? "us-assets.i.posthog.com" : "us.i.posthog.com";
+      const headers = new Headers(request.headers);
+      headers.delete("Cookie"); // our Clerk session cookies never leave this origin
+      headers.set("X-Forwarded-For", request.headers.get("CF-Connecting-IP") ?? ""); // GeoIP for the visitor, not for us
+      return fetch(`https://${host}${path}${url.search}`, { method: request.method, headers, body: request.body });
     }
     if (needsCheck(url.pathname, request.headers.get("User-Agent")) && !(await hasPass(request, url))) {
       return Response.redirect(`${url.origin}/verify?next=${encodeURIComponent(safeNext(url.pathname + url.search))}`, 302);

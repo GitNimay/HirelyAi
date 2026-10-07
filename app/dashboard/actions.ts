@@ -2,6 +2,7 @@
 
 import { env, waitUntil } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
+import { track } from "@/lib/analytics";
 import { aiWriter, Fail, failed, text, viewer, writer } from "@/lib/guard";
 import { generateMcq, insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
 import type { Kind } from "@/lib/interview-fields";
@@ -83,6 +84,7 @@ async function publish(input: { body: string; media: MediaInput[]; companyId?: s
   await env.DB.prepare("INSERT INTO posts (id, author_id, body, media, company_id, created_at) VALUES (?, ?, ?, ?, ?, ?)")
     .bind(id, userId, body, media.length ? JSON.stringify(media) : null, companyId, Date.now()).run();
   broadcast({ t: "post", id, authorId: userId });
+  await track(userId, "post created", { post_id: id, media: media.length, as_company: !!companyId });
   // ponytail: company posts reach followers through their Following feed, not notifications; add a fan-out when pages get big audiences
   if (!companyId) await notifyUsers(await followersOf(userId), { type: "post", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(body) });
   return getPost(userId, id);
@@ -196,6 +198,7 @@ async function comment(postId: string, input: string) {
   const ins = await env.DB.prepare("INSERT INTO comments (id, post_id, author_id, body, created_at) SELECT ?, id, ?, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL")
     .bind(commentId, userId, body, Date.now(), String(postId)).run();
   if (!ins.meta.changes) throw new Fail("This post was deleted");
+  await track(userId, "comment added", { post_id: String(postId) });
   const post = await postOf(String(postId));
   if (post) {
     const link = `/dashboard/post/${String(postId)}`;
@@ -219,6 +222,7 @@ export async function toggleFollow(targetId: string) {
       .bind(userId, Date.now(), id).run();
   }
   notify("follow", userId, id);
+  await track(userId, del.meta.changes ? "user unfollowed" : "user followed");
   if (!del.meta.changes) await notifyUsers([id], { type: "follow", actor: userId, ref: "", link: "/dashboard/network" });
   else retract("follow", userId, "", id);
   return { following: !del.meta.changes };
@@ -268,6 +272,7 @@ export async function connect(targetId: string) {
      WHERE id = ?2 AND NOT EXISTS (SELECT 1 FROM connections WHERE user_id = ?1 AND peer_id = ?2)`,
   ).bind(me, id, Date.now()).run();
   if (ins.meta.changes) {
+    await track(me, "connection requested");
     notify("invite", me, id);
     await notifyUsers([id], { type: "invite", actor: me, ref: me, link: "/dashboard/network" });
   }
@@ -286,6 +291,7 @@ export async function acceptInvite(fromId: string) {
     env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, id),
   ]);
   notify("connect", me, id);
+  await track(me, "connection accepted");
   retract("invite", id, id, me); // answered: no longer an open invitation
   await notifyUsers([id], { type: "accept", actor: me, ref: me, link: "/dashboard/network" });
 }
@@ -378,6 +384,7 @@ async function createJob(input: Record<string, unknown>) {
     ...(interview ? [insertInterview(id, interview)] : []),
   ]);
   broadcast({ t: "job", id, posterId: me });
+  await track(me, "job posted", { job_id: id, company_id: companyId, interview: interview?.kind ?? null, workplace: job.workplace, level: job.level, salary_shown: !!job.salary });
   await notifyUsers(await followersOf(me), { type: "job", actor: me, ref: id, link: `/dashboard/jobs?id=${id}`, body: job.title });
   return getJob(me, id);
 }
@@ -440,6 +447,7 @@ export async function setJobClosed(jobId: string, closed: boolean) {
   ).bind(closed ? Date.now() : null, String(jobId), me, Date.now()).run();
   if (!upd.meta.changes) throw new Error("Job not found, or its interview deadline has passed");
   await pushJobStats(String(jobId));
+  await track(me, closed ? "job closed" : "job reopened", { job_id: String(jobId) });
   if (closed) {
     const { results } = await env.DB.prepare("SELECT applicant_id FROM applications WHERE job_id = ? LIMIT 200").bind(String(jobId)).all<{ applicant_id: string }>();
     await notifyUsers(results.map((r) => r.applicant_id), {
@@ -453,6 +461,7 @@ export async function toggleSaveJob(jobId: string) {
   const id = String(jobId);
   const del = await env.DB.prepare("DELETE FROM saved_jobs WHERE user_id = ? AND job_id = ?").bind(me, id).run();
   if (!del.meta.changes) await env.DB.prepare("INSERT INTO saved_jobs (user_id, job_id, created_at) SELECT ?, id, ? FROM jobs WHERE id = ?").bind(me, Date.now(), id).run();
+  await track(me, del.meta.changes ? "job unsaved" : "job saved", { job_id: id });
   return { saved: !del.meta.changes };
 }
 
@@ -497,6 +506,7 @@ async function apply(jobId: string, input: Record<string, unknown>) {
     throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");
   }
   const job = await getJob(me, jobId);
+  await track(me, "job applied", { job_id: jobId, resume_attached: !!resumeKey, interview: job?.interview?.kind ?? null });
   // Queued: Resend is slow-ish and can fail; the link is also on the job page, so the application never waits on it
   // Only to the account's own (Clerk-verified) address, so the form can't make us mail strangers. Others use the link on the job page.
   const own = job?.interview && (await signedIn())?.account.email.toLowerCase() === email.toLowerCase();
@@ -536,6 +546,7 @@ export async function setApplicationStatus(jobId: string, applicantId: string, s
   ).bind(String(jobId), String(applicantId), me, s, Date.now()).run();
   if (!upd.meta.changes) throw new Error("Application not found");
   sendTo(String(applicantId), { t: "app", jobId: String(jobId), applicantId: String(applicantId), status: s });
+  await track(me, "application status changed", { job_id: String(jobId), status: s });
   if (s === "viewed" || s === "shortlisted" || s === "rejected") {
     await notifyUsers([String(applicantId)], {
       type: `app_${s}`, actor: me, ref: String(jobId), link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`, body: await jobTitle(String(jobId)),

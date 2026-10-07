@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { deleteAccount, refreshMember } from "@/app/settings/actions";
 import { validPhone } from "@/lib/resume-fields";
+import { analyticsOn, setAnalytics } from "./analytics";
 import { errorText, providerIcons, providers } from "./auth";
 import { field, Field } from "./jobs";
 import { Modal } from "./kit";
@@ -40,6 +41,7 @@ export function AccountSettings() {
           <Phones />
           <Connected run={run} />
           <Sessions run={run} />
+          <UsageAnalytics />
           <DeleteAccount run={run} />
         </>
       )}
@@ -402,6 +404,20 @@ function Sessions({ run }: { run: Run }) {
         </button>
       )}
       <Alert text={error} />
+    </Section>
+  );
+}
+
+/** Per browser (a cookie), like the theme: PostHog stops in the browser and server events for them are skipped. */
+function UsageAnalytics() {
+  // Only rendered once Clerk has the user, which is in the browser, so the cookie is readable here
+  const [on, setOn] = useState(analyticsOn);
+  return (
+    <Section title="Usage analytics" desc="Pages you visit and features you use, linked to your account ID, help us improve Hire Excellence. Your email, resume and messages are never sent.">
+      <label className="flex min-h-10 items-center gap-2 text-sm sm:min-h-0">
+        <input type="checkbox" checked={on} onChange={(e) => (setAnalytics(e.target.checked), setOn(e.target.checked))} className="size-4 accent-foreground" />
+        Share usage analytics on this browser
+      </label>
     </Section>
   );
 }
