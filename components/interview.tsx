@@ -2,6 +2,7 @@
 
 import type { RemoteParticipant, Room } from "livekit-client";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import { answer, beginTest, finishTest, onboard, start, verify, warm } from "@/app/interview/actions";
@@ -58,6 +59,8 @@ export function Interview({ view }: { view: CandidateView }) {
   const [muted, setMuted] = useState(false); // the browser blocked autoplay (Safari, mostly)
   const room = useRef<Room | null>(null);
   const go = (s: Step | null) => (setError(""), setLocal(s), window.scrollTo({ top: 0 }));
+  // Just finished (not a revisit of the done screen): the browser event a PostHog survey can be triggered by
+  const finished = () => (posthog.capture("interview finished", { kind: view.kind }), go("done"));
 
   useEffect(() => () => void room.current?.disconnect(), []);
   // Get the interviewer into the room while the candidate checks their mic (hides the agent's cold start)
@@ -114,7 +117,7 @@ export function Interview({ view }: { view: CandidateView }) {
         room.current = null;
         audioSession("auto");
         // We hung up, or the agent ended the call (it deletes the room). Anything else is a dropped connection.
-        if (reason === DisconnectReason.CLIENT_INITIATED || reason === DisconnectReason.ROOM_DELETED) return go("done");
+        if (reason === DisconnectReason.CLIENT_INITIATED || reason === DisconnectReason.ROOM_DELETED) return finished();
         go("mic");
         setError("The connection dropped. Rejoin to continue where you left off.");
       });
@@ -217,7 +220,7 @@ export function Interview({ view }: { view: CandidateView }) {
         </div>
       </div>
     ),
-    test: view.session?.test ? <McqTest slug={view.slug} test={view.session.test} onDone={() => go("done")} /> : null,
+    test: view.session?.test ? <McqTest slug={view.slug} test={view.session.test} onDone={finished} /> : null,
     done: (
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
         <span className="flex size-12 items-center justify-center rounded-full bg-success/15 text-success"><Icon d={icons.check} size={24} /></span>
