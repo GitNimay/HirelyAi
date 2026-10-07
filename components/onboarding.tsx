@@ -4,7 +4,7 @@ import { SignOutButton, useSession } from "@clerk/nextjs";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createMyProfile, extractFromPdf } from "@/app/onboarding/actions";
+import { createMyProfile, extractFromText } from "@/app/onboarding/actions";
 import { emptyResume, MAX_RESUME_PDF_BYTES, mergeResume, missingFields, validPhone, type Resume } from "@/lib/resume-fields";
 import { errorText, Logo } from "./auth";
 import { CodeField } from "./input-otp";
@@ -24,6 +24,13 @@ const order = (s: Step) => (s === "reading" ? 1 : STEPS.findIndex((x) => x.id ==
 export const primary = "inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 const upload = icons.upload;
 const chevron = "m9 18 6-6-6-6";
+
+/** PDF → plain text here in the browser (unpdf, loaded only when someone uploads), so the server never parses PDFs. */
+async function pdfText(f: File) {
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const { text } = await extractText(await getDocumentProxy(new Uint8Array(await f.arrayBuffer())), { mergePages: true });
+  return text;
+}
 
 /**
  * First sign-in: contact details → resume upload (AI fills the form) or manual entry → review, with anything
@@ -65,9 +72,14 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
     if (f.type !== "application/pdf") return setError("Upload your resume as a PDF");
     if (f.size > MAX_RESUME_PDF_BYTES) return setError("Resume must be 5 MB or smaller");
     go("reading");
-    const fd = new FormData();
-    fd.set("file", f);
-    const res = await extractFromPdf(fd).catch(() => ({ error: "Upload failed. Check your connection and try again." }));
+    let text: string;
+    try {
+      text = await pdfText(f);
+    } catch {
+      setStep("method");
+      return setError("We couldn't open that PDF. Try another file, or fill in your details manually.");
+    }
+    const res = await extractFromText(text).catch(() => ({ error: "Upload failed. Check your connection and try again." }));
     if ("error" in res) {
       setStep("method");
       return setError(res.error);

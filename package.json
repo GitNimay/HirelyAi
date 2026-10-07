@@ -31,7 +31,7 @@
     "tailwind-merge": "^3.7.0",
     "thinking-orbs": "^0.3.2",
     "unpdf": "^1.8.1",
-    "vinext": "^1.0.0"
+    "vinext": "^1.0.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.2",
@@ -46,11 +46,16 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^8.3.1",
-    "wrangler": "^4.144.0"
+    "wrangler": "^4.148.0"
   },
   "type": "module",
   "allowScripts": {
+    "esbuild@0.28.1": true,
     "workerd@1.20260926.1": true,
-    "esbuild@0.28.1": true
+    "workerd@1.20261006.1": true
+  },
+  "overrides": {
+    "source-map-js": "1.2.2",
+    "fflate": "0.7.5"
   }
 }

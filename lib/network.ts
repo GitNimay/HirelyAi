@@ -24,13 +24,21 @@ const toPerson = (r: Row): Person => ({
 });
 
 // ?1 is always the viewer
-const PERSON = `u.id, u.name, u.image_url, u.headline, u.handle, substr(u.bio, 1, 120) AS bio,
-  (SELECT COUNT(*) FROM connections a JOIN connections b ON b.user_id = u.id AND b.peer_id = a.peer_id WHERE a.user_id = ?1) AS mutual,
+const PERSON_BASE = `u.id, u.name, u.image_url, u.headline, u.handle, substr(u.bio, 1, 120) AS bio,
   EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = u.id AND f.followee_id = ?1) AS follows_you`;
+const PERSON = `${PERSON_BASE},
+  (SELECT COUNT(*) FROM connections a JOIN connections b ON b.user_id = u.id AND b.peer_id = a.peer_id WHERE a.user_id = ?1) AS mutual`;
 
-const COUNTS = `SELECT (SELECT COUNT(*) FROM connections WHERE user_id = ?1) AS connections,
-  (SELECT COUNT(*) FROM follows WHERE follower_id = ?1) AS following,
-  (SELECT COUNT(*) FROM follows WHERE followee_id = ?1) AS followers`;
+/** The viewer's connections. Mutuals for all of them in one grouped pass, not a correlated count per row (quadratic). */
+const CONNECTIONS = `
+  WITH m AS (SELECT b.peer_id AS id, COUNT(*) AS n FROM connections a JOIN connections b ON b.user_id = a.peer_id WHERE a.user_id = ?1 GROUP BY b.peer_id)
+  SELECT ${PERSON_BASE}, COALESCE(m.n, 0) AS mutual, c.created_at AS at
+  FROM connections c JOIN users u ON u.id = c.peer_id LEFT JOIN m ON m.id = c.peer_id
+  WHERE c.user_id = ?1 ORDER BY c.created_at DESC LIMIT 500`;
+
+// Kept by triggers (migrations/0015_network_counts.sql). Always one row, zeros when the member has no users row yet.
+const COUNTS = `SELECT COALESCE(u.connection_count, 0) AS connections, COALESCE(u.following_count, 0) AS following, COALESCE(u.follower_count, 0) AS followers
+  FROM (SELECT 1) LEFT JOIN users u ON u.id = ?1`;
 
 /**
  * People you may know, LinkedIn style: friends-of-friends (triangle closing) dominate, then follow edges
@@ -59,7 +67,7 @@ export async function getNetwork(viewerId: string): Promise<Network> {
     env.DB.prepare(`SELECT ${PERSON}, i.created_at AS at FROM invitations i JOIN users u ON u.id = i.from_id WHERE i.to_id = ?1 ORDER BY i.created_at DESC LIMIT 100`).bind(viewerId),
     env.DB.prepare(`SELECT ${PERSON}, i.created_at AS at FROM invitations i JOIN users u ON u.id = i.to_id WHERE i.from_id = ?1 ORDER BY i.created_at DESC LIMIT 100`).bind(viewerId),
     // ponytail: first 500 connections only; page this when someone gets there
-    env.DB.prepare(`SELECT ${PERSON}, c.created_at AS at FROM connections c JOIN users u ON u.id = c.peer_id WHERE c.user_id = ?1 ORDER BY c.created_at DESC LIMIT 500`).bind(viewerId),
+    env.DB.prepare(CONNECTIONS).bind(viewerId),
     env.DB.prepare(SUGGESTIONS).bind(viewerId),
     env.DB.prepare(COUNTS).bind(viewerId),
   ]);

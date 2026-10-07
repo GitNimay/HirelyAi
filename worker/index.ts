@@ -87,6 +87,11 @@ export class FeedHub extends DurableObject<Env> {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Uptime monitors and the post-deploy smoke test (.github/workflows/ci.yml): Worker up, D1 reachable, which version
+    if (url.pathname === "/api/health") {
+      const db = await env.DB.prepare("SELECT 1").first().then(() => true, () => false);
+      return Response.json({ ok: db, version: env.CF_VERSION_METADATA.id }, { status: db ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+    }
     if (url.pathname === "/api/realtime") {
       if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected WebSocket", { status: 426 });
       // Browsers don't apply CORS to WebSockets, so block cross-site hijacking by origin
@@ -138,6 +143,17 @@ export default {
   },
 
   async queue(batch) {
+    // Messages that failed every retry. Logged as errors (alert on "task dead-lettered" in Workers Logs), ids only, no
+    // emails or content; acked so the DLQ doesn't silently drop them after 4 days with nobody having seen them.
+    if (batch.queue.endsWith("-dlq")) {
+      for (const msg of batch.messages) {
+        const t = msg.body;
+        const ref = t.t === "evaluate" ? { sessionId: t.sessionId } : t.t === "invite" ? { jobId: t.jobId } : { type: t.spec.type, ref: t.spec.ref, recipients: t.to.length };
+        console.error(JSON.stringify({ msg: "task dead-lettered", task: t.t, ...ref }));
+        msg.ack();
+      }
+      return;
+    }
     await Promise.all(
       batch.messages.map(async (msg) => {
         try {

@@ -2,7 +2,7 @@
 
 import { env, waitUntil } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
-import { Fail, failed, text, viewer, writer } from "@/lib/guard";
+import { aiWriter, Fail, failed, text, viewer, writer } from "@/lib/guard";
 import { generateMcq, insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
 import type { Kind } from "@/lib/interview-fields";
 import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
@@ -562,7 +562,7 @@ export async function loadInterview(jobId: string, applicantId: string) {
 /** AI-drafted MCQs for the post form (topic, difficulty, count, optional context). */
 export async function generateQuestions(input: Record<string, unknown>) {
   try {
-    await writer();
+    await aiWriter();
     return { questions: await generateMcq(input ?? {}) };
   } catch (e) {
     return failed(e);

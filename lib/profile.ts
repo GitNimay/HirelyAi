@@ -36,9 +36,7 @@ export async function getProfile(viewerId: string, ref: string): Promise<Profile
   const r = await env.DB.prepare(
     `SELECT u.id, u.handle, u.name, u.headline, u.bio, u.location, u.website, u.image_url, u.cover_key, u.joined_at, u.resume_public, u.open_to_work,
        (SELECT COUNT(*) FROM posts WHERE author_id = u.id AND company_id IS NULL) AS posts,
-       (SELECT COUNT(*) FROM connections WHERE user_id = u.id) AS connections,
-       (SELECT COUNT(*) FROM follows WHERE follower_id = u.id) AS following,
-       (SELECT COUNT(*) FROM follows WHERE followee_id = u.id) AS followers,
+       u.connection_count AS connections, u.following_count AS following, u.follower_count AS followers,
        EXISTS (SELECT 1 FROM follows WHERE follower_id = ?1 AND followee_id = u.id) AS i_follow,
        EXISTS (SELECT 1 FROM follows WHERE follower_id = u.id AND followee_id = ?1) AS follows_me,
        CASE WHEN EXISTS (SELECT 1 FROM connections WHERE user_id = ?1 AND peer_id = u.id) THEN 'connected'
@@ -152,8 +150,7 @@ export type Summary = {
 export async function getSummary(userId: string): Promise<Summary | null> {
   const r = await env.DB.prepare(
     `SELECT u.cover_key, u.headline, u.location,
-       (SELECT COUNT(*) FROM connections WHERE user_id = u.id) AS connections,
-       (SELECT COUNT(*) FROM follows WHERE followee_id = u.id) AS followers,
+       u.connection_count AS connections, u.follower_count AS followers,
        x.company, c.slug, c.logo_key
      FROM users u
      LEFT JOIN (SELECT e.value ->> '$.company' AS company, e.value ->> '$.companyId' AS company_id

@@ -4,12 +4,16 @@ on:
   push:
     branches: [main]
 
+# Least privilege by default; the deploy job asks for the one extra scope it needs
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -35,9 +39,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # full history + tags, to find the last release
+          persist-credentials: false # the release step uses GH_TOKEN; don't leave a token in .git/config next to the Cloudflare one
       # Next version = last v* tag + 1 patch. Put [minor] or [major] in the PR title for a bigger bump.
       # Safe without locking: the concurrency group above runs deploys one at a time.
       - name: Next version
@@ -51,7 +56,7 @@ jobs:
           elif [[ $msg == *"[minor]"* ]]; then minor=$((minor+1)); patch=0
           else patch=$((patch+1)); fi
           echo "tag=v$major.$minor.$patch" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -70,6 +75,17 @@ jobs:
           NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${{ vars.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL }}
           NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${{ vars.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL }}
           NEXT_PUBLIC_CLERK_KEYLESS_DISABLED: ${{ vars.NEXT_PUBLIC_CLERK_KEYLESS_DISABLED }}
+      # Smoke test the live site; on failure, put the previous Worker version back and fail the run.
+      # D1 migrations are forward-only and stay applied, so keep them additive (expand first, drop columns a release later).
+      - name: Smoke test (rollback on failure)
+        run: |
+          if curl -fsS --retry 5 --retry-delay 5 --retry-all-errors https://hire-excellence.n1m35h.in/api/health && curl -fsS -o /dev/null https://hire-excellence.n1m35h.in/; then exit 0; fi
+          npx wrangler rollback -y --message "smoke test failed for $TAG"
+          exit 1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TAG: ${{ steps.version.outputs.tag }}
       # Only reached when the deploy succeeded. Notes list the PRs merged since the previous release.
       - name: Create GitHub Release
         run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes --notes "Deployed to https://hire-excellence.n1m35h.in (Cloudflare Worker version tag \`$TAG\`)."

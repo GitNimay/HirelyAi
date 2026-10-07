@@ -59,18 +59,11 @@ Rules: never invent facts; use "" or [] when something isn't in the resume. Inte
 "student" if still studying, otherwise "fresher". Use a year-only date as "YYYY-01".`;
 
 /**
- * PDF → text (unpdf, pure JS so it runs on Workers) → Bedrock → cleaned Resume.
- * Throws Fail with a message the onboarding screen shows before falling back to the manual form.
+ * Resume text (the browser reads the PDF, see components/onboarding.tsx, so the Worker never spends CPU parsing one)
+ * → Bedrock → cleaned Resume. Throws Fail with a message the onboarding screen shows before falling back to the manual form.
  */
-export async function extractResume(pdf: ArrayBuffer): Promise<Resume> {
-  const { extractText, getDocumentProxy } = await import("unpdf");
-  let text: string;
-  try {
-    const { text: t } = await extractText(await getDocumentProxy(new Uint8Array(pdf)), { mergePages: true });
-    text = t.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-  } catch {
-    throw new Fail("We couldn't open that PDF. Try another file, or fill in your details manually.");
-  }
+export async function extractResume(raw: unknown): Promise<Resume> {
+  const text = (typeof raw === "string" ? raw.slice(0, 60_000) : "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   if (text.length < 80) throw new Fail("That PDF has no readable text (it may be a scanned image). Fill in your details manually.");
 
   // ponytail: first 20k chars (~5 pages) only; plenty for resumes.

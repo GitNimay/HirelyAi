@@ -48,11 +48,17 @@
         "max_retries": 5,
         "retry_delay": 30,
         "dead_letter_queue": "hire-excellence-tasks-dlq"
-      }
+      },
+      // Logs what landed in the DLQ (worker/index.ts queue), so failures are visible instead of expiring unseen
+      { "queue": "hire-excellence-tasks-dlq", "max_batch_size": 10, "max_batch_timeout": 5 }
     ]
   },
   // Per-user write throttle (posts, uploads, likes, comments...)
-  "ratelimits": [{ "name": "WRITE_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }],
+  // AI_LIMIT: Bedrock calls (resume reading, MCQ drafting) cost money per call, so a much tighter cap on top of WRITE_LIMIT
+  "ratelimits": [
+    { "name": "WRITE_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "AI_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+  ],
   // Every 15 minutes (worker/index.ts scheduled): close expired interviews, fail stuck gradings, sync the Clerk directory
   "triggers": { "crons": ["*/15 * * * *"] }
   // Secrets (not in this file): CLERK_SECRET_KEY, BEDROCK_*, RESEND_API_KEY, MAIL_FROM, CLERK_WEBHOOK_SECRET, LIVEKIT_*, INTERVIEW_AGENT_SECRET, TURNSTILE_SECRET via `wrangler secret`, .env.local locally
