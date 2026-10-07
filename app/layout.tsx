@@ -2,6 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { cookies } from "next/headers";
+import { preconnect } from "react-dom";
 import { Analytics } from "@/components/analytics";
 import { Feedback } from "@/components/kit";
 import "./globals.css";
@@ -36,8 +37,16 @@ export const metadata: Metadata = {
 // viewportFit cover lets env(safe-area-inset-*) report the iPhone notch and home indicator
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
+// The publishable key encodes the Frontend API host ("pk_live_" + base64("clerk.example.com$")). Warming that
+// connection early lets clerk-js and the first sign-in call skip DNS + TLS, so the social buttons appear sooner.
+const fapi = atob(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.split("_")[2] ?? "").replace(/\$$/, "");
+
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Saved by the account menu / theme toggle. No cookie = light; "system" = follow the OS, see globals.css
+  if (fapi) {
+    preconnect(`https://${fapi}`); // credentialed FAPI calls
+    preconnect(`https://${fapi}`, { crossOrigin: "anonymous" }); // the clerk-js script
+  }
   const theme = (await cookies()).get("theme")?.value ?? "light";
   return (
     <html
