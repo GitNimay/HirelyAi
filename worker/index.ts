@@ -17,7 +17,28 @@ const SECURITY_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), geolocation=(), payment=(), microphone=(self)",
+  // Enforced: directives no feature needs, so they can't break anything
+  "Content-Security-Policy": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+  // Full policy in report-only first: violations show in the browser console. Promote to the enforced header once a week
+  // of normal use (sign-in with each provider, Turnstile, uploads, the voice interview) shows none.
+  "Content-Security-Policy-Report-Only": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://clerk.n1m35h.in https://challenges.cloudflare.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://img.clerk.com https://clerk.n1m35h.in",
+    "font-src 'self'",
+    "connect-src 'self' https://clerk.n1m35h.in https://challenges.cloudflare.com https://*.livekit.cloud wss://*.livekit.cloud",
+    "frame-src https://challenges.cloudflare.com",
+    "worker-src 'self' blob:",
+    "media-src 'self' blob:",
+    "form-action 'self'",
+  ].join("; "),
 };
+
+// The landing page for a first visit (no cookies at all, so signed out, default theme) is the same HTML for everyone.
+// Cached per data center for 5 minutes, keyed by deployment so cached HTML never points at a previous build's chunks.
+const LANDING_TTL = 300;
+const landingKey = (url: URL, env: Env) => `${url.origin}/?__landing=${env.CF_VERSION_METADATA.id}`;
 
 /** Retries only transient failures; `attempts` starts at 1. The last tries of a grading store "failed" instead of throwing. */
 async function runTask(task: Task, attempts: number) {
@@ -37,9 +58,12 @@ export class FeedHub extends DurableObject<Env> {
   }
 
   async fetch(request: Request) {
+    const userId = request.headers.get("X-User-Id")!;
+    // Every tab holds one socket; more than this is a loop or abuse, and each socket multiplies broadcast cost
+    if (this.ctx.getWebSockets(userId).length >= 10) return new Response("Too many connections", { status: 429 });
     const { 0: client, 1: server } = new WebSocketPair();
     // Tagged with the user id so private network events can target just that user's sockets
-    this.ctx.acceptWebSocket(server, [request.headers.get("X-User-Id")!]);
+    this.ctx.acceptWebSocket(server, [userId]);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -54,8 +78,9 @@ export class FeedHub extends DurableObject<Env> {
     }
   }
 
-  webSocketMessage() {
-    // Server → client only
+  webSocketMessage(ws: WebSocket) {
+    // Server → client only ("ping" is answered by the auto-response without waking us): anything else is a misbehaving client
+    ws.close(1008, "server to client only");
   }
 }
 
@@ -76,7 +101,7 @@ export default {
     }
     // The interview agent (LiveKit Cloud) posts the transcript here when a call ends; grading runs after we answer
     if (url.pathname === "/api/interview/complete" && request.method === "POST") {
-      if (!same(request.headers.get("Authorization") ?? "", `Bearer ${env.INTERVIEW_AGENT_SECRET}`)) return new Response(null, { status: 401 });
+      if (!env.INTERVIEW_AGENT_SECRET || !same(request.headers.get("Authorization") ?? "", `Bearer ${env.INTERVIEW_AGENT_SECRET}`)) return new Response(null, { status: 401 });
       const body = (await request.json().catch(() => ({}))) as { sessionId?: unknown; transcript?: unknown };
       const sessionId = String(body.sessionId);
       if (!(await acceptTranscript(sessionId, cleanTranscript(body.transcript)))) return new Response(null, { status: 409 });
@@ -94,10 +119,21 @@ export default {
     if (needsCheck(url.pathname, request.headers.get("User-Agent")) && !(await hasPass(request, url))) {
       return Response.redirect(`${url.origin}/verify?next=${encodeURIComponent(safeNext(url.pathname + url.search))}`, 302);
     }
+    const landing = request.method === "GET" && url.pathname === "/" && !url.search && !request.headers.has("Cookie") && !request.headers.has("RSC");
+    if (landing) {
+      const hit = await (await caches.open("landing")).match(landingKey(url, env));
+      if (hit) return hit;
+    }
     const res = await app.fetch(request, env, ctx);
     if (res.webSocket) return res;
     const out = new Response(res.body, res);
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!out.headers.has(k)) out.headers.set(k, v);
+    if (landing && out.status === 200 && !out.headers.has("Set-Cookie")) {
+      // Browsers still revalidate (max-age=0); only the edge keeps it
+      out.headers.set("Cache-Control", `public, max-age=0, s-maxage=${LANDING_TTL}`);
+      const copy = out.clone(); // before returning: once the body streams it can no longer be cloned
+      ctx.waitUntil(caches.open("landing").then((c) => c.put(landingKey(url, env), copy)));
+    }
     return out;
   },
 

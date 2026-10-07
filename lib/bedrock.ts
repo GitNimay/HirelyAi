@@ -23,7 +23,7 @@ export async function bedrockJson(system: string, user: string, maxTokens: numbe
   try {
     return { ok: true, value: JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) };
   } catch {
-    console.error("bedrock: unparseable output", out.slice(0, 500));
+    console.error("bedrock: unparseable output", { chars: out.length }); // never log content: it can quote resumes and transcripts
     return { ok: false, reason: "unparseable" };
   }
 }

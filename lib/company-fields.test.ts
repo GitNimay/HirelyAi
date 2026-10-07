@@ -5,6 +5,14 @@ import { cleanResume, emptyExperience } from "./resume-fields.ts";
 assert.equal(domainOf("https://www.Acme.com/careers"), "acme.com");
 assert.equal(domainOf("https://gmail.com/"), null); // free mail never proves anything
 assert.equal(domainOf(null), null);
+assert.equal(domainOf("https://yahoo.co.uk"), null); // webmail under a country suffix
+assert.equal(domainOf("https://hotmail.fr"), null);
+assert.equal(domainOf("https://co.uk"), null); // a public suffix would match every .co.uk address
+assert.equal(domainOf("https://com.au"), null);
+assert.equal(domainOf("https://acme.co.uk"), "acme.co.uk");
+assert.equal(domainOf("https://mail.acme.com"), "mail.acme.com");
+assert.ok(!onDomain("ada@yahoo.co.uk", "co.uk"));
+assert.ok(onDomain("ada@acme.co.uk", "acme.co.uk"));
 
 assert.ok(onDomain("Ada@ACME.com", "acme.com"));
 assert.ok(onDomain("ada@eng.acme.com", "acme.com"));

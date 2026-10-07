@@ -8,6 +8,8 @@
   "assets": { "not_found_handling": "none", "binding": "ASSETS" },
   // Pages make several sequential D1 queries; run the Worker next to the database instead of next to the visitor
   "placement": { "mode": "smart" },
+  // Deployment id: part of the landing page's edge-cache key (worker/index.ts)
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": true },

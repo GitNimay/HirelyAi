@@ -49,7 +49,8 @@ export function parseProse(text: string): Block[] {
       else blocks.push({ t: kind, items: [item] });
       continue;
     }
-    const md = MD_HEADING.exec(line) ?? BOLD_LINE.exec(line);
+    // MD_HEADING backtracks cubically on long whitespace runs; real headings are short
+    const md = (line.length <= 200 ? MD_HEADING.exec(line) : null) ?? BOLD_LINE.exec(line);
     const next = lines[i + 1]?.trim() ?? "";
     const more = lines.slice(i + 1).some((l) => l.trim());
     const h = md ? md[1].replace(/:$/, "") : more ? heading(line.trim(), next, isList(next), para.length === 0) : null;

@@ -20,12 +20,18 @@ const FREE_MAIL = new Set([
   "rediffmail.com", "hey.com", "fastmail.com", "tutanota.com",
 ]);
 
-/** "https://www.Acme.com/careers" → "acme.com". null when there is no website, or it's a free-mail domain. */
+// Webmail brands under any country suffix (yahoo.co.uk, hotmail.fr, gmx.de...)
+const FREE_BRAND = /^(gmail|googlemail|yahoo|ymail|rocketmail|hotmail|outlook|live|msn|aol|icloud|proton|protonmail|gmx|yandex|zoho|zohomail|rediffmail|mail|web|qq|163|126|naver|tutanota|tuta|btinternet|orange|t-online|libero|seznam|wp|onet)\.([a-z]{2,3}\.)?[a-z]{2,3}$/;
+// "co.uk", "com.au", "ac.in": second-level public suffixes. Owning "acme.co.uk" is fine; claiming "co.uk" would cover every .co.uk address.
+const PUBLIC_SUFFIX = /^(co|com|net|org|ac|edu|gov|gen|firm|ind|ltd|plc|ne|or|go|nic|mil|res|info|biz)\.[a-z]{2}$/;
+const freeMail = (host: string) => FREE_MAIL.has(host) || FREE_BRAND.test(host);
+
+/** "https://www.Acme.com/careers" → "acme.com". null when there is no website, or it's a free-mail domain or a bare public suffix. */
 export function domainOf(website: string | null): string | null {
   if (!website) return null;
   try {
     const host = new URL(website).hostname.toLowerCase().replace(/^www\./, "");
-    return host.includes(".") && !FREE_MAIL.has(host) ? host : null;
+    return host.includes(".") && !freeMail(host) && !PUBLIC_SUFFIX.test(host) ? host : null;
   } catch {
     return null;
   }
@@ -34,7 +40,7 @@ export function domainOf(website: string | null): string | null {
 /** A work email proves employment when it's on the company's domain or a subdomain of it (eng.acme.com). */
 export function onDomain(email: string, domain: string | null) {
   const d = email.toLowerCase().split("@")[1] ?? "";
-  return !!domain && !FREE_MAIL.has(d) && (d === domain || d.endsWith(`.${domain}`));
+  return !!domain && !freeMail(d) && !PUBLIC_SUFFIX.test(domain) && (d === domain || d.endsWith(`.${domain}`));
 }
 
 export type CompanyInput = {

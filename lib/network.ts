@@ -132,14 +132,16 @@ export const syncStatements = (u: Profile) => [upsert(u), assign(u)];
 /**
  * Cron: copy every Clerk member into D1 so People you may know and search cover the whole platform,
  * including people who signed up but never opened the app since (members who do open it are synced on page load).
- * ponytail: newest 500 members every 15 min. Swap for a Clerk `user.created/updated` webhook when the member count outgrows one page.
+ * Recently created or updated 100 members every 15 min (older ones were copied by earlier runs); keeps the cron inside its CPU budget.
+ * ponytail: swap for a Clerk `user.created/updated` webhook when more than 100 members change within 15 minutes.
  */
 export async function syncDirectory() {
   try {
     const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY, publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY });
-    const { data } = await clerk.users.getUserList({ limit: 500, orderBy: "-created_at" });
+    const { data } = await clerk.users.getUserList({ limit: 100, orderBy: "-updated_at" });
     // Handles are only (re)assigned for members that lack one, which keeps the batch near one statement per member
-    const { results } = await env.DB.prepare("SELECT id FROM users WHERE handle IS NOT NULL AND joined_at IS NOT NULL").all<{ id: string }>();
+    const { results } = await env.DB.prepare("SELECT id FROM users WHERE id IN (SELECT value FROM json_each(?)) AND handle IS NOT NULL AND joined_at IS NOT NULL")
+      .bind(JSON.stringify(data.map((u) => u.id))).all<{ id: string }>();
     const done = new Set(results.map((r) => r.id));
     if (data.length) await env.DB.batch(data.flatMap((u) => { const p = profileOf(u); return done.has(p.id) ? [upsert(p)] : [upsert(p), assign(p)]; }));
   } catch (e) {

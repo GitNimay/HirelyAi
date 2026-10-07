@@ -12,6 +12,7 @@ import { inFolder, isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_PO
 import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
 import { followersOf, listNotifications, notifyUsers, unseenCount } from "@/lib/notifications";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
+import { signedIn } from "@/lib/profile";
 import { getResume } from "@/lib/resume";
 import { enqueue } from "@/lib/tasks";
 
@@ -380,8 +381,9 @@ async function editJob(id: string, input: Record<string, unknown>) {
   ).bind(id, me).first<{ deadline: number | null; kind: Kind | null; questions: string | null; started: number }>();
   if (!current) throw new Fail("Job not found");
   const interview = current.deadline === null ? null : parseInterview(input, { kind: current.kind!, deadline: current.deadline });
-  if (interview?.kind === "mcq" && current.started && JSON.stringify(interview.questions) !== current.questions) {
-    throw new Fail("Test questions can't change after a candidate has started the test");
+  if (interview && current.started && JSON.stringify(interview.questions) !== current.questions) {
+    // Answers are graded against the stored questions, so changing them would re-score earlier candidates
+    throw new Fail("Questions can't change after a candidate has started");
   }
   await env.DB.batch([
     env.DB.prepare("UPDATE jobs SET title = ?, location = ?, workplace = ?, type = ?, level = ?, salary = ?, description = ? WHERE id = ? AND poster_id = ?")
@@ -459,16 +461,23 @@ async function apply(jobId: string, input: Record<string, unknown>) {
   const ins = await env.DB.prepare(
     `INSERT OR IGNORE INTO applications (job_id, applicant_id, email, phone, resume_key, profile, note, created_at, updated_at)
      SELECT id, ?2, ?3, ?4, ?5, ?8, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2
-       AND NOT EXISTS (SELECT 1 FROM interviews WHERE job_id = ?1 AND deadline <= ?7)`,
+       AND NOT EXISTS (SELECT 1 FROM interviews WHERE job_id = ?1 AND deadline <= ?7)
+       AND NOT EXISTS (SELECT 1 FROM applications WHERE job_id = ?1 AND email = ?3 COLLATE NOCASE)`,
   ).bind(jobId, me, email, phone, resumeKey, note, now, JSON.stringify(profile)).run();
   if (!ins.meta.changes) {
     const job = await getJob(me, jobId);
     if (job?.application) throw new Fail("You already applied to this job");
+    // The interview gate signs candidates in by job + email, so one email must map to one applicant
+    if (await env.DB.prepare("SELECT 1 FROM applications WHERE job_id = ? AND email = ? COLLATE NOCASE").bind(jobId, email).first()) {
+      throw new Fail("Another applicant already used this email. Use your own email address.");
+    }
     throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");
   }
   const job = await getJob(me, jobId);
   // Queued: Resend is slow-ish and can fail; the link is also on the job page, so the application never waits on it
-  if (job?.interview) await enqueue({ t: "invite", jobId, to: email }).catch((e) => console.error("invite: enqueue failed", e));
+  // Only to the account's own (Clerk-verified) address, so the form can't make us mail strangers. Others use the link on the job page.
+  const own = job?.interview && (await signedIn())?.account.email.toLowerCase() === email.toLowerCase();
+  if (own) await enqueue({ t: "invite", jobId, to: email }).catch((e) => console.error("invite: enqueue failed", e));
   if (job) {
     sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
     await notifyUsers([job.poster.id], { type: "applicant", actor: me, ref: jobId, link: `/dashboard/jobs?tab=posted&id=${jobId}`, body: job.title });

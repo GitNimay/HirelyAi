@@ -5,6 +5,8 @@ import { env } from "cloudflare:workers";
  * Only emails whose template has "Delivered by Clerk" turned off reach us undelivered; the rest are skipped.
  */
 export async function POST(req: Request) {
+  // Public endpoint: drop unsigned or oversized requests before buffering the body
+  if (!req.headers.get("svix-signature") || Number(req.headers.get("Content-Length") ?? 0) > 256_000) return new Response("Bad request", { status: 400 });
   const body = await req.text();
   if (!(await verified(req.headers, body))) return new Response("Bad signature", { status: 400 });
   const { type, data } = JSON.parse(body);
@@ -54,7 +56,7 @@ function codeEmail(slug: string, code: string) {
 /** Svix signature check (what Clerk signs webhooks with), on WebCrypto instead of the svix package. */
 async function verified(h: Headers, body: string) {
   const [id, ts, sigs] = ["svix-id", "svix-timestamp", "svix-signature"].map((k) => h.get(k));
-  if (!id || !ts || !sigs || Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
+  if (!id || !ts || !sigs || !(Math.abs(Date.now() / 1000 - Number(ts)) <= 300)) return false; // NaN fails too
   const secret = Uint8Array.from(atob(env.CLERK_WEBHOOK_SECRET.replace(/^whsec_/, "")), (c) => c.charCodeAt(0));
   const key = await crypto.subtle.importKey("raw", secret, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
   return (await Promise.all(
