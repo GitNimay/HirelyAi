@@ -3,7 +3,7 @@
 import Script from "next/script";
 import { useRef, useState } from "react";
 import { Logo } from "./auth";
-import { btnOutline } from "./ui";
+import { btnLg, btnOutline } from "./ui";
 
 type Turnstile = {
   render: (el: HTMLElement, o: Record<string, unknown>) => string;
@@ -63,11 +63,11 @@ export function HumanCheck({ sitekey, action, next }: { sitekey: string; action:
       <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onReady={render} />
       <div className="flex w-full max-w-[360px] flex-col items-center text-center">
         <Logo />
-        <h1 className="mt-6 font-display text-2xl font-normal">Verify you are human</h1>
+        <h1 className="mt-6 font-display text-2xl font-normal text-balance">Verify you are human</h1>
         <p className="mt-1.5 text-sm text-muted">A quick check before you continue. This keeps bots away from Hire Excellence.</p>
         <div ref={box} className="mt-8 flex min-h-[65px] justify-center" />
         <p role="alert" className="mt-3 min-h-5 text-sm text-danger">{error}</p>
-        {error && <button type="button" onClick={retry} className={`${btnOutline} mt-2`}>Try again</button>}
+        {error && <button type="button" onClick={retry} className={`${btnOutline} ${btnLg} mt-2 w-full`}>Try again</button>}
       </div>
     </main>
   );

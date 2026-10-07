@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/r
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { FluidHoverHighlight, spring, useFluidHover } from "@/lib/fluid-hover";
 import { cn } from "@/lib/utils";
-import { backBtn, btnDanger, btnGhost, btnPrimary, Icon, icons } from "./ui";
+import { backBtn, btnDanger, btnGhost, btnLg, btnPrimary, Icon, icons } from "./ui";
 
 /** Shared client pieces: dialog, confirm, toasts, menu, tabs, back button, clamped text. */
 
@@ -22,10 +22,10 @@ export function Modal({ title, onClose, wide, children }: { title: string; onClo
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       aria-label={title}
-      className={`m-auto w-[calc(100%-2rem)] rounded-xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-black/60 light:backdrop:bg-black/30 ${wide ? "max-w-4xl" : "max-w-lg"}`}
+      className={`m-auto w-[calc(100%-2rem)] rounded-xl border border-border bg-background p-0 text-foreground shadow-(--shadow-pop) backdrop:bg-black/60 light:backdrop:bg-black/30 transition-[opacity,scale] duration-150 ease-out starting:open:opacity-0 motion-safe:starting:open:scale-[0.98] ${wide ? "max-w-4xl" : "max-w-lg"}`}
     >
       <div className="flex h-14 items-center justify-between border-b border-border px-5">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-medium">{title}</h2>
         <button type="button" onClick={onClose} aria-label="Close" className={`${btnGhost} px-2`}>
           <Icon d={icons.close} size={16} />
         </button>
@@ -87,7 +87,7 @@ export function Feedback() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, ...(reduce ? {} : { x: 16, scale: 0.96 }), transition: spring.moderate.exit }}
               transition={reduce ? { duration: 0.12 } : spring.slow}
-              className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-xl border border-border bg-surface py-2.5 pl-3 pr-1.5 text-sm text-foreground shadow-(--shadow-pop) sm:w-auto sm:min-w-72"
+              className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-xl border border-border bg-surface py-2 pl-3 pr-1.5 text-sm text-foreground shadow-(--shadow-pop) sm:w-auto sm:min-w-72"
             >
               <span className={`flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-hover ${t.tone ? "text-danger" : "text-success"}`}>
                 <Icon d={t.tone ? icons.close : icons.check} size={14} />
@@ -105,8 +105,8 @@ export function Feedback() {
           <div className="space-y-4 p-5">
             {q.body && <p className="text-sm text-muted">{q.body}</p>}
             <div className="flex justify-end gap-2">
-              <button type="button" data-autofocus className={btnGhost} onClick={() => answer(false)}>Cancel</button>
-              <button type="button" className={q.danger ? btnDanger : btnPrimary} onClick={() => answer(true)}>{q.confirm}</button>
+              <button type="button" data-autofocus className={cn(btnGhost, btnLg)} onClick={() => answer(false)}>Cancel</button>
+              <button type="button" className={cn(q.danger ? btnDanger : btnPrimary, btnLg)} onClick={() => answer(true)}>{q.confirm}</button>
             </div>
           </div>
         </Modal>

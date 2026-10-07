@@ -11,7 +11,7 @@ import { AVATAR_PX, COVER_PX, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, prof
 import { field, Field } from "./jobs";
 import { ask, BackButton, leaveIfClean, Select, TabLabel, toast, useUnsavedGuard } from "./kit";
 import { uploadImage } from "./profile";
-import { Avatar, backBtn, btnGhost, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
+import { Avatar, backBtn, btnGhost, btnLg, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
 
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 const camera = "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8";
@@ -62,7 +62,7 @@ export function CompanyHeader({ company: c }: { company: Company }) {
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
         <BackButton />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold leading-tight">{c.name}</h1>
+          <h1 className="truncate text-sm font-medium leading-tight">{c.name}</h1>
           <p className="text-xs text-muted">Company page</p>
         </div>
       </header>
@@ -96,12 +96,12 @@ export function CompanyHeader({ company: c }: { company: Company }) {
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             {c.website && (
-              <a href={c.website} target="_blank" rel="noopener noreferrer nofollow" className="text-link hover:underline">{shortUrl(c.website)}</a>
+              <a href={c.website} target="_blank" rel="noopener noreferrer nofollow" className="text-link underline-offset-2 hover:underline">{shortUrl(c.website)}</a>
             )}
             {c.me.verified ? (
               <span className="flex items-center gap-1 text-success"><Icon d={icons.check} size={14} />You work here (verified)</span>
             ) : c.domain && (
-              <button type="button" disabled={busy} onClick={verify} className="flex items-center gap-1 text-muted hover:text-foreground">
+              <button type="button" disabled={busy} onClick={verify} className="flex items-center gap-1 text-muted transition-colors duration-150 hover:text-foreground">
                 <Icon d={icons.verified} size={14} />Work here? Verify your @{c.domain} email
               </button>
             )}
@@ -116,7 +116,7 @@ export function CompanyHeader({ company: c }: { company: Company }) {
                 key={t.href}
                 href={t.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex h-12 flex-1 items-center justify-center text-sm transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:bg-surface ${active ? "font-medium text-foreground" : "text-muted"}`}
+                className={`flex h-12 flex-1 items-center justify-center text-sm outline-none transition-colors duration-150 hover:bg-surface hover:text-foreground focus-visible:bg-surface ${active ? "font-medium text-foreground" : "text-muted"}`}
               >
                 <TabLabel on={active}>{t.label}</TabLabel>
               </Link>
@@ -200,7 +200,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
     <form onSubmit={submit} onChange={() => setDirty(true)} className="space-y-4 pb-8">
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
         <Link href={back} onClick={leave} aria-label="Back" className={backBtn}><Icon d={icons.back} size={18} /></Link>
-        <h1 className="flex-1 text-sm font-semibold">{c ? "Edit page" : "Create a company page"}</h1>
+        <h1 className="flex-1 text-sm font-medium">{c ? "Edit page" : "Create a company page"}</h1>
         <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{c ? "Save" : "Create page"}</button>
       </header>
 
@@ -215,7 +215,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
         </div>
         <input ref={coverInput} type="file" hidden accept={PROFILE_IMAGE_TYPES.join()} onChange={(e) => (pick(e.target.files?.[0], COVER_PX, (p) => (setCover(p), setCoverRemoved(false))), (e.target.value = ""))} />
       </div>
-      <div className="px-5">
+      <div className="px-4">
         <div className="relative -mt-12 w-fit rounded-lg border-4 border-background bg-background">
           <CompanyLogo name={name || "?"} src={logo?.url ?? c?.logoUrl} size={80} />
           <button type="button" aria-label="Change logo" disabled={busy} onClick={() => logoInput.current?.click()} className={`${overlay} absolute inset-0 m-auto`}><Icon d={camera} size={18} /></button>
@@ -223,7 +223,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
         </div>
       </div>
 
-      <div className="space-y-4 px-5">
+      <div className="space-y-4 px-4">
         <Field label="Name">
           <input
             required
@@ -236,7 +236,7 @@ export function CompanyForm({ company: c }: { company?: Company }) {
           />
         </Field>
         <Field label="Page URL" hint="3-30 letters, numbers, hyphens">
-          <div className="flex h-10 items-center rounded-md border border-border pl-3 text-sm text-muted focus-within:border-ring">
+          <div className="flex h-10 items-center rounded-md border border-border pl-3 text-sm text-muted transition-colors focus-within:border-ring">
             <span>/company/</span>
             <input
               required
@@ -279,8 +279,8 @@ export function CompanyForm({ company: c }: { company?: Company }) {
         {!c && <p className="text-xs text-muted">By creating this page you confirm you&apos;re allowed to act on behalf of this company. You&apos;ll be its owner.</p>}
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
-          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{c ? "Save" : "Create page"}</button>
+          <Link href={back} onClick={leave} className={`${btnGhost} ${btnLg}`}>Cancel</Link>
+          <button aria-busy={busy} type="submit" className={`${btnPrimary} ${btnLg}`} disabled={busy}>{c ? "Save" : "Create page"}</button>
         </div>
       </div>
     </form>
@@ -305,14 +305,14 @@ export function AdminList({ company, admins, viewerId }: { company: Company; adm
   }
 
   return (
-    <section className="space-y-3 border-t border-border px-5 py-6">
+    <section className="space-y-3 border-t border-border px-4 py-6">
       <div>
-        <h2 className="text-sm font-semibold">Page admins</h2>
+        <h2 className="text-sm font-medium">Page admins</h2>
         <p className="text-xs text-muted">Admins edit the page and post as the company. Keep at least two, like LinkedIn recommends.</p>
       </div>
       <ul className="divide-y divide-border rounded-lg border border-border">
         {admins.map((a) => (
-          <li key={a.id} className="flex items-center gap-3 px-3 py-2.5">
+          <li key={a.id} className="flex items-center gap-3 px-3 py-2">
             <Avatar name={a.name} src={a.imageUrl ?? undefined} size={32} />
             <Link href={profileHref(a)} className="min-w-0 flex-1 truncate text-sm font-medium hover:underline">{a.name}</Link>
             <span className="text-xs capitalize text-muted">{a.role}</span>
@@ -335,7 +335,7 @@ export function AdminList({ company, admins, viewerId }: { company: Company; adm
       {owner && (
         <form className="flex gap-2" onSubmit={(e) => (e.preventDefault(), run(() => addAdmin(company.id, handle), "Admin added"))}>
           <input value={handle} onChange={(e) => setHandle(e.target.value)} required placeholder="Profile handle, e.g. ada-lovelace" aria-label="Handle" className={field} />
-          <button type="submit" disabled={busy} className={btnOutline}>Add admin</button>
+          <button type="submit" disabled={busy} className={`${btnOutline} ${btnLg}`}>Add admin</button>
         </form>
       )}
     </section>
@@ -362,7 +362,7 @@ export function CompanyPicker({ value, companyId, logoUrl, onChange, invalid }: 
   const shown = open && value.trim().length >= 2 ? hits : [];
   return (
     <div className="relative">
-      <div className={`flex h-10 items-center gap-2 rounded-md border px-2 focus-within:border-ring ${invalid ? "border-danger" : "border-border"}`}>
+      <div className={`flex h-10 items-center gap-2 rounded-md border px-2 transition-colors focus-within:border-ring ${invalid ? "border-danger" : "border-border"}`}>
         <CompanyLogo name={value || "?"} src={companyId ? logoUrl : null} size={24} />
         <input
           value={value}
@@ -383,7 +383,7 @@ export function CompanyPicker({ value, companyId, logoUrl, onChange, invalid }: 
         <ul id={listId} role="listbox" className="absolute inset-x-0 top-11 z-20 max-h-64 overflow-auto rounded-md border border-border bg-background py-1 shadow-lg">
           {shown.map((h) => (
             <li key={h.id} role="option" aria-selected={h.id === companyId}>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => (onChange(h.name, h.id, h.logoUrl), setOpen(false))} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-surface-hover">
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => (onChange(h.name, h.id, h.logoUrl), setOpen(false))} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover">
                 <CompanyLogo name={h.name} src={h.logoUrl} size={28} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{h.name}</span>

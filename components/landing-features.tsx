@@ -68,7 +68,7 @@ export function VoiceVisual() {
   return (
     <Frame label="Voice" tone="lime" frameRef={ref}>
       <div className="flex items-center justify-between border-b border-border pb-2.5 text-xs text-muted">
-        <span className="flex items-center gap-1.5"><span className="size-1.5 animate-pulse rounded-full bg-danger" />Live</span>
+        <span className="flex items-center gap-1.5"><span className="size-1.5 motion-safe:animate-pulse rounded-full bg-danger" />Live</span>
         <span className="tabular-nums">{Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")} left</span>
       </div>
       <div className="flex justify-center py-3">
@@ -331,7 +331,7 @@ export function CompanyVisual() {
       </div>
       <p className="mt-3 text-xs text-muted">Work email</p>
       <div className="mt-1.5 flex h-7 items-center border border-border px-2 text-xs">
-        {step >= 1 ? <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>priya@acme.com</motion.span> : <span className="h-3.5 w-px animate-pulse bg-foreground" />}
+        {step >= 1 ? <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>priya@acme.com</motion.span> : <span className="h-3.5 w-px motion-safe:animate-pulse bg-foreground" />}
       </div>
       <div className="mt-2 grid grid-cols-6 gap-1">
         {[...CODE].map((d, i) => (

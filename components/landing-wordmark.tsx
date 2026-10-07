@@ -29,7 +29,7 @@ export function Wordmark() {
   return (
     <svg viewBox="0 0 1000 120" className={`${pixel.className} w-full text-border`}>
       <text {...text} stroke="currentColor">Hire Excellence</text>
-      <text {...text} stroke="#3b82f6" strokeWidth={2.5} strokeLinecap="round" strokeDasharray={`${PATCH} ${LOOP - PATCH}`}>
+      <text {...text} className="text-link" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeDasharray={`${PATCH} ${LOOP - PATCH}`}>
         {["Hire ", "Excellence"].map((w) => (
           <tspan key={w} opacity={0} onMouseEnter={enter} onMouseLeave={leave}>{w}</tspan>
         ))}

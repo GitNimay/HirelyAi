@@ -8,6 +8,7 @@ import type { Comment, MediaInput } from "@/app/dashboard/actions";
 import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
 import { isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
 import { profileHref } from "@/lib/profile-fields";
+import { cn } from "@/lib/utils";
 import { ask, Clamp, Menu, Modal, scrollToTop, setParam, Tabs, toast } from "./kit";
 import { LikeButton } from "./like-button";
 import { CommentsSkeleton, PostsSkeleton } from "./skeleton";
@@ -17,7 +18,7 @@ import { useRealtime } from "./use-realtime";
 type Viewer = { id: string; name: string; imageUrl?: string };
 type Page = { posts: FeedPost[]; next: string | null };
 
-const iconBtn = "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+const iconBtn = "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-safe:active:scale-[0.94]";
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
 /**
@@ -274,7 +275,7 @@ function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boole
               disabled={disabled}
               onClick={() => setDescribing(i)}
               aria-label={it.alt ? `Edit image description: ${it.alt}` : "Add image description"}
-              className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-md bg-black/70 px-2 text-xs font-semibold text-white hover:bg-black"
+              className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-md bg-black/70 px-2 text-xs font-medium text-white hover:bg-black"
             >
               {it.alt && <Icon d={icons.check} size={12} />}
               ALT
@@ -510,9 +511,9 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="flex items-center gap-1 truncate text-sm">
-                <Link href={who.href} className="truncate font-medium hover:underline">{who.name}</Link>
+            <div className="min-w-0 flex-1">
+              <p className="flex items-baseline gap-1 truncate text-sm">
+                <Link href={who.href} className="min-w-0 truncate font-medium hover:underline">{who.name}</Link>
                 <Link href={`/dashboard/post/${p.id}`} className="shrink-0 text-muted hover:underline">
                   · <Time ms={p.createdAt} />
                 </Link>
@@ -565,9 +566,9 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
             <>
               {p.body &&
                 (openComments ? (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{p.body}</p>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-pretty text-sm leading-relaxed">{p.body}</p>
                 ) : (
-                  <Clamp className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{p.body}</Clamp>
+                  <Clamp className="mt-2 whitespace-pre-wrap break-words text-pretty text-sm leading-relaxed">{p.body}</Clamp>
                 ))}
               <MediaGrid media={p.media} />
             </>
@@ -577,7 +578,7 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
 
       <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center">
         <LikeButton liked={p.liked} count={p.likes} onClick={() => like(p)} className={iconBtn} />
-        <button type="button" aria-label={named("Comment", p.comments)} aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={`${iconBtn} ${showComments ? "text-foreground" : ""}`}>
+        <button type="button" aria-label={named("Comment", p.comments)} aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={cn(iconBtn, "hover:text-link", showComments && "text-foreground")}>
           <Icon d={icons.comment} size={16} />
           <span className="hidden sm:inline">Comment</span>
           {count(p.comments)}
@@ -589,7 +590,7 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
           disabled={mine}
           title={mine ? "You can't repost your own post" : undefined}
           onClick={() => repost(p)}
-          className={`${iconBtn} ${p.reposted ? "text-success hover:text-success" : ""}`}
+          className={cn(iconBtn, !mine && "hover:text-success", p.reposted && "text-success")}
         >
           <Icon d={icons.repost} size={16} />
           <span className="hidden sm:inline">Repost</span>

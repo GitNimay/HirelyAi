@@ -11,7 +11,7 @@ export function PostButton({ viewer }: { viewer: { id: string; name: string; ima
   return (
     <>
       {/* Like X / Threads: a label on the wide rail, icon only on the slim one */}
-      <button type="button" onClick={() => setOpen(true)} aria-label="Create a post" title="Post" className={`${btnOutline} ${btnLg} w-full rounded-full px-0 text-[15px] font-semibold xl:px-4`}>
+      <button type="button" onClick={() => setOpen(true)} aria-label="Create a post" title="Post" className={`${btnOutline} ${btnLg} w-full rounded-full px-0 text-sm font-medium xl:px-4`}>
         <Icon d={icons.plus} size={20} className="xl:hidden" />
         <span className="hidden xl:inline">Post</span>
       </button>

@@ -17,8 +17,8 @@ export default function HomeLoading() {
           <div className="min-w-0 flex-1">
             <div className="h-[53px] pt-2 text-sm"><Line w="55%" /></div>
             <div className="mt-2 flex h-8 items-center justify-between">
-              <Skeleton className="h-8 w-40" />
-              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-40 rounded-lg" />
+              <Skeleton className="h-8 w-16 rounded-lg" />
             </div>
           </div>
         </div>

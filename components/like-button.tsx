@@ -53,7 +53,7 @@ export function LikeButton({ liked, count, onClick, className, ...props }: Props
         if (!liked) setBurst((b) => b + 1);
         onClick?.(e);
       }}
-      className={cn(className, liked && "text-danger hover:text-danger")}
+      className={cn(className, "hover:text-danger", liked && "text-danger")}
       {...props}
     >
       <span className="relative flex size-5 items-center justify-center">
@@ -63,8 +63,8 @@ export function LikeButton({ liked, count, onClick, className, ...props }: Props
           strokeWidth={2}
           aria-hidden
           className={cn(
-            "relative z-10 transition-[transform,fill] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-            liked ? "scale-110 fill-current" : "scale-100 fill-transparent",
+            "relative z-10 transition-[transform,scale,fill] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+            liked ? "motion-safe:scale-110 fill-current" : "scale-100 fill-transparent",
           )}
         />
       </span>

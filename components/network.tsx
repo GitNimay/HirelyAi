@@ -151,7 +151,7 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-4">
-          <h1 className="text-sm font-semibold">My Network</h1>
+          <h1 className="text-sm font-medium">My Network</h1>
           <dl className="flex gap-4 text-xs text-muted">
             {(["connections", "following", "followers"] as const).map((k) => (
               <div key={k} className="flex flex-row-reverse gap-1">
@@ -255,7 +255,7 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
           count={counts.connections}
           last
           action={
-            <label className="flex h-8 w-36 items-center sm:w-48 gap-2 rounded-md border border-border px-2 text-muted focus-within:border-ring">
+            <label className="flex h-8 w-36 items-center gap-2 rounded-md border border-border px-2 text-muted focus-within:border-ring sm:w-48">
               <Icon d={icons.search} size={14} />
               <input
                 value={query}
@@ -313,7 +313,7 @@ function Section({ title, count, action, last, children }: { title: string; coun
   return (
     <section className={last ? "" : "border-b border-border"}>
       <div className="flex h-12 items-center justify-between gap-4 px-4">
-        <h2 className="text-sm font-semibold">
+        <h2 className="text-sm font-medium">
           {title} {count !== undefined && <span className="font-normal tabular-nums text-muted">{count}</span>}
         </h2>
         {action}
@@ -325,7 +325,7 @@ function Section({ title, count, action, last, children }: { title: string; coun
 
 function Row({ person: p, meta, children }: { person: Person; meta: string; children: React.ReactNode }) {
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
+    <li className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
       <Link href={profileHref(p)} aria-label={p.name} className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <Avatar name={p.name} src={p.imageUrl ?? undefined} size={48} />
       </Link>
@@ -333,14 +333,14 @@ function Row({ person: p, meta, children }: { person: Person; meta: string; chil
         <Link href={profileHref(p)} className="block truncate text-sm font-medium hover:underline">{p.name}</Link>
         {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
         {p.bio && <p className="truncate text-xs text-muted">{p.bio.replace(/\s+/g, " ")}</p>}
-        {meta && <p className="truncate text-xs text-muted">{meta}</p>}
+        {meta && <p className="truncate text-xs tabular-nums text-muted">{meta}</p>}
       </div>
-      <div className="flex items-center gap-2">{children}</div>
+      <div className="flex shrink-0 items-center gap-2 self-center">{children}</div>
     </li>
   );
 }
 
-const Empty = ({ children }: { children: React.ReactNode }) => <p className="px-4 pb-6 text-sm text-muted">{children}</p>;
+const Empty = ({ children }: { children: React.ReactNode }) => <p className="px-4 py-12 text-center text-sm text-muted">{children}</p>;
 
 /** An invitation you sent: reads "Pending", and says what a click does ("Withdraw") on hover or focus. */
 export function PendingButton({ disabled, onClick }: { disabled?: boolean; onClick: () => void }) {

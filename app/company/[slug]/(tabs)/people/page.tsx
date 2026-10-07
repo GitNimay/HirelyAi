@@ -24,7 +24,7 @@ export default async function PeopleTab({ params }: { params: Promise<{ slug: st
         <ul className="divide-y divide-border">
           {people.map((p) => (
             <li key={p.id}>
-              <Link href={profileHref(p)} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface">
+              <Link href={profileHref(p)} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
                 <Avatar name={p.name} src={p.imageUrl ?? undefined} size={40} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{p.name}</p>

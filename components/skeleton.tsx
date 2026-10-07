@@ -34,7 +34,7 @@ export function PageHeader({ title, back, tabs, action, className = "gap-3 px-4"
     <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
       <div className={`flex h-14 items-center ${className}`}>
         {back && <span className="rounded-md p-1 text-muted"><Icon d={icons.back} size={18} /></span>}
-        <h1 className="flex-1 text-sm font-semibold">{title}</h1>
+        <h1 className="flex-1 text-sm font-medium">{title}</h1>
         {action}
       </div>
       {tabs && (
@@ -94,7 +94,7 @@ export const PersonRowSkeleton = ({ i = 0 }: { i?: number }) => (
       <Line className="text-xs" w={pick(["65%", "52%", "72%"], i)} />
       <Line className="text-xs" w={pick(["30%", "38%", "26%"], i)} />
     </div>
-    <Skeleton className="h-8 w-24 rounded-md" />
+    <Skeleton className="h-8 w-24 rounded-lg" />
   </div>
 );
 
@@ -172,7 +172,7 @@ export const ProfileHeaderSkeleton = () => (
         <div className="-mt-12 rounded-full border-4 border-background bg-background">
           <Skeleton className="size-24 rounded-full" />
         </div>
-        <div className="flex gap-2 pt-3"><Skeleton className="h-8 w-28" /></div>
+        <div className="flex gap-2 pt-3"><Skeleton className="h-8 w-28 rounded-lg" /></div>
       </div>
       <div className="mt-3">
         <Line className="text-xl leading-tight" w="40%" />
@@ -204,7 +204,7 @@ export const ResumeEditorSkeleton = () => {
       {children}
     </section>
   );
-  const f = (w: string, className?: string) => <FieldSkeleton w={w} label="text-[13px]" className={className} />;
+  const f = (w: string, className?: string) => <FieldSkeleton w={w} label="text-sm" className={className} />;
   return (
     <Loading label="Loading your resume…" className="space-y-6">
       {section("24%", (

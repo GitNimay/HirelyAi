@@ -183,7 +183,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-4">
-          <h1 className="text-sm font-semibold">Jobs</h1>
+          <h1 className="text-sm font-medium">Jobs</h1>
           <Link href="/dashboard/jobs/post" className={btnOutline}>
             <Icon d={icons.plus} size={14} />
             Post a job
@@ -196,7 +196,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
 
       {shown && (
         <>
-          <button type="button" onClick={() => choose(null)} className="flex h-10 w-full items-center gap-1.5 border-b border-border px-3 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+          <button type="button" onClick={() => choose(null)} className="flex h-10 w-full items-center gap-1.5 border-b border-border px-4 text-sm text-muted transition-colors hover:bg-surface-hover hover:text-foreground">
             <Icon d={icons.back} size={16} />
             Back to results
           </button>
@@ -221,7 +221,7 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
       {/* Stays mounted while a job is open so infinite scroll and the list position survive */}
       <div className={shown ? "hidden" : undefined}>
         {tab === "search" && fresh > 0 && (
-          <button type="button" onClick={() => load("search", filters)} className="h-10 w-full border-b border-border text-sm text-link transition-colors hover:bg-surface">
+          <button type="button" onClick={() => load("search", filters)} className="h-10 w-full border-b border-border text-sm text-link transition-colors hover:bg-surface-hover">
             Show {fresh} new job{fresh === 1 ? "" : "s"}
           </button>
         )}
@@ -326,7 +326,7 @@ function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onO
           title={j.saved ? "Unsave" : "Save"}
           aria-pressed={j.saved}
           onClick={onSave}
-          className={`${btnGhost} absolute right-3 top-3 z-[1] px-2 ${j.saved ? "text-foreground" : ""}`}
+          className={`${btnGhost} absolute right-3 top-1.5 z-[1] px-2 ${j.saved ? "text-foreground" : ""}`}
         >
           <Icon d={icons.bookmark} size={16} className={j.saved ? "fill-current" : ""} />
         </button>
@@ -338,13 +338,13 @@ function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onO
           e.preventDefault();
           onOpen();
         }}
-        className={`flex w-full gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${mine ? "" : "pr-14"}`}
+        className={`flex w-full items-start gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${mine ? "" : "pr-14"}`}
       >
         <CompanyLogo name={j.company} src={j.page?.logoUrl} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-link">{j.title}</p>
-          <p className="truncate text-sm">{j.company}</p>
-          <p className="truncate text-xs text-muted">{where(j)}</p>
+          <p className="mt-0.5 truncate text-sm">{j.company}</p>
+          <p className="mt-0.5 truncate text-xs text-muted">{where(j)}</p>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-muted" suppressHydrationWarning>
             {tag && <span className="font-medium text-foreground">{tag} ·</span>}
             {posted(j.createdAt)}
@@ -399,7 +399,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
       <div className="space-y-4 border-b border-border p-4">
         <div className="flex items-center gap-2 text-sm">
           <CompanyLogo name={j.company} src={j.page?.logoUrl} size={28} />
-          {j.page ? <Link href={`/company/${j.page.slug}`} className="font-medium hover:underline">{j.company}</Link> : <span className="font-medium">{j.company}</span>}
+          {j.page ? <Link href={`/company/${j.page.slug}`} className="font-medium hover:underline underline-offset-2">{j.company}</Link> : <span className="font-medium">{j.company}</span>}
           {j.page?.verified && (
             <span title="The poster verified they work here" className="flex items-center gap-1 text-xs text-success">
               <Icon d={icons.verified} size={14} />
@@ -408,7 +408,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
           )}
         </div>
         <div>
-          <h2 className="font-display text-xl font-normal text-balance">{j.title}</h2>
+          <h2 className="font-display text-xl font-normal text-balance break-words">{j.title}</h2>
           <p className="mt-1 text-sm text-muted" suppressHydrationWarning>
             {where(j)} · {posted(j.createdAt)} · {applicantsText(j.applicants)}
           </p>
@@ -471,7 +471,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
       ) : (
         <>
           <section className="border-b border-border p-4">
-            <h3 className="mb-3 text-sm font-semibold">Meet the hiring team</h3>
+            <h3 className="mb-3 text-sm font-medium">Meet the hiring team</h3>
             <div className="flex items-center gap-3">
               <Avatar name={j.poster.name} src={j.poster.imageUrl ?? undefined} size={40} />
               <div className="min-w-0">
@@ -481,7 +481,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
             </div>
           </section>
           <section className={`p-4 ${j.page ? "border-b border-border" : ""}`}>
-            <h3 className="mb-3 text-sm font-semibold">About the job</h3>
+            <h3 className="mb-3 text-sm font-medium">About the job</h3>
             <div className="space-y-3 break-words text-sm leading-relaxed text-foreground/90">
               <Prose text={j.description} />
             </div>
@@ -522,7 +522,7 @@ export function JobFacts({ job: j, h: H = "h3" }: { job: Facts; h?: "h2" | "h3" 
   ].filter((f) => !!f);
   return (
     <section className="border-b border-border p-4">
-      <H className="mb-3 text-sm font-semibold">Job details</H>
+      <H className="mb-3 text-sm font-medium">Job details</H>
       <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
         {facts.map((f) => (
           <div key={f.label} className={`flex gap-3 ${"sub" in f ? "sm:col-span-2" : ""}`}>
@@ -545,13 +545,13 @@ export function AboutCompany({ name, page: p, h: H = "h3", linked = true }: { na
   const meta = [p.industry, p.size && `${p.size} employees`, p.hq].filter(Boolean).join(" · ");
   return (
     <section className="space-y-3 p-4">
-      <H className="text-sm font-semibold">About the company</H>
+      <H className="text-sm font-medium">About the company</H>
       <div className="flex items-center gap-3">
         <CompanyLogo name={name} src={p.logoUrl} size={48} />
         <div className="min-w-0">
-          {linked ? <Link href={`/company/${p.slug}`} className="block truncate text-sm font-medium hover:underline">{name}</Link> : <p className="truncate text-sm font-medium">{name}</p>}
+          {linked ? <Link href={`/company/${p.slug}`} className="block truncate text-sm font-medium hover:underline underline-offset-2">{name}</Link> : <p className="truncate text-sm font-medium">{name}</p>}
           {p.tagline && <p className="truncate text-xs text-muted">{p.tagline}</p>}
-          <p className="text-xs text-muted">{p.followers.toLocaleString()} follower{p.followers === 1 ? "" : "s"}</p>
+          <p className="text-xs tabular-nums text-muted">{p.followers.toLocaleString()} follower{p.followers === 1 ? "" : "s"}</p>
         </div>
       </div>
       {meta && <p className="text-sm text-muted">{meta}</p>}
@@ -565,7 +565,7 @@ export function AboutCompany({ name, page: p, h: H = "h3", linked = true }: { na
 export function Prose({ text, h: H = "h4" }: { text: string; h?: "h3" | "h4" }) {
   return parseProse(text).map((b, i) =>
     b.t === "h" ? (
-      <H key={i} className="pt-2 text-sm font-semibold text-foreground">{b.text}</H>
+      <H key={i} className="pt-2 text-sm font-medium text-foreground">{b.text}</H>
     ) : b.t === "p" ? (
       <p key={i} className="whitespace-pre-wrap"><Inline text={b.text} /></p>
     ) : (
@@ -578,9 +578,9 @@ export function Prose({ text, h: H = "h4" }: { text: string; h?: "h3" | "h4" }) 
 
 function Inline({ text }: { text: string }) {
   return parseInline(text).map((s, i) =>
-    s.t === "b" ? <strong key={i} className="font-semibold text-foreground">{s.text}</strong>
-    : s.t === "url" ? <a key={i} href={s.text} target="_blank" rel="noopener noreferrer nofollow" className="break-all text-link hover:underline">{s.text}</a>
-    : s.t === "email" ? <a key={i} href={`mailto:${s.text}`} className="text-link hover:underline">{s.text}</a>
+    s.t === "b" ? <strong key={i} className="font-medium text-foreground">{s.text}</strong>
+    : s.t === "url" ? <a key={i} href={s.text} target="_blank" rel="noopener noreferrer nofollow" className="break-all text-link hover:underline underline-offset-2">{s.text}</a>
+    : s.t === "email" ? <a key={i} href={`mailto:${s.text}`} className="text-link hover:underline underline-offset-2">{s.text}</a>
     : s.text,
   );
 }
@@ -659,7 +659,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <Link href={applicantHref(jobId, a.id)} className="block truncate text-sm font-medium hover:underline">{a.name}</Link>
+                <Link href={applicantHref(jobId, a.id)} className="block truncate text-sm font-medium hover:underline underline-offset-2">{a.name}</Link>
                 {a.headline && <p className="truncate text-xs text-muted">{a.headline}</p>}
               </div>
               <Select
@@ -672,13 +672,13 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
               />
             </div>
             <p className="flex flex-wrap gap-x-3 text-xs text-muted" suppressHydrationWarning>
-              <a href={`mailto:${a.email}`} className="text-link hover:underline">{a.email}</a>
+              <a href={`mailto:${a.email}`} className="text-link hover:underline underline-offset-2">{a.email}</a>
               {a.phone && <a href={`tel:${a.phone}`} className="hover:text-foreground">{a.phone}</a>}
               <span>Applied {posted(a.at).toLowerCase()}</span>
             </p>
             {a.note && <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{a.note}</p>}
             {a.resumeKey && (
-              <a href={`/api/media/${a.resumeKey}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline">
+              <a href={`/api/media/${a.resumeKey}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline underline-offset-2">
                 <Icon d={icons.file} size={14} />
                 Attached resume
               </a>
@@ -698,7 +698,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
                   <span className="text-muted">·</span>
                 </>
               )}
-              <span className="font-medium text-link hover:underline">View profile &amp; application</span>
+              <span className="font-medium text-link hover:underline underline-offset-2">View profile &amp; application</span>
             </Link>
           </div>
         </li>
@@ -761,7 +761,7 @@ function ApplyDialog({ job, contact, profile, onClose, onApplied }: {
         <p className="text-sm text-muted">{job.title} · {where(job)}</p>
         {profile ? <ProfileLoaded p={profile} /> : (
           <p role="alert" className="rounded-md border border-border p-3 text-sm">
-            Finish your profile first: it&apos;s what {job.company} sees. <Link href="/onboarding" className="font-medium text-link hover:underline">Set it up</Link>
+            Finish your profile first: it&apos;s what {job.company} sees. <Link href="/onboarding" className="font-medium text-link hover:underline underline-offset-2">Set it up</Link>
           </p>
         )}
         <Field label="Email">
@@ -791,8 +791,8 @@ function ApplyDialog({ job, contact, profile, onClose, onApplied }: {
         </Field>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <button type="button" className={btnGhost} onClick={onClose} disabled={busy}>Cancel</button>
-          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || !profile}>Submit application</button>
+          <button type="button" className={`${btnGhost} ${btnLg}`} onClick={onClose} disabled={busy}>Cancel</button>
+          <button aria-busy={busy} type="submit" className={`${btnPrimary} ${btnLg}`} disabled={busy || !profile}>Submit application</button>
         </div>
       </form>
     </Modal>
@@ -816,7 +816,7 @@ function ProfileLoaded({ p }: { p: NonNullable<ApplyProfile> }) {
           {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
           {counts.length > 0 && <p className="truncate text-xs text-muted">{counts.join(" · ")}</p>}
         </div>
-        <a href={`/in/${p.handle}/resume`} target="_blank" rel="noreferrer" className="shrink-0 text-xs font-medium text-link hover:underline">Review</a>
+        <a href={`/in/${p.handle}/resume`} target="_blank" rel="noreferrer" className="shrink-0 text-xs font-medium text-link hover:underline underline-offset-2">Review</a>
       </div>
       <p className="text-xs text-muted">The recruiter sees this profile as it is now: experience, education, projects and skills.</p>
     </div>
@@ -874,7 +874,7 @@ export function PostJobForm({ companies, initialCompany, job }: { companies: { i
         <Link href={back} onClick={leave} aria-label="Back to jobs" className={backBtn}>
           <Icon d={icons.back} size={18} />
         </Link>
-        <h1 className="text-sm font-semibold">{job ? "Edit job" : "Post a job"}</h1>
+        <h1 className="text-sm font-medium">{job ? "Edit job" : "Post a job"}</h1>
       </header>
 
       <form onSubmit={submit} onChange={() => setDirty(true)}>
@@ -995,8 +995,8 @@ export function PostJobForm({ companies, initialCompany, job }: { companies: { i
 
         <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
           {error && <p role="alert" className="mr-auto text-sm text-danger">{error}</p>}
-          <Link href={back} onClick={leave} className={btnGhost}>Cancel</Link>
-          <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>{job ? "Save changes" : "Post job"}</button>
+          <Link href={back} onClick={leave} className={`${btnGhost} ${btnLg}`}>Cancel</Link>
+          <button aria-busy={busy} type="submit" className={`${btnPrimary} ${btnLg}`} disabled={busy}>{job ? "Save changes" : "Post job"}</button>
         </div>
       </form>
     </>
@@ -1007,7 +1007,7 @@ export function FormSection({ title, hint, children }: { title: string; hint?: s
   return (
     <section className="space-y-4 border-b border-border px-4 py-6">
       <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-medium">{title}</h2>
         {hint && <p className="mt-0.5 text-sm text-muted" suppressHydrationWarning>{hint}</p>}
       </div>
       {children}
@@ -1066,12 +1066,12 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
             <>
               <dt className="text-muted">Link</dt>
               <dd className="truncate font-mono" suppressHydrationWarning>{link}</dd>
-              <button type="button" className={`${btnGhost} h-7`} onClick={() => copy("link", link)}>{copied === "link" ? "Copied" : "Copy"}</button>
+              <button type="button" className={`${btnGhost}`} onClick={() => copy("link", link)}>{copied === "link" ? "Copied" : "Copy"}</button>
             </>
           )}
           <dt className="text-muted">Password</dt>
           <dd className="font-mono">{iv.password}</dd>
-          <button type="button" className={`${btnGhost} h-7`} onClick={() => copy("password", iv.password!)}>{copied === "password" ? "Copied" : "Copy"}</button>
+          <button type="button" className={`${btnGhost}`} onClick={() => copy("password", iv.password!)}>{copied === "password" ? "Copied" : "Copy"}</button>
         </dl>
       )}
       {mine && <p className="text-xs text-muted">Every applicant is emailed the link and password when they apply. Results show under Applicants.</p>}
@@ -1111,12 +1111,12 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             {([
               ["Name", p.name],
-              ["Phone", p.phone && <a href={`tel:${p.phone}`} className="hover:underline">{p.phone}</a>],
+              ["Phone", p.phone && <a href={`tel:${p.phone}`} className="hover:underline underline-offset-2">{p.phone}</a>],
               ["City", p.city],
               ["Current role", p.role],
               ["Experience", `${p.years} yr${p.years === 1 ? "" : "s"}`],
               ["Notice period", NOTICE[p.notice]],
-              ["Profile link", p.link && <a href={p.link} target="_blank" rel="noopener noreferrer" className="break-all text-link hover:underline">{p.link}</a>],
+              ["Profile link", p.link && <a href={p.link} target="_blank" rel="noopener noreferrer" className="break-all text-link hover:underline underline-offset-2">{p.link}</a>],
             ] as const).map(([k, v]) => v && (
               <div key={k} className="contents">
                 <dt className="text-muted">{k}</dt>
@@ -1132,8 +1132,8 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
         {rep ? (
           <div className="space-y-4 text-sm">
             <div className="flex items-center gap-4">
-              <p className="text-3xl font-semibold tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
-              <p className={`rounded-full border border-border px-2.5 py-1 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
+              <p className="text-3xl font-medium tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
+              <p className={`inline-flex h-6 shrink-0 items-center rounded-full border border-border px-2.5 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
             </div>
             {rep.summary && <p className="leading-relaxed text-foreground/90">{rep.summary}</p>}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1188,8 +1188,8 @@ function McqResult({ r }: { r: InterviewResult }) {
       <FormSection title="Test result" hint={r.startedAt ? `Taken ${dateTime(r.startedAt)}` : undefined}>
         {rep ? (
           <div className="flex flex-wrap items-center gap-4 text-sm">
-            <p className="text-3xl font-semibold tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
-            <p className={`rounded-full border border-border px-2.5 py-1 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
+            <p className="text-3xl font-medium tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
+            <p className={`inline-flex h-6 shrink-0 items-center rounded-full border border-border px-2.5 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
             <p className="text-muted">{rep.summary}</p>
           </div>
         ) : (
@@ -1352,7 +1352,7 @@ function McqEditor({ initial }: { initial: Mcq[] }) {
                     maxLength={MCQ.optionChars}
                     aria-label={`Option ${LETTERS[i]}`}
                     placeholder={`Option ${LETTERS[i]}`}
-                    className={`${field} h-9 ${d.answer === i ? "border-success" : ""}`}
+                    className={`${field} ${d.answer === i ? "border-success" : ""}`}
                   />
                   {d.options.length > MCQ.minOptions && (
                     <button

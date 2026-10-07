@@ -105,7 +105,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
         <BackButton />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold leading-tight">{profile.name}</h1>
+          <h1 className="truncate text-sm font-medium leading-tight">{profile.name}</h1>
           <p className="text-xs text-muted">{profile.counts.posts} {profile.counts.posts === 1 ? "post" : "posts"}</p>
         </div>
         {/* Phones have no sidebar: settings, theme and log out live here */}
@@ -145,10 +145,10 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
           </div>
 
           <div className="mt-3">
-            <h2 className="font-display text-xl font-normal leading-tight">{profile.name}</h2>
+            <h2 className="font-display text-xl font-normal leading-tight text-balance">{profile.name}</h2>
             <p className="mt-0.5 flex items-center gap-2 text-sm text-muted">
               <span>@{profile.handle ?? profile.id}</span>
-              {!own && rel.followsYou && <span className="rounded bg-surface-hover px-1.5 py-0.5 text-xs">Follows you</span>}
+              {!own && rel.followsYou && <span className="rounded-md bg-surface-hover px-1.5 py-0.5 text-xs">Follows you</span>}
               {profile.openToWork && <span className="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">Open to work</span>}
             </p>
           </div>
@@ -189,12 +189,12 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
                 <dd>
                   {href ? (
                     <Link href={href} className="group flex gap-1 hover:underline">
-                      <span className="font-semibold tabular-nums">{n}</span>
+                      <span className="font-medium tabular-nums">{n}</span>
                       <span className="capitalize text-muted">{k}</span>
                     </Link>
                   ) : (
                     <span className="flex gap-1">
-                      <span className="font-semibold tabular-nums">{n}</span>
+                      <span className="font-medium tabular-nums">{n}</span>
                       <span className="capitalize text-muted">{k}</span>
                     </span>
                   )}
@@ -313,7 +313,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           <Link href={back} onClick={leave} aria-label="Back to profile" className={backBtn}>
             <Icon d={icons.back} size={18} />
           </Link>
-          <h1 className="flex-1 text-sm font-semibold">Edit profile</h1>
+          <h1 className="flex-1 text-sm font-medium">Edit profile</h1>
           <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
         </header>
         <div className="relative aspect-[3/1] bg-gradient-to-br from-surface-hover to-surface">
@@ -338,7 +338,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           <input ref={coverInput} type="file" hidden accept={PROFILE_IMAGE_TYPES.join()} onChange={(e) => (pick(e.target.files?.[0], COVER_PX, (p) => (setCover(p), setCoverRemoved(false))), (e.target.value = ""))} />
         </div>
 
-        <div className="px-5">
+        <div className="px-4">
           <div className="relative -mt-14 w-fit rounded-full border-4 border-background bg-background">
             <Avatar name={profile.name} src={avatar?.url ?? profile.imageUrl ?? undefined} size={88} />
             <button type="button" aria-label="Change profile photo" disabled={busy} onClick={() => avatarInput.current?.click()} className={`${overlay} inset-0 m-auto`}>
@@ -348,7 +348,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           </div>
         </div>
 
-        <div className="space-y-4 px-5">
+        <div className="space-y-4 px-4">
           <Field label="Name">
             <input name="name" required maxLength={LIMITS.name} defaultValue={profile.name} autoComplete="name" className={field} />
           </Field>
@@ -465,7 +465,7 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
       <ul>
         {page.replies.map((r) => (
           <li key={r.id} className="border-b border-border p-4">
-            <p className="mb-2 ml-[52px] text-xs text-muted">
+            <p className="mb-2 ml-13 text-xs text-muted">
               Replying to <Link href={profileHref(r.post.author)} className="text-link hover:underline">{r.post.author.name}</Link>
             </p>
             <div className="flex gap-3">
@@ -537,7 +537,7 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
 
   return (
     <section aria-label={dir === "followers" ? "Followers" : "Following"}>
-      <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">{dir === "followers" ? "Followers" : "Following"}</h2>
+      <h2 className="border-b border-border px-4 py-3 text-sm font-medium">{dir === "followers" ? "Followers" : "Following"}</h2>
       {page.people.length === 0 ? (
         <p className="px-4 py-12 text-center text-sm text-muted">{empty}</p>
       ) : (
@@ -550,7 +550,7 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2">
                   <Link href={profileHref(p)} className="truncate text-sm font-medium hover:underline">{p.name}</Link>
-                  {p.id !== viewerId && p.followsYou && <span className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-xs text-muted">Follows you</span>}
+                  {p.id !== viewerId && p.followsYou && <span className="shrink-0 rounded-md bg-surface-hover px-1.5 py-0.5 text-xs text-muted">Follows you</span>}
                 </p>
                 {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
               </div>
@@ -600,7 +600,7 @@ export function ProfileVisibility({ resumePublic, openToWork }: { resumePublic: 
 
   return (
     <fieldset className="space-y-3 rounded-lg border border-border p-4" disabled={busy}>
-      <legend className="px-1 text-sm font-semibold">Profile visibility</legend>
+      <legend className="px-1 text-sm font-medium">Profile visibility</legend>
       {options.map((o) => (
         <label key={o.key} className="flex cursor-pointer items-start gap-3">
           <input type="checkbox" role="switch" checked={v[o.key]} onChange={(e) => change({ ...v, [o.key]: e.target.checked })} className="mt-0.5 size-4 shrink-0 accent-foreground" />

@@ -53,7 +53,7 @@ export function AccountHeader({ loading }: { loading?: boolean }) {
   return (
     <>
       <header className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-5 backdrop-blur">
-        <h1 className="text-sm font-semibold">Account settings</h1>
+        <h1 className="text-sm font-medium">Account settings</h1>
       </header>
       {loading && (
         <Loading label="Loading account…">
@@ -105,7 +105,7 @@ function useTask() {
 function Section({ title, desc, danger, children }: { title: string; desc: string; danger?: boolean; children: ReactNode }) {
   const body = (
     <>
-      <h2 className={`text-sm font-semibold ${danger ? "text-danger" : ""}`}>{title}</h2>
+      <h2 className={danger ? "text-sm font-medium text-danger" : "text-sm font-medium"}>{title}</h2>
       <p className="mt-1 text-sm text-muted">{desc}</p>
       <div className="mt-4">{children}</div>
     </>

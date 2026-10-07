@@ -9,7 +9,7 @@ export default async function AboutTab({ params }: { params: Promise<{ slug: str
   const c = await companyFor(userId, await slugOf(params));
   if (!c) notFound();
   const details: [string, ReactNode][] = [
-    ["Website", c.website && <a href={c.website} target="_blank" rel="noopener noreferrer nofollow" className="text-link hover:underline">{c.website}</a>],
+    ["Website", c.website && <a href={c.website} target="_blank" rel="noopener noreferrer nofollow" className="text-link underline-offset-2 hover:underline">{c.website}</a>],
     ["Industry", c.industry],
     ["Company size", c.size && `${c.size} employees`],
     ["Headquarters", c.hq],
@@ -21,7 +21,7 @@ export default async function AboutTab({ params }: { params: Promise<{ slug: str
   return (
     <div className="space-y-5 px-4 py-5">
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold">Overview</h2>
+        <h2 className="text-sm font-medium">Overview</h2>
         <p className="whitespace-pre-line text-sm text-muted">{c.about || (c.me.role ? "Add an overview so members know what the company does." : "No overview yet.")}</p>
       </section>
       <dl className="space-y-3 border-t border-border pt-5 text-sm">

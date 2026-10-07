@@ -31,12 +31,12 @@ function openPopup() {
 /* ---------- Shared UI ---------- */
 
 const btn =
-  "flex h-10 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-[box-shadow,transform] duration-150 motion-safe:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60";
+  "flex h-10 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-[box-shadow,transform,scale] duration-150 motion-safe:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60";
 // Texture look, same tx-* utilities as the app's buttons (globals.css)
 const btnSecondary = `${btn} relative tx-secondary`;
 const btnPrimary = `${btn} tx-primary`;
 const input =
-  "h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring";
+  "h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring";
 
 // White mark on dark, black mark on light
 // `faint` is the quiet watermark look of the auth screens; the app shell shows the mark at full strength
@@ -51,7 +51,7 @@ export function Logo({ size = 48, faint = true }: { size?: number; faint?: boole
 }
 
 /** Under the sign-in / sign-up footers: back to the landing page. */
-const homeLink = <Link href="/" className="mt-3 block text-xs text-muted hover:text-foreground">Go to home</Link>;
+const homeLink = <Link href="/" className="mt-3 block text-xs text-muted hover:text-foreground hover:underline underline-offset-2">Go to home</Link>;
 
 /** The auth card. Until Clerk has loaded in the browser the form is placeholders; with `busy` (a status label) it stays so, above `children`. */
 export function Shell({ title, subtitle, children, footer, busy }: { title: string; subtitle: ReactNode; children?: ReactNode; footer?: ReactNode; busy?: string }) {
@@ -61,7 +61,7 @@ export function Shell({ title, subtitle, children, footer, busy }: { title: stri
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo />
-          <h1 className="mt-6 font-display text-2xl font-normal">{title}</h1>
+          <h1 className="mt-6 font-display text-2xl font-normal text-balance">{title}</h1>
           <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
         </div>
         {isLoaded && !busy ? (
@@ -223,10 +223,10 @@ function AuthBody({
           Verify
         </button>
         <div className="flex justify-between text-sm">
-          <button type="button" className="text-muted hover:text-foreground" onClick={() => { setStep("email"); setCode(""); setError(""); }}>
+          <button type="button" className="text-muted hover:text-foreground hover:underline underline-offset-2" onClick={() => { setStep("email"); setCode(""); setError(""); }}>
             Use a different email
           </button>
-          <button aria-busy={pending === "resend"} type="button" className="text-link hover:underline disabled:opacity-60" disabled={disabled} onClick={() => run("resend", () => sendCode(email.trim()))}>
+          <button aria-busy={pending === "resend"} type="button" className="text-link hover:underline underline-offset-2 disabled:opacity-60" disabled={disabled} onClick={() => run("resend", () => sendCode(email.trim()))}>
             Resend code
           </button>
         </div>
@@ -239,7 +239,7 @@ function AuthBody({
       <div className="space-y-3">
         {providers.map(({ strategy, label }) => (
           <button aria-busy={pending === strategy} key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => onSso(strategy)}>
-            <span className="absolute left-4">{providerIcons[strategy]}</span>
+            <span className="absolute left-4 flex w-5 shrink-0 justify-center">{providerIcons[strategy]}</span>
             {`Continue with ${label}`}
             {last === strategy && <LastUsed />}
           </button>
@@ -285,7 +285,7 @@ export function SignInForm() {
     <Shell
       title="Welcome back"
       subtitle="Log in to your account"
-      footer={<>Don&apos;t have an account? <Link href="/sign-up" className="text-link hover:underline">Sign up</Link>{homeLink}</>}
+      footer={<>Don&apos;t have an account? <Link href="/sign-up" className="text-link hover:underline underline-offset-2">Sign up</Link>{homeLink}</>}
     >
       <AuthBody
         cta="Log in"
@@ -311,7 +311,7 @@ export function SignUpForm() {
     <Shell
       title="Create your account"
       subtitle="Join Hire Excellence to connect and grow"
-      footer={<>Already have an account? <Link href="/sign-in" className="text-link hover:underline">Log in</Link>{homeLink}</>}
+      footer={<>Already have an account? <Link href="/sign-in" className="text-link hover:underline underline-offset-2">Log in</Link>{homeLink}</>}
     >
       <AuthBody
         cta="Sign up"
