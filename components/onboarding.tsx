@@ -188,7 +188,7 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
     reading: (
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
         <span className="size-10 animate-spin rounded-full border-2 border-border border-t-foreground" />
-        <h2 className="mt-6 text-lg font-semibold tracking-tight">Reading your resume…</h2>
+        <h2 className="mt-6 font-display text-lg font-normal">Reading your resume…</h2>
         <p className="mt-1 max-w-xs text-sm text-muted">Pulling out your experience, education and skills. This takes about 10–20 seconds.</p>
       </div>
     ),
@@ -238,7 +238,7 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
         >
           <Icon d={icons.check} size={28} />
         </motion.span>
-        <h2 className="mt-6 text-xl font-semibold tracking-tight">Your profile has been created</h2>
+        <h2 className="mt-6 font-display text-xl font-normal">Your profile has been created</h2>
         <p className="mt-1 text-sm text-muted">Welcome aboard, {r.name.split(" ")[0]}. Taking you to your dashboard…</p>
         <button type="button" onClick={() => router.replace("/dashboard")} className={`${primary} mt-8`}>Go to dashboard</button>
       </div>
@@ -321,7 +321,7 @@ const option = "flex w-full items-center gap-4 rounded-lg border border-border b
 export function Head({ title, sub }: { title: string; sub: string }) {
   return (
     <div>
-      <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+      <h1 className="font-display text-lg font-normal">{title}</h1>
       <p className="mt-1 text-sm text-muted">{sub}</p>
     </div>
   );

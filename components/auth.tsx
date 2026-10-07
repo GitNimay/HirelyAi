@@ -61,7 +61,7 @@ export function Shell({ title, subtitle, children, footer, busy }: { title: stri
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo />
-          <h1 className="mt-6 text-2xl font-semibold tracking-tight">{title}</h1>
+          <h1 className="mt-6 font-display text-2xl font-normal">{title}</h1>
           <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
         </div>
         {isLoaded && !busy ? (

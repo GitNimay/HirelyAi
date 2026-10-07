@@ -145,7 +145,7 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
           </div>
 
           <div className="mt-3">
-            <h2 className="text-xl font-semibold leading-tight">{profile.name}</h2>
+            <h2 className="font-display text-xl font-normal leading-tight">{profile.name}</h2>
             <p className="mt-0.5 flex items-center gap-2 text-sm text-muted">
               <span>@{profile.handle ?? profile.id}</span>
               {!own && rel.followsYou && <span className="rounded bg-surface-hover px-1.5 py-0.5 text-xs">Follows you</span>}
