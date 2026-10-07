@@ -157,7 +157,7 @@ export function Interview({ view }: { view: CandidateView }) {
           <input name="password" required maxLength={40} autoComplete="off" spellCheck={false} placeholder="xxxx-xxxx" className={`${field(false)} font-mono`} />
         </F>
         {error && <Alert>{error}</Alert>}
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
           <p className="text-xs text-muted" suppressHydrationWarning>Open until {date(view.deadline)}</p>
           <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
         </div>
@@ -174,7 +174,7 @@ export function Interview({ view }: { view: CandidateView }) {
                 {view.questions} question{view.questions === 1 ? "" : "s"} · {INTERVIEW.seconds / 60} min · one attempt, keep this tab open
               </p>
               {error && <Alert>{error}</Alert>}
-              <div className="flex items-center justify-end gap-3 border-t border-border pt-5">
+              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5">
                 {!heard && <span className="text-xs text-muted">Waiting to hear you…</span>}
                 <button aria-busy={busy} type="button" className={primary} disabled={!heard || busy} onClick={begin}>
                   {view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
@@ -207,7 +207,7 @@ export function Interview({ view }: { view: CandidateView }) {
           ].map(([d, title, sub]) => (
             <li key={title} className="flex gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-muted"><Icon d={d} size={16} /></span>
-              <span><span className="block font-medium">{title}</span><span className="text-muted">{sub}</span></span>
+              <span className="min-w-0"><span className="block font-medium">{title}</span><span className="text-muted">{sub}</span></span>
             </li>
           ))}
         </ul>
@@ -418,7 +418,7 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
 
   const secs = Math.ceil(left / 1000);
   return (
-    <div className="flex flex-col items-center gap-8 text-center">
+    <div className="flex flex-col items-center gap-6 pb-[env(safe-area-inset-bottom)] text-center sm:gap-8">
       <div className="flex w-full items-center justify-between border-b border-border pb-4 text-xs text-muted">
         <span className="flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />Live</span>
         <span className={`tabular-nums ${endsAt && secs <= 30 ? "font-medium text-danger" : ""}`}>
@@ -435,8 +435,8 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
 
       <div className="min-h-24 w-full space-y-3" aria-live="polite">
         <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
-        {caption.agent && <p className="text-base leading-relaxed text-balance">{caption.agent}</p>}
-        {caption.you && <p className="text-sm text-muted">You: {caption.you}</p>}
+        {caption.agent && <p className="break-words text-base leading-relaxed text-balance">{caption.agent}</p>}
+        {caption.you && <p className="break-words text-sm text-muted">You: {caption.you}</p>}
       </div>
 
       {muted && (
@@ -445,7 +445,7 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
         </button>
       )}
 
-      <button type="button" onClick={onEnd} className="inline-flex h-10 items-center gap-2 rounded-md border border-danger/50 px-4 text-sm font-medium text-danger transition-colors outline-none hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-ring">
+      <button type="button" onClick={onEnd} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border border-danger/50 px-4 text-sm font-medium text-danger transition-colors outline-none hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:w-auto">
         End interview
       </button>
     </div>
@@ -578,7 +578,7 @@ function McqTest({ slug, test, onDone }: { slug: string; test: { questions: McqP
                 aria-label={`Question ${i + 1}${answers[i] >= 0 ? ", answered" : ""}`}
                 aria-current={i === at ? "step" : undefined}
                 onClick={() => setAt(i)}
-                className={`size-9 rounded-md border text-xs tabular-nums transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${i === at ? "border-foreground font-medium" : "border-border"} ${answers[i] >= 0 ? "bg-foreground/10 text-foreground" : "text-muted hover:bg-surface-hover"}`}
+                className={`size-10 rounded-md border text-xs tabular-nums sm:size-9 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${i === at ? "border-foreground font-medium" : "border-border"} ${answers[i] >= 0 ? "bg-foreground/10 text-foreground" : "text-muted hover:bg-surface-hover"}`}
               >
                 {i + 1}
               </button>

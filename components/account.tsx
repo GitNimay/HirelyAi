@@ -52,13 +52,13 @@ export function AccountSettings() {
 export function AccountHeader({ loading }: { loading?: boolean }) {
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-5 backdrop-blur">
+      <header className="sticky top-14 z-10 flex h-14 items-center border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0 sm:px-5">
         <h1 className="text-sm font-medium">Account settings</h1>
       </header>
       {loading && (
         <Loading label="Loading account…">
           {times(4, (i) => (
-            <section key={i} className="border-b border-border px-5 py-6">
+            <section key={i} className="border-b border-border px-4 py-6 sm:px-5">
               <Line className="text-sm" w={["28%", "24%", "34%", "38%"][i]} />
               <Line className="mt-1 text-sm" w={["80%", "70%", "50%", "45%"][i]} />
               <div className="mt-4">{times(i === 1 ? 1 : 2, (j) => <SessionRowSkeleton key={j} />)}</div>
@@ -112,19 +112,19 @@ function Section({ title, desc, danger, children }: { title: string; desc: strin
   );
   // The danger zone gets a red-bordered card, as in Vercel's settings
   return danger ? (
-    <section className="px-5 py-6">
+    <section className="px-4 py-6 sm:px-5">
       <div className="rounded-lg border border-danger/40 p-4">{body}</div>
     </section>
   ) : (
-    <section className="border-b border-border px-5 py-6">{body}</section>
+    <section className="border-b border-border px-4 py-6 sm:px-5">{body}</section>
   );
 }
 
 function Row({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
-    <li className="flex min-h-12 items-center gap-3 border-t border-border py-2 first:border-t-0">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-sm">{children}</div>
-      <div className="flex shrink-0 gap-1">{actions}</div>
+    <li className="flex min-h-12 flex-col items-start gap-2 border-t border-border py-2 first:border-t-0 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 text-sm sm:flex-1">{children}</div>
+      <div className="empty:hidden flex shrink-0 gap-1 [&_button]:min-h-10 sm:[&_button]:min-h-0">{actions}</div>
     </li>
   );
 }
@@ -157,7 +157,7 @@ function Emails({ run }: { run: Run }) {
                 </>
               )}
             >
-              <span className="truncate">{e.emailAddress}</span>
+              <span className="break-all sm:truncate">{e.emailAddress}</span>
               {primary && <span className={badge}>Primary</span>}
               {!verified && <span className={badge}>Unverified</span>}
             </Row>
@@ -213,7 +213,7 @@ function Phones() {
             <input type="tel" value={value} onChange={(e) => setValue(e.target.value)} placeholder="+91 98765 43210" autoComplete="tel" autoFocus required className={field} />
           </Field>
           <Alert text={error} />
-          <div className="flex gap-2">
+          <div className="flex gap-2 [&_button]:min-h-10 sm:[&_button]:min-h-0">
             <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
             <button type="button" className={btnGhost} disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
           </div>
@@ -221,7 +221,7 @@ function Phones() {
       ) : (
         <>
           <Alert text={error} />
-          {!phone && <button type="button" className={`${btnOutline} mt-3`} onClick={() => (setValue(""), setEditing(true))}>Add phone number</button>}
+          {!phone && <button type="button" className={`${btnOutline} mt-3 min-h-10 sm:min-h-0`} onClick={() => (setValue(""), setEditing(true))}>Add phone number</button>}
         </>
       )}
     </Section>
@@ -261,7 +261,7 @@ function AddContact({ run, onVerified }: { run: Run; onVerified: (r: EmailAddres
 
   if (step === "idle") {
     return (
-      <button type="button" className={`${btnOutline} mt-3`} onClick={() => setStep("value")}>
+      <button type="button" className={`${btnOutline} mt-3 min-h-10 sm:min-h-0`} onClick={() => setStep("value")}>
         Change email
       </button>
     );
@@ -287,7 +287,7 @@ function AddContact({ run, onVerified }: { run: Run; onVerified: (r: EmailAddres
         </Field>
       )}
       <Alert text={error} />
-      <div className="flex gap-2">
+      <div className="flex gap-2 [&_button]:min-h-10 sm:[&_button]:min-h-0">
         <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || (step === "code" && code.length !== 6)}>
           {step === "value" ? "Send code" : "Verify"}
         </button>
@@ -326,7 +326,7 @@ function Connected({ run }: { run: Run }) {
             >
               <span className="flex w-5 justify-center">{providerIcons[strategy]}</span>
               <span>{label}</span>
-              {acct && <span className="truncate text-muted">{linked ? acct.emailAddress || acct.username : "Couldn't connect"}</span>}
+              {acct && <span className="break-all text-muted sm:truncate">{linked ? acct.emailAddress || acct.username : "Couldn't connect"}</span>}
             </Row>
           );
         })}
@@ -381,11 +381,11 @@ function Sessions({ run }: { run: Run }) {
                 )}
               >
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2">
+                  <p className="flex flex-wrap items-center gap-2 break-words">
                     {device}
                     {current && <span className={badge}>This device</span>}
                   </p>
-                  <p className="truncate text-xs text-muted">
+                  <p className="break-words text-xs text-muted sm:truncate">
                     {detail}
                     {detail && " · "}
                     {current ? "Active now" : lastActive(s.lastActiveAt)}
@@ -397,7 +397,7 @@ function Sessions({ run }: { run: Run }) {
         </ul>
       )}
       {others.length > 1 && (
-        <button type="button" className={`${btnOutline} mt-3`} disabled={busy} onClick={() => go(() => run(() => Promise.all(others.map((s) => s.revoke()))).then(load))}>
+        <button type="button" className={`${btnOutline} mt-3 min-h-10 sm:min-h-0`} disabled={busy} onClick={() => go(() => run(() => Promise.all(others.map((s) => s.revoke()))).then(load))}>
           Sign out of all other devices
         </button>
       )}
@@ -422,7 +422,7 @@ function DeleteAccount({ run }: { run: Run }) {
 
   return (
     <Section title="Delete account" desc="Permanently delete your account and everything in it. This can't be undone." danger>
-      <button type="button" className={`${btnOutline} text-danger`} onClick={() => setOpen(true)}>
+      <button type="button" className={`${btnOutline} min-h-10 text-danger sm:min-h-0`} onClick={() => setOpen(true)}>
         Delete account
       </button>
       {open && (
@@ -435,7 +435,7 @@ function DeleteAccount({ run }: { run: Run }) {
               <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus autoComplete="off" className={field} />
             </Field>
             <Alert text={error} />
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end [&_button]:min-h-10 sm:[&_button]:min-h-0">
               <button type="button" className={btnGhost} disabled={busy} onClick={() => (setOpen(false), setTyped(""))}>
                 Cancel
               </button>
@@ -506,7 +506,7 @@ function Reverify({ level, complete, cancel, onDone }: NeedsReverification & { o
         </p>
         <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         <Alert text={error} />
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3 [&_button]:min-h-10 sm:[&_button]:min-h-0">
           <button type="button" className="text-sm text-link hover:underline disabled:opacity-60" disabled={busy} onClick={start}>
             Resend code
           </button>

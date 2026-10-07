@@ -27,7 +27,7 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
 
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+      <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
         <BackButton fallback={`/dashboard/jobs?tab=posted&id=${id}`} />
         <div className="min-w-0">
           <h1 className="truncate text-sm font-medium">{a.name}</h1>

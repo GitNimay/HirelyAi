@@ -34,7 +34,7 @@ const EMPTY: Record<Tab, string> = {
   applied: "Jobs you apply to show up here.",
   posted: "Jobs you post show up here.",
 };
-export const field = "h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none focus:border-ring";
+export const field = "h-10 w-full rounded-md border border-border bg-transparent px-3 text-base text-foreground placeholder:text-muted outline-none focus:border-ring sm:text-sm";
 const select = `${field} bg-surface`;
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
@@ -181,10 +181,10 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+      <header className="sticky top-14 z-10 border-b border-border bg-background/80 backdrop-blur sm:top-0">
         <div className="flex h-14 items-center justify-between px-4">
           <h1 className="text-sm font-medium">Jobs</h1>
-          <Link href="/dashboard/jobs/post" className={btnOutline}>
+          <Link href="/dashboard/jobs/post" className={`${btnOutline} h-10 sm:h-8`}>
             <Icon d={icons.plus} size={14} />
             Post a job
           </Link>
@@ -274,16 +274,16 @@ function SearchForm({ filters, onChange, hasFilters }: { filters: JobFilters; on
         onChange({ ...filters, q: q.trim() || undefined, loc: loc.trim() || undefined });
       }}
     >
-      <div className="flex gap-2">
-        <label className="flex h-10 min-w-0 flex-[3] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <label className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring sm:flex-[3]">
           <Icon d={icons.search} size={16} />
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Title, skill or company" aria-label="Keyword" className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none" />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Title, skill or company" aria-label="Keyword" className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted outline-none sm:text-sm" />
         </label>
-        <label className="flex h-10 min-w-0 flex-[2] items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring">
+        <label className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-border px-3 text-muted focus-within:border-ring sm:flex-[2]">
           <Icon d={icons.pin} size={16} />
-          <input type="search" value={loc} onChange={(e) => setLoc(e.target.value)} placeholder="Location" aria-label="Location" className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none" />
+          <input type="search" value={loc} onChange={(e) => setLoc(e.target.value)} placeholder="Location" aria-label="Location" className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted outline-none sm:text-sm" />
         </label>
-        <button type="submit" className={`${btnPrimary} ${btnLg}`}>Search</button>
+        <button type="submit" className={`${btnPrimary} ${btnLg} w-full sm:w-auto`}>Search</button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {selects.map(({ key, label, opts }) => (
@@ -293,13 +293,13 @@ function SearchForm({ filters, onChange, hasFilters }: { filters: JobFilters; on
             value={filters[key] ?? ""}
             onChange={(v) => onChange({ ...filters, [key]: v || undefined })}
             options={[{ value: "", label }, ...Object.entries(opts).map(([value, l]) => ({ value, label: l }))]}
-            className={`h-8 rounded-full border px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${filters[key] ? "border-link bg-link/10 text-foreground" : "border-border bg-background text-muted hover:text-foreground"}`}
+            className={`h-10 rounded-full border px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 ${filters[key] ? "border-link bg-link/10 text-foreground" : "border-border bg-background text-muted hover:text-foreground"}`}
           />
         ))}
         {hasFilters && (
           <button
             type="button"
-            className="h-8 px-2 text-xs text-muted hover:text-foreground"
+            className="h-10 px-2 text-xs text-muted hover:text-foreground sm:h-8"
             onClick={() => {
               setQ("");
               setLoc("");
@@ -326,7 +326,7 @@ function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onO
           title={j.saved ? "Unsave" : "Save"}
           aria-pressed={j.saved}
           onClick={onSave}
-          className={`${btnGhost} absolute right-3 top-1.5 z-[1] px-2 ${j.saved ? "text-foreground" : ""}`}
+          className={`${btnGhost} absolute right-2 top-1 z-[1] h-10 w-10 px-0 sm:right-3 sm:top-1.5 sm:h-8 sm:w-auto sm:px-2 ${j.saved ? "text-foreground" : ""}`}
         >
           <Icon d={icons.bookmark} size={16} className={j.saved ? "fill-current" : ""} />
         </button>
@@ -345,7 +345,7 @@ function JobRow({ job: j, mine, onOpen, onSave }: { job: Job; mine: boolean; onO
           <p className="truncate text-sm font-medium text-link">{j.title}</p>
           <p className="mt-0.5 truncate text-sm">{j.company}</p>
           <p className="mt-0.5 truncate text-xs text-muted">{where(j)}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted" suppressHydrationWarning>
+          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted" suppressHydrationWarning>
             {tag && <span className="font-medium text-foreground">{tag} ·</span>}
             {posted(j.createdAt)}
             {j.applicants > 0 && <span>· {applicantsText(j.applicants)}</span>}
@@ -399,9 +399,9 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
       <div className="space-y-4 border-b border-border p-4">
         <div className="flex items-center gap-2 text-sm">
           <CompanyLogo name={j.company} src={j.page?.logoUrl} size={28} />
-          {j.page ? <Link href={`/company/${j.page.slug}`} className="font-medium hover:underline underline-offset-2">{j.company}</Link> : <span className="font-medium">{j.company}</span>}
+          {j.page ? <Link href={`/company/${j.page.slug}`} className="min-w-0 truncate font-medium hover:underline underline-offset-2">{j.company}</Link> : <span className="min-w-0 truncate font-medium">{j.company}</span>}
           {j.page?.verified && (
-            <span title="The poster verified they work here" className="flex items-center gap-1 text-xs text-success">
+            <span title="The poster verified they work here" className="flex shrink-0 items-center gap-1 text-xs text-success">
               <Icon d={icons.verified} size={14} />
               Verified
             </span>
@@ -416,14 +416,14 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
         <div ref={actionsRef} className="flex flex-wrap items-center gap-2">
           {mine ? (
             <>
-              <button type="button" className={j.closedAt ? btnPrimary : btnOutline} onClick={() => onClose(!j.closedAt)}>
+              <button type="button" className={`${j.closedAt ? btnPrimary : btnOutline} h-10 sm:h-8`} onClick={() => onClose(!j.closedAt)}>
                 {j.closedAt ? "Reopen job" : "Close job"}
               </button>
-              <Link href={`/dashboard/jobs/${j.id}/edit`} className={btnOutline}>
+              <Link href={`/dashboard/jobs/${j.id}/edit`} className={`${btnOutline} h-10 sm:h-8`}>
                 <Icon d={icons.edit} size={14} />
                 Edit
               </Link>
-              <button type="button" className={`${btnGhost} hover:text-danger`} onClick={onDelete}>
+              <button type="button" className={`${btnGhost} h-10 hover:text-danger sm:h-8`} onClick={onDelete}>
                 <Icon d={icons.trash} size={14} />
                 Delete
               </button>
@@ -437,15 +437,15 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
           ) : j.closedAt ? (
             <span className="text-sm text-muted">No longer accepting applications</span>
           ) : (
-            <button type="button" className={btnPrimary} onClick={onApply}>Easy Apply</button>
+            <button type="button" className={`${btnPrimary} h-10 w-full sm:h-8 sm:w-auto`} onClick={onApply}>Easy Apply</button>
           )}
           {!mine && (
-            <button type="button" className={btnOutline} aria-pressed={j.saved} onClick={onSave}>
+            <button type="button" className={`${btnOutline} h-10 flex-auto sm:h-8 sm:flex-none`} aria-pressed={j.saved} onClick={onSave}>
               <Icon d={icons.bookmark} size={14} className={j.saved ? "fill-current" : ""} />
               {j.saved ? "Saved" : "Save"}
             </button>
           )}
-          <button type="button" className={btnGhost} onClick={share}>
+          <button type="button" className={`${btnGhost} h-10 flex-auto sm:h-8 sm:flex-none`} onClick={share}>
             <Icon d={icons.share} size={14} />
             Share
           </button>
@@ -556,7 +556,7 @@ export function AboutCompany({ name, page: p, h: H = "h3", linked = true }: { na
       </div>
       {meta && <p className="text-sm text-muted">{meta}</p>}
       {p.about && <Clamp lines={4} className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{p.about}</Clamp>}
-      {linked && <Link href={`/company/${p.slug}`} className={btnOutline}>View company page</Link>}
+      {linked && <Link href={`/company/${p.slug}`} className={`${btnOutline} h-10 sm:h-8`}>View company page</Link>}
     </section>
   );
 }
@@ -637,7 +637,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
               type="button"
               aria-pressed={stage === s.id}
               onClick={() => setStage(s.id)}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${stage === s.id ? "border-link bg-link/10 text-foreground" : "border-border text-muted hover:text-foreground"}`}
+              className={`inline-flex h-10 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors sm:h-8 outline-none focus-visible:ring-2 focus-visible:ring-ring ${stage === s.id ? "border-link bg-link/10 text-foreground" : "border-border text-muted hover:text-foreground"}`}
             >
               {s.label}
               <span className="tabular-nums">{n}</span>
@@ -667,7 +667,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
                 value={a.status === "submitted" ? "viewed" : a.status}
                 onChange={(v) => onStatus(a, v as AppStatus)}
                 options={(["viewed", "shortlisted", "rejected"] as const).map((s) => ({ value: s, label: s === "viewed" ? "Under review" : STATUSES[s] }))}
-                className="h-8 shrink-0 rounded-md border border-border bg-surface px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 shrink-0 rounded-md border border-border bg-surface px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8"
                 panelClassName="left-auto right-0"
               />
             </div>
@@ -683,7 +683,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
                 Attached resume
               </a>
             )}
-            <Link href={applicantHref(jobId, a.id)} className="flex items-center gap-1.5 pt-1 text-xs">
+            <Link href={applicantHref(jobId, a.id)} className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
               {a.interview && (
                 <>
                   <span className="font-medium">{KINDS[a.interview.kind]}:</span>
@@ -776,9 +776,9 @@ function ApplyDialog({ job, contact, profile, onClose, onApplied }: {
             <Icon d={icons.file} size={18} className="text-muted" />
             <span className="min-w-0 flex-1 truncate text-sm">{file ? file.name : <span className="text-muted">Attach a PDF alongside your profile</span>}</span>
             {file ? (
-              <button type="button" className={btnGhost} onClick={() => setFile(null)}>Remove</button>
+              <button type="button" className={`${btnGhost} h-10 sm:h-8`} onClick={() => setFile(null)}>Remove</button>
             ) : (
-              <label className={btnOutline}>
+              <label className={`${btnOutline} h-10 sm:h-8`}>
                 Upload PDF
                 <input type="file" accept={RESUME_TYPE} className="sr-only" onChange={(e) => (pick(e.target.files?.[0]), (e.target.value = ""))} />
               </label>
@@ -790,7 +790,7 @@ function ApplyDialog({ job, contact, profile, onClose, onApplied }: {
           <textarea name="note" rows={4} maxLength={LIMITS.note} className={`${field} h-auto resize-none py-2`} />
         </Field>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
           <button type="button" className={`${btnGhost} ${btnLg}`} onClick={onClose} disabled={busy}>Cancel</button>
           <button aria-busy={busy} type="submit" className={`${btnPrimary} ${btnLg}`} disabled={busy || !profile}>Submit application</button>
         </div>
@@ -870,7 +870,7 @@ export function PostJobForm({ companies, initialCompany, job }: { companies: { i
 
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+      <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
         <Link href={back} onClick={leave} aria-label="Back to jobs" className={backBtn}>
           <Icon d={icons.back} size={18} />
         </Link>
@@ -993,8 +993,8 @@ export function PostJobForm({ companies, initialCompany, job }: { companies: { i
           )}
         </FormSection>}
 
-        <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
-          {error && <p role="alert" className="mr-auto text-sm text-danger">{error}</p>}
+        <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex flex-wrap items-center justify-end gap-2 border-t border-border bg-background/80 px-4 py-3 backdrop-blur sm:bottom-0">
+          {error && <p role="alert" className="w-full text-sm text-danger sm:mr-auto sm:w-auto">{error}</p>}
           <Link href={back} onClick={leave} className={`${btnGhost} ${btnLg}`}>Cancel</Link>
           <button aria-busy={busy} type="submit" className={`${btnPrimary} ${btnLg}`} disabled={busy}>{job ? "Save changes" : "Post job"}</button>
         </div>
@@ -1048,7 +1048,7 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
   return (
     <section className="space-y-3 rounded-lg border border-border p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="font-medium">{KINDS[iv.kind]}</p>
           <p className="text-xs text-muted" suppressHydrationWarning>
             {screeningFacts(iv.kind, iv.questions)} · {closed ? "Closed" : "Open until"} {dateTime(iv.deadline)}
@@ -1057,7 +1057,7 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
         {!mine && (finished ? (
           <span className="inline-flex items-center gap-1 text-xs text-success"><Icon d={icons.check} size={14} />Completed</span>
         ) : !closed && iv.slug && (
-          <a href={`/interview/${iv.slug}`} target="_blank" rel="noopener" className={btnPrimary}>{iv.kind === "mcq" ? "Start test" : "Start interview"}</a>
+          <a href={`/interview/${iv.slug}`} target="_blank" rel="noopener" className={`${btnPrimary} h-10 sm:h-8`}>{iv.kind === "mcq" ? "Start test" : "Start interview"}</a>
         ))}
       </div>
       {iv.slug && iv.password && (mine || (!finished && !closed)) && (
@@ -1065,13 +1065,13 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
           {mine && (
             <>
               <dt className="text-muted">Link</dt>
-              <dd className="truncate font-mono" suppressHydrationWarning>{link}</dd>
-              <button type="button" className={`${btnGhost}`} onClick={() => copy("link", link)}>{copied === "link" ? "Copied" : "Copy"}</button>
+              <dd className="min-w-0 truncate font-mono" suppressHydrationWarning>{link}</dd>
+              <button type="button" className={`${btnGhost} h-10 sm:h-8`} onClick={() => copy("link", link)}>{copied === "link" ? "Copied" : "Copy"}</button>
             </>
           )}
           <dt className="text-muted">Password</dt>
           <dd className="font-mono">{iv.password}</dd>
-          <button type="button" className={`${btnGhost}`} onClick={() => copy("password", iv.password!)}>{copied === "password" ? "Copied" : "Copy"}</button>
+          <button type="button" className={`${btnGhost} h-10 sm:h-8`} onClick={() => copy("password", iv.password!)}>{copied === "password" ? "Copied" : "Copy"}</button>
         </dl>
       )}
       {mine && <p className="text-xs text-muted">Every applicant is emailed the link and password when they apply. Results show under Applicants.</p>}
@@ -1108,7 +1108,7 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
     <>
       {p && (
         <FormSection title={`${KINDS[r.kind]}: onboarding`} hint={`What the candidate entered before the ${r.kind === "mcq" ? "test" : "call"}.`}>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm sm:gap-x-6">
             {([
               ["Name", p.name],
               ["Phone", p.phone && <a href={`tel:${p.phone}`} className="hover:underline underline-offset-2">{p.phone}</a>],
@@ -1131,7 +1131,7 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
       <FormSection title="AI evaluation" hint={r.startedAt ? `Interview taken ${dateTime(r.startedAt)}` : undefined}>
         {rep ? (
           <div className="space-y-4 text-sm">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <p className="text-3xl font-medium tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
               <p className={`inline-flex h-6 shrink-0 items-center rounded-full border border-border px-2.5 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
             </div>
@@ -1150,9 +1150,9 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
             </div>
           </div>
         ) : r.status === "failed" ? (
-          <div className="flex items-center justify-between gap-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <p className="text-muted">The AI evaluation didn&apos;t finish. The transcript is saved.</p>
-            <button aria-busy={retrying} type="button" className={btnOutline} onClick={retry} disabled={retrying}>Retry evaluation</button>
+            <button aria-busy={retrying} type="button" className={`${btnOutline} h-10 sm:h-8`} onClick={retry} disabled={retrying}>Retry evaluation</button>
           </div>
         ) : (
           <p className="text-sm text-muted">{IV_STATUS[r.status]}</p>
@@ -1257,13 +1257,13 @@ function McqEditor({ initial }: { initial: Mcq[] }) {
     toast(`Added ${r.questions.length} question${r.questions.length === 1 ? "" : "s"}. Review them before posting.`);
   }
 
-  const small = "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted transition-colors outline-none hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+  const small = "inline-flex h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted transition-colors outline-none hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:h-8 sm:min-w-0";
   return (
     <div className="space-y-4">
       <input type="hidden" name="mcq" value={JSON.stringify(list.map(({ q, options, answer }) => ({ q, options, answer })))} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm"><span className="font-medium tabular-nums">{list.length}</span><span className="text-muted"> / {MCQ.maxQuestions} questions · {MCQ.secondsPerQuestion / 60} min each</span></p>
-        <button type="button" className={btnOutline} aria-expanded={ai} onClick={() => setAi(!ai)}>
+        <button type="button" className={`${btnOutline} h-10 sm:h-8`} aria-expanded={ai} onClick={() => setAi(!ai)}>
           <Icon d={icons.verified} size={14} />
           Generate with AI
         </button>
@@ -1300,7 +1300,7 @@ function McqEditor({ initial }: { initial: Mcq[] }) {
             />
           </Field>
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {busy && <span className="text-xs text-muted" aria-live="polite">Writing questions, this can take half a minute…</span>}
             <button aria-busy={busy} type="button" className={btnPrimary} disabled={busy || room <= 0} onClick={generate}>
               {room <= 0 ? `${MCQ.maxQuestions} question limit reached` : "Generate"}
@@ -1352,7 +1352,7 @@ function McqEditor({ initial }: { initial: Mcq[] }) {
                     maxLength={MCQ.optionChars}
                     aria-label={`Option ${LETTERS[i]}`}
                     placeholder={`Option ${LETTERS[i]}`}
-                    className={`${field} ${d.answer === i ? "border-success" : ""}`}
+                    className={`${field} min-w-0 ${d.answer === i ? "border-success" : ""}`}
                   />
                   {d.options.length > MCQ.minOptions && (
                     <button
@@ -1375,7 +1375,7 @@ function McqEditor({ initial }: { initial: Mcq[] }) {
           </li>
         ))}
       </ol>
-      <button type="button" className={btnOutline} disabled={list.length >= MCQ.maxQuestions} onClick={() => setList((l) => [...l, blank()])}>
+      <button type="button" className={`${btnOutline} h-10 sm:h-8`} disabled={list.length >= MCQ.maxQuestions} onClick={() => setList((l) => [...l, blank()])}>
         <Icon d={icons.plus} size={14} />
         {list.length >= MCQ.maxQuestions ? `${MCQ.maxQuestions} question limit reached` : "Add question"}
       </button>

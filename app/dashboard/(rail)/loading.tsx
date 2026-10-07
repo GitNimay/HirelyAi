@@ -4,7 +4,7 @@ import { Loading, Line, PostsSkeleton, Skeleton } from "@/components/skeleton";
 export default function HomeLoading() {
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-14 border-b border-border bg-background/80 backdrop-blur">
+      <header className="sticky top-14 z-10 flex h-14 border-b border-border bg-background/80 backdrop-blur sm:top-0">
         <span className="relative flex flex-1 items-center justify-center text-sm font-medium">
           For you
           <span className="absolute inset-x-0 bottom-0 mx-auto h-0.5 w-12 rounded-full bg-link" />

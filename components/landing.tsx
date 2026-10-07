@@ -78,7 +78,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
       </header>
 
       <main id="main" className="flex-1">
-        <section className="flex flex-col items-center px-4 pb-24 pt-20 text-center sm:px-8 sm:pt-28">
+        <section className="flex flex-col items-center px-4 pb-16 pt-14 text-center sm:px-8 sm:pb-24 sm:pt-28">
           <span className={eyebrow}>AI-first hiring network</span>
           <h1 className={`${display} mt-6 max-w-3xl`}>
             Hire on signal,
@@ -88,7 +88,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <p className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-muted">
             An AI runs the first interview for every applicant, so recruiters meet the right people and candidates hear back fast.
           </p>
-          <div className="mt-8 flex gap-2">
+          <div className="mt-8 flex flex-wrap justify-center gap-2">
             <Link href={cta.href} className={`${btnPrimary} ${btnLg}`}>
               {cta.label} <Icon d={chevron} size={14} />
             </Link>
@@ -97,13 +97,13 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <HeroVideo />
         </section>
 
-        <section id="features" className="scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
+        <section id="features" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
             <span className={eyebrow}>Features</span>
             <h2 className={`${display} mt-6 max-w-2xl`}>Every first round, handled.</h2>
             <p className="mt-5 max-w-md text-pretty text-sm text-muted">From the application to a ranked shortlist, inside one network.</p>
           </div>
-          <div className="mt-16 grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid gap-x-6 gap-y-12 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f) => (
               <article key={f.tag}>
                 <f.Visual />
@@ -119,12 +119,12 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <h2 className={`${display} mt-6`}>From job post<br />to shortlist.</h2>
         </HowItWorks>
 
-        <section id="both-sides" className="scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
+        <section id="both-sides" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
             <span className={eyebrow}>Built for both sides</span>
             <h2 className={`${display} mt-6 max-w-2xl`}>One interview,<br />two sides served.</h2>
           </div>
-          <div className="mx-auto mt-16 grid max-w-4xl gap-x-16 gap-y-16 sm:grid-cols-2">
+          <div className="mx-auto mt-12 grid max-w-4xl gap-x-16 gap-y-12 sm:mt-16 sm:grid-cols-2 sm:gap-y-16">
             {sides(signedIn).map((s, i) => (
               <article key={s.tag} className="flex flex-col">
                 <div className="flex items-center gap-2 text-muted">
@@ -149,12 +149,12 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           </div>
         </section>
 
-        <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
+        <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
             <span className={eyebrow}>FAQ</span>
             <h2 className={`${display} mt-6`}>Questions, answered.</h2>
           </div>
-          <div className="mx-auto mt-16 max-w-2xl border-t border-border">
+          <div className="mx-auto mt-12 max-w-2xl border-t border-border sm:mt-16">
             {faqs.map(([q, a]) => (
               <details key={q} className="group border-b border-border">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-sm font-medium [&::-webkit-details-marker]:hidden">
@@ -174,7 +174,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             <Logo size={24} faint={false} />
             <span className="text-sm font-medium">Hire Excellence</span>
           </Link>
-          <div className="flex gap-16">
+          <div className="flex flex-wrap gap-x-12 gap-y-8 sm:gap-16">
             {footerCols(signedIn).map(([title, items]) => (
               <ul key={title} className="space-y-3 text-sm">
                 <li className="text-xs text-muted">{title}</li>
@@ -185,7 +185,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             ))}
           </div>
         </div>
-        <div className="-mx-4 mt-16 flex items-center justify-between border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:px-8">
+        <div className="-mx-4 mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:mt-16 sm:px-8">
           <p>© {new Date().getFullYear()} Hire Excellence</p>
           <a href="https://github.com/GitNimay/hire-excellence" target="_blank" rel="noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
             Connect with us
@@ -194,7 +194,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             </svg>
           </a>
         </div>
-        <div aria-hidden className="-mx-4 border-t border-border px-4 py-12 sm:-mx-8 sm:px-8">
+        <div aria-hidden className="-mx-4 border-t border-border px-4 py-8 sm:-mx-8 sm:px-8 sm:py-12">
           <Wordmark />
         </div>
       </footer>

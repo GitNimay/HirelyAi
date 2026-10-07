@@ -18,7 +18,7 @@ import { useRealtime } from "./use-realtime";
 type Viewer = { id: string; name: string; imageUrl?: string };
 type Page = { posts: FeedPost[]; next: string | null };
 
-const iconBtn = "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-safe:active:scale-[0.94]";
+const iconBtn = "flex h-8 min-h-10 sm:min-h-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-safe:active:scale-[0.94]";
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
 /**
@@ -139,7 +139,7 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
     <>
       {!single && !list && (
         <>
-          <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+          <header className="sticky top-14 z-10 border-b border-border bg-background/80 backdrop-blur sm:top-0">
             <Tabs
               label="Feed"
               fill
@@ -161,14 +161,14 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
       {list?.compose && <Composer viewer={viewer} company={list.compose} onPosted={(p) => setPage((pg) => ({ ...pg, posts: [p, ...pg.posts] }))} />}
 
       {fresh > 0 && (
-        <div className="sticky top-16 z-10 flex justify-center" aria-live="polite">
+        <div className="sticky top-28 z-10 flex justify-center sm:top-16" aria-live="polite">
           <button
             type="button"
             onClick={() => {
               load(tab);
               scrollToTop();
             }}
-            className="mt-2 h-8 rounded-full bg-link px-4 text-sm font-medium text-background shadow-lg"
+            className="mt-2 h-8 min-h-10 rounded-full bg-link px-4 text-sm font-medium text-background shadow-lg sm:min-h-0"
           >
             Show {fresh} new {fresh === 1 ? "post" : "posts"}
           </button>
@@ -265,7 +265,7 @@ function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boole
             // eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media
             <img src={it.url} alt={it.alt} className={`w-full object-cover ${items.length > 1 ? "aspect-square" : "max-h-[360px]"}`} />
           )}
-          <button type="button" aria-label="Remove" onClick={() => draft.remove(i)} disabled={disabled} className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white hover:bg-black">
+          <button type="button" aria-label="Remove" onClick={() => draft.remove(i)} disabled={disabled} className="absolute right-2 top-2 min-h-10 min-w-10 rounded-full bg-black/70 p-1.5 text-white hover:bg-black sm:min-h-0 sm:min-w-0">
             <Icon d={icons.close} size={14} />
           </button>
           {!isVideo(it.type) && (
@@ -275,7 +275,7 @@ function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boole
               disabled={disabled}
               onClick={() => setDescribing(i)}
               aria-label={it.alt ? `Edit image description: ${it.alt}` : "Add image description"}
-              className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-md bg-black/70 px-2 text-xs font-medium text-white hover:bg-black"
+              className="absolute bottom-2 left-2 inline-flex h-6 min-h-10 items-center gap-1 rounded-md bg-black/70 px-2 text-xs font-medium text-white hover:bg-black sm:min-h-0"
             >
               {it.alt && <Icon d={icons.check} size={12} />}
               ALT
@@ -320,8 +320,8 @@ function AltDialog({ url, initial, onSave, onClose }: { url: string; initial: st
           />
         </label>
         <div className="flex justify-end gap-2">
-          <button type="button" className={btnGhost} onClick={onClose}>Cancel</button>
-          <button type="submit" className={btnPrimary}>Save</button>
+          <button type="button" className={`${btnGhost} min-h-10 sm:min-h-0`} onClick={onClose}>Cancel</button>
+          <button type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`}>Save</button>
         </div>
       </form>
     </Modal>
@@ -397,7 +397,7 @@ export function Composer({ viewer, company, onPosted }: { viewer: Viewer; compan
           <div className="flex items-center gap-3">
             {focused && canPost && <span className="hidden text-xs text-muted sm:inline">Ctrl / ⌘ + Enter to post</span>}
             {body.length > MAX_POST_CHARS - 200 && <span className="text-xs tabular-nums text-muted">{MAX_POST_CHARS - body.length}</span>}
-            <button aria-busy={busy} type="button" disabled={!canPost} onClick={submit} className={`${btnPrimary} px-4`}>
+            <button aria-busy={busy} type="button" disabled={!canPost} onClick={submit} className={`${btnPrimary} min-h-10 px-4 sm:min-h-0`}>
               Post
             </button>
           </div>
@@ -454,10 +454,10 @@ function PostEditor({ post, save, onDone }: { post: FeedPost; save: Handlers["ed
       <div className="mt-2 flex items-center justify-between">
         <MediaButtons draft={media} disabled={busy} />
         <div className="flex gap-2">
-          <button type="button" onClick={close} disabled={busy} className={btnGhost}>
+          <button type="button" onClick={close} disabled={busy} className={`${btnGhost} min-h-10 sm:min-h-0`}>
             Cancel
           </button>
-          <button aria-busy={busy} type="button" onClick={submit} disabled={!canSave} className={`${btnPrimary} px-4`}>
+          <button aria-busy={busy} type="button" onClick={submit} disabled={!canSave} className={`${btnPrimary} min-h-10 px-4 sm:min-h-0`}>
             Save
           </button>
         </div>
@@ -500,9 +500,9 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
   return (
     <article className="border-b border-border p-4">
       {p.repostedBy && (
-        <p className="mb-2 ml-[52px] flex items-center gap-1.5 text-xs text-muted">
+        <p className="mb-2 ml-[52px] flex min-w-0 items-center gap-1.5 text-xs text-muted">
           <Icon d={icons.repost} size={12} />
-          {p.repostedBy.id === viewerId ? "You" : <Link href={`/in/${p.repostedBy.id}`} className="hover:underline">{p.repostedBy.name}</Link>} reposted
+          {p.repostedBy.id === viewerId ? "You" : <Link href={`/in/${p.repostedBy.id}`} className="min-w-0 truncate hover:underline">{p.repostedBy.name}</Link>} reposted
         </p>
       )}
       <div className="flex gap-3">
@@ -521,9 +521,9 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
               </p>
               {who.sub && <p className="truncate text-xs text-muted">{who.sub}</p>}
             </div>
-            <div className="-mt-1 flex shrink-0 items-center gap-1">
+            <div className="-mt-2 flex shrink-0 items-center gap-1 sm:-mt-1">
               {!mine && !p.following && !p.company && (
-                <button type="button" onClick={() => follow(p.author.id)} className={`${btnGhost} px-2 text-link hover:text-link`}>
+                <button type="button" onClick={() => follow(p.author.id)} className={`${btnGhost} min-h-10 px-2 text-link hover:text-link sm:min-h-0`}>
                   <Icon d={icons.plus} size={14} />
                   Follow
                 </button>
@@ -532,8 +532,8 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
                 <Menu
                   label="More options"
                   button={<Icon d={icons.more} size={18} />}
-                  className="flex size-8 items-center justify-center rounded-md text-muted transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  panelClassName="right-0 top-9 w-52"
+                  className="flex size-8 min-h-10 min-w-10 items-center justify-center rounded-md text-muted transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:min-w-0"
+                  panelClassName="right-0 top-10 w-52 sm:top-9"
                 >
                   {ownEntry && !p.repostedBy && (
                     <button type="button" role="menuitem" onClick={() => setEditing(true)} className={menuItem}>
@@ -654,14 +654,14 @@ function MediaGrid({ media }: { media: FeedPost["media"] }) {
         <Modal title={n > 1 ? `Image ${open + 1} of ${n}` : "Image"} wide onClose={() => setOpen(null)}>
           <div className="flex items-center justify-center gap-2 bg-black/40 p-2">
             {n > 1 && (
-              <button type="button" aria-label="Previous image" onClick={() => setOpen((open + n - 1) % n)} className={`${btnGhost} px-2`}>
+              <button type="button" aria-label="Previous image" onClick={() => setOpen((open + n - 1) % n)} className={`${btnGhost} min-h-10 min-w-10 px-2 sm:min-h-0 sm:min-w-0`}>
                 <Icon d={icons.back} size={18} />
               </button>
             )}
             {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
             <img src={src(media[open].key)} alt={media[open].alt ?? ""} className="max-h-[75vh] min-w-0 flex-1 object-contain" />
             {n > 1 && (
-              <button type="button" aria-label="Next image" onClick={() => setOpen((open + 1) % n)} className={`${btnGhost} px-2`}>
+              <button type="button" aria-label="Next image" onClick={() => setOpen((open + 1) % n)} className={`${btnGhost} min-h-10 min-w-10 px-2 sm:min-h-0 sm:min-w-0`}>
                 <Icon d={icons.back} size={18} className="rotate-180" />
               </button>
             )}
@@ -731,7 +731,7 @@ function Comments({ postId, count }: { postId: string; count: number }) {
               </Link>
               <div className="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2">
                 <p className="text-xs">
-                  <Link href={profileHref(c.author)} className="font-medium hover:underline">{c.author.name}</Link>{" "}
+                  <Link href={profileHref(c.author)} className="break-words font-medium hover:underline">{c.author.name}</Link>{" "}
                   <span className="text-muted">· <Time ms={c.createdAt} /></span>
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">{c.body}</p>

@@ -31,7 +31,7 @@ const pick = <T,>(xs: T[], i: number) => xs[i % xs.length];
 /** The sticky page header, with its real title and (inactive) tab labels. */
 export function PageHeader({ title, back, tabs, action, className = "gap-3 px-4" }: { title?: string; back?: boolean; tabs?: string[]; action?: ReactNode; className?: string }) {
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+    <header className="sticky top-14 z-10 border-b border-border bg-background/80 backdrop-blur sm:top-0">
       <div className={`flex h-14 items-center ${className}`}>
         {back && <span className="rounded-md p-1 text-muted"><Icon d={icons.back} size={18} /></span>}
         <h1 className="flex-1 text-sm font-medium">{title}</h1>
@@ -94,7 +94,7 @@ export const PersonRowSkeleton = ({ i = 0 }: { i?: number }) => (
       <Line className="text-xs" w={pick(["65%", "52%", "72%"], i)} />
       <Line className="text-xs" w={pick(["30%", "38%", "26%"], i)} />
     </div>
-    <Skeleton className="h-8 w-24 rounded-lg" />
+    <Skeleton className="h-8 max-sm:h-10 w-24 rounded-lg" />
   </div>
 );
 
@@ -159,7 +159,7 @@ export const MediaTilesSkeleton = ({ n = 9 }: { n?: number }) => (
 /** profile.tsx ProfileHeader: top bar, 3:1 cover, 96px avatar, identity, stats, tabs */
 export const ProfileHeaderSkeleton = () => (
   <div aria-hidden>
-    <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+    <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
       <span className="rounded-md p-1 text-muted"><Icon d={icons.back} size={18} /></span>
       <div className="min-w-0 flex-1">
         <Line className="text-sm leading-tight" w="30%" />

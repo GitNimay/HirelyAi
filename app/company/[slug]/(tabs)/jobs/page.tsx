@@ -16,7 +16,7 @@ export default async function JobsTab({ params }: { params: Promise<{ slug: stri
   return (
     <>
       {c.me.verified && (
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted">You verified you work here, so you can post jobs for {c.name}.</p>
           <Link href={`/dashboard/jobs/post?company=${c.id}`} className={btnOutline}><Icon d={icons.plus} size={14} />Post a job</Link>
         </div>

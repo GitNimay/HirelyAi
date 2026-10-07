@@ -435,7 +435,7 @@ function CodeField({
       autoFocus
       containerClassName="w-full justify-center gap-2"
     >
-      <InputOTPGroup className="w-full max-w-sm gap-2">
+      <InputOTPGroup className="w-full max-w-sm gap-1.5 sm:gap-2">
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <InputOTPSlot key={i} index={i} className="h-auto min-h-0 w-auto flex-1 text-xl" />
         ))}

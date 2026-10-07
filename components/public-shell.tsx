@@ -9,13 +9,14 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
     <div className="flex min-h-screen flex-1 flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-[640px] items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex min-w-0 items-center gap-2">
             <Logo size={24} faint={false} />
-            <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
+            <span className="truncate text-sm font-medium tracking-tight">Hire Excellence</span>
           </Link>
-          <div className="flex gap-2">
-            <Link href="/sign-in" className={btnGhost}>Log in</Link>
-            <Link href="/sign-up" className={btnPrimary}>Join</Link>
+          <div className="flex shrink-0 gap-2">
+            {/* 40px tap targets on phones; the 32px desktop buttons are unchanged from sm up */}
+            <Link href="/sign-in" className={`${btnGhost} min-h-10 sm:min-h-0`}>Log in</Link>
+            <Link href="/sign-up" className={`${btnPrimary} min-h-10 sm:min-h-0`}>Join</Link>
           </div>
         </div>
       </header>

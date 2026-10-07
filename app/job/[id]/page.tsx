@@ -32,15 +32,15 @@ export default async function PublicJobPage({ params }: Props) {
     <PublicShell cta={j.closedAt ? "Find more jobs like this" : "Join to apply with your profile"}>
       <article>
         <div className="space-y-4 border-b border-border p-4">
-          <p className="text-sm font-medium">{j.company}</p>
+          <p className="text-sm font-medium break-words">{j.company}</p>
           <div>
-            <h1 className="font-display text-xl font-normal text-balance">{j.title}</h1>
+            <h1 className="font-display text-xl font-normal text-balance break-words">{j.title}</h1>
             <p className="mt-1 text-sm text-muted">{where} · Posted {publicDate(j.createdAt)}</p>
           </div>
           {j.closedAt ? (
             <p className="text-sm text-muted">No longer accepting applications</p>
           ) : (
-            <Link href="/sign-up" className={`${btnPrimary} ${btnLg}`}>Sign up to apply</Link>
+            <Link href="/sign-up" className={`${btnPrimary} ${btnLg} w-full sm:w-auto`}>Sign up to apply</Link>
           )}
         </div>
         <JobFacts job={j} h="h2" />

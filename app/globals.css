@@ -87,6 +87,15 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Mobile: no text inflation when a phone rotates, and no grey flash on tap (buttons draw their own feedback) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* One visible keyboard focus style everywhere. In the base layer, so components that draw their own
    (outline-none + focus-visible:ring-*) still win. */
 @layer base {

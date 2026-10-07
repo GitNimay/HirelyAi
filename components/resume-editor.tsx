@@ -13,7 +13,7 @@ import { ask, leaveIfClean, Modal, toast, useUnsavedGuard } from "./kit";
 import { Block, ExperienceItem } from "./resume-view";
 import { backBtn, btnGhost, btnPrimary, Icon, icons } from "./ui";
 
-export const input = "h-10 w-full rounded-md border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none transition-colors duration-150 focus:border-ring disabled:opacity-50";
+export const input = "h-10 w-full rounded-md border bg-transparent px-3 text-base text-foreground placeholder:text-muted outline-none transition-colors duration-150 focus:border-ring disabled:opacity-50 sm:text-sm";
 const area = `${input} h-auto resize-y py-2`;
 const ring = (bad: boolean) => (bad ? "border-danger" : "border-border");
 
@@ -41,7 +41,7 @@ export function StatusPicker({ value, onChange }: { value: Status; onChange: (s:
           role="radio"
           aria-checked={value === s}
           onClick={() => onChange(s)}
-          className={`h-8 rounded-md text-sm transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring ${value === s ? "bg-foreground font-medium text-background" : "text-muted hover:bg-surface-hover hover:text-foreground"}`}
+          className={`min-h-10 rounded-md px-1.5 py-1 text-sm transition-colors duration-150 sm:h-8 sm:min-h-0 sm:px-0 sm:py-0 outline-none focus-visible:ring-2 focus-visible:ring-ring ${value === s ? "bg-foreground font-medium text-background" : "text-muted hover:bg-surface-hover hover:text-foreground"}`}
         >
           {STATUSES[s]}
         </button>
@@ -67,7 +67,7 @@ export function Tags({ value, onChange, placeholder, bad, max, suggestions = [] 
         {value.map((t) => (
           <span key={t} className="inline-flex h-6 items-center gap-1 rounded-md bg-surface-hover pl-2 pr-1 text-xs">
             {t}
-            <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((v) => v !== t))} className="rounded p-0.5 text-muted hover:text-foreground">
+            <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((v) => v !== t))} className="rounded p-1 text-muted hover:text-foreground sm:p-0.5">
               <Icon d={icons.close} size={12} />
             </button>
           </span>
@@ -84,13 +84,13 @@ export function Tags({ value, onChange, placeholder, bad, max, suggestions = [] 
           onBlur={() => draft && add(draft)}
           placeholder={value.length ? "" : placeholder}
           disabled={value.length >= max}
-          className="h-6 min-w-24 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted"
+          className="h-6 min-w-24 flex-1 bg-transparent px-1 text-base outline-none placeholder:text-muted sm:text-sm"
         />
       </div>
       {unused.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {unused.map((s) => (
-            <button key={s} type="button" onClick={() => add(s)} className="inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-border px-2 text-xs text-muted hover:border-foreground hover:text-foreground">
+            <button key={s} type="button" onClick={() => add(s)} className="inline-flex min-h-10 items-center gap-1 rounded-full border border-dashed border-border px-3 text-xs text-muted hover:border-foreground hover:text-foreground sm:h-6 sm:min-h-0 sm:px-2">
               <Icon d={icons.plus} size={11} />
               {s}
             </button>
@@ -110,7 +110,7 @@ function Section({ title, hint, bad, onAdd, addLabel, children }: { title: strin
           {bad ? <p className="mt-1 text-sm text-danger">Add at least one</p> : hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
         </div>
         {onAdd && (
-          <button type="button" onClick={onAdd} className={btnGhost}>
+          <button type="button" onClick={onAdd} className={`${btnGhost} min-h-10 sm:min-h-0`}>
             <Icon d={icons.plus} size={14} />
             {addLabel}
           </button>
@@ -125,7 +125,7 @@ function Section({ title, hint, bad, onAdd, addLabel, children }: { title: strin
 function Entry({ label, onRemove, children }: { label: string; onRemove: () => void; children: ReactNode }) {
   return (
     <div className="relative grid gap-3 rounded-lg border border-border bg-surface/50 p-4 pr-10 sm:grid-cols-2">
-      <button type="button" aria-label={`Remove ${label}`} title="Remove" onClick={onRemove} className="absolute right-2 top-2 rounded-md p-1.5 text-muted hover:bg-surface-hover hover:text-danger">
+      <button type="button" aria-label={`Remove ${label}`} title="Remove" onClick={onRemove} className="absolute right-0 top-0 flex size-10 items-center justify-center rounded-md text-muted hover:bg-surface-hover hover:text-danger sm:right-2 sm:top-2 sm:block sm:size-auto sm:p-1.5">
         <Icon d={icons.trash} size={14} />
       </button>
       {children}
@@ -273,7 +273,7 @@ export function ResumeForm({ initial }: { initial: Resume }) {
 
   return (
     <form onSubmit={save} noValidate className="pb-8">
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur">
+      <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
         <button type="button" aria-label="Back" onClick={() => leaveIfClean(dirty).then((ok) => ok && router.back())} className={backBtn}>
           <Icon d={icons.back} size={18} />
         </button>
@@ -309,7 +309,7 @@ export function ExperienceManager({ resume, companies }: { resume: Resume; compa
   }
 
   const edit = (i: number) => (
-    <button type="button" aria-label="Edit experience" title="Edit" disabled={busy} onClick={() => setEditing({ i, e: resume.experience[i] })} className="rounded-md p-1 text-muted hover:bg-surface-hover hover:text-foreground">
+    <button type="button" aria-label="Edit experience" title="Edit" disabled={busy} onClick={() => setEditing({ i, e: resume.experience[i] })} className="rounded-md p-2 text-muted hover:bg-surface-hover hover:text-foreground sm:p-1">
       <Icon d={icons.edit} size={14} />
     </button>
   );
@@ -319,7 +319,7 @@ export function ExperienceManager({ resume, companies }: { resume: Resume; compa
       title="Experience"
       empty={!resume.experience.length}
       action={
-        <button type="button" disabled={busy} onClick={() => setEditing({ i: -1, e: { ...emptyExperience(), current: !resume.experience.length } })} className={btnGhost}>
+        <button type="button" disabled={busy} onClick={() => setEditing({ i: -1, e: { ...emptyExperience(), current: !resume.experience.length } })} className={`${btnGhost} min-h-10 sm:min-h-0`}>
           <Icon d={icons.plus} size={14} />Add
         </button>
       }
@@ -392,7 +392,7 @@ function ExperienceDialog({ initial, logoUrl: initialLogo, onClose, onSave, onDe
           <textarea value={e.description} onChange={(ev) => set({ description: ev.target.value })} rows={4} maxLength={LIMITS.description} className={`${area} ${ring(false)}`} />
         </F>
         {error && <p role="alert" className="text-sm text-danger sm:col-span-2">{error}</p>}
-        <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+        <div className="flex items-center gap-2 pt-1 sm:col-span-2 [&_button]:min-h-10 sm:[&_button]:min-h-0">
           {onDelete && <button type="button" disabled={busy} onClick={() => run(onDelete)} className={`${btnGhost} text-danger hover:text-danger`}><Icon d={icons.trash} size={14} />Delete</button>}
           <span className="flex-1" />
           <button type="button" className={btnGhost} onClick={onClose} disabled={busy}>Cancel</button>

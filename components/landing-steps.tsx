@@ -160,9 +160,9 @@ export function HowItWorks({ children }: { children: ReactNode }) {
   }, [paths]);
 
   return (
-    <section id="how-it-works" className="scroll-mt-14 border-t border-border px-4 pb-32 pt-24 sm:px-8">
+    <section id="how-it-works" className="scroll-mt-14 overflow-x-clip border-t border-border px-4 pb-20 pt-16 sm:px-8 sm:pb-32 sm:pt-24">
       <div className="flex flex-col items-center text-center">{children}</div>
-      <div ref={track} className="relative mx-auto mt-16 max-w-4xl">
+      <div ref={track} className="relative mx-auto mt-12 max-w-4xl sm:mt-16">
         <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden style={isoVars}>
           {paths.map((d, i) => (
             <g key={i} fill="none">
@@ -184,7 +184,7 @@ export function HowItWorks({ children }: { children: ReactNode }) {
                 <svg
                   data-node
                   viewBox={`${VB.x} ${VB.y} ${VB.w} ${VB.h}`}
-                  className="w-32 shrink-0 sm:w-40 lg:w-48 [&_*]:[vector-effect:non-scaling-stroke]"
+                  className="w-28 shrink-0 sm:w-40 lg:w-48 [&_*]:[vector-effect:non-scaling-stroke]"
                   style={isoVars}
                   aria-hidden
                 >
