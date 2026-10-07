@@ -18,7 +18,7 @@ const footerCols = (signedIn: boolean): [string, [string, string][]][] => [
   ["Account", signedIn ? [["Dashboard", "/dashboard"]] : [["Sign up", "/sign-up"], ["Log in", "/sign-in"]]],
 ];
 
-const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-normal tracking-tight";
+const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-display font-normal tracking-[-0.01em]";
 const eyebrow = "inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted";
 
 const features: { tag: string; title: string; body: string; Visual: () => React.ReactNode }[] = [

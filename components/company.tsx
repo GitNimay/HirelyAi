@@ -85,7 +85,7 @@ export function CompanyHeader({ company: c }: { company: Company }) {
             </div>
           </div>
           <div className="mt-3">
-            <h2 className="flex items-center gap-1.5 text-xl font-semibold leading-tight">
+            <h2 className="flex items-center gap-1.5 font-display text-xl font-normal leading-tight">
               {c.name}
               {c.verified && <span title={`Run by verified ${c.domain} employees`} className="text-link"><Icon d={icons.verified} size={18} /></span>}
             </h2>

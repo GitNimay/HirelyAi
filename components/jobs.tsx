@@ -413,7 +413,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
           )}
         </div>
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-balance">{j.title}</h2>
+          <h2 className="font-display text-xl font-normal text-balance">{j.title}</h2>
           <p className="mt-1 text-sm text-muted" suppressHydrationWarning>
             {where(j)} · {posted(j.createdAt)} · {applicantsText(j.applicants)}
           </p>

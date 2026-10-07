@@ -235,13 +235,13 @@ export function Interview({ view }: { view: CandidateView }) {
     done: (
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
         <span className="flex size-12 items-center justify-center rounded-full bg-success/15 text-success"><Icon d={icons.check} size={24} /></span>
-        <h2 className="mt-5 text-lg font-semibold tracking-tight">{view.kind === "mcq" ? "Test submitted" : "Interview submitted"}</h2>
+        <h2 className="mt-5 font-display text-lg font-normal">{view.kind === "mcq" ? "Test submitted" : "Interview submitted"}</h2>
         <p className="mt-1 text-sm text-muted">Thanks. {view.company} will be in touch. You can close this tab.</p>
       </div>
     ),
     closed: (
       <div className="py-8 text-center">
-        <h2 className="text-lg font-semibold tracking-tight">This interview has closed</h2>
+        <h2 className="font-display text-lg font-normal">This interview has closed</h2>
         <p className="mt-1 text-sm text-muted" suppressHydrationWarning>It closed on {date(view.deadline)}.</p>
       </div>
     ),

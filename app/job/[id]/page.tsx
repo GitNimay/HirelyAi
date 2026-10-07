@@ -34,7 +34,7 @@ export default async function PublicJobPage({ params }: Props) {
         <div className="space-y-4 border-b border-border p-4">
           <p className="text-sm font-medium">{j.company}</p>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-balance">{j.title}</h1>
+            <h1 className="font-display text-xl font-normal text-balance">{j.title}</h1>
             <p className="mt-1 text-sm text-muted">{where} · Posted {publicDate(j.createdAt)}</p>
           </div>
           {j.closedAt ? (
