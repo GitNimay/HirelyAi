@@ -13,7 +13,7 @@ import { ask, leaveIfClean, Modal, toast, useUnsavedGuard } from "./kit";
 import { Block, ExperienceItem } from "./resume-view";
 import { backBtn, btnGhost, btnPrimary, Icon, icons } from "./ui";
 
-export const input = "h-10 w-full rounded-md border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none transition-colors focus:border-ring disabled:opacity-50";
+export const input = "h-10 w-full rounded-md border bg-transparent px-3 text-sm text-foreground placeholder:text-muted outline-none transition-colors duration-150 focus:border-ring disabled:opacity-50";
 const area = `${input} h-auto resize-y py-2`;
 const ring = (bad: boolean) => (bad ? "border-danger" : "border-border");
 
@@ -21,7 +21,7 @@ const ring = (bad: boolean) => (bad ? "border-danger" : "border-border");
 export function F({ label, hint, bad, children, className = "" }: { label: string; hint?: string; bad?: boolean; children: ReactNode; className?: string }) {
   return (
     <label className={`block space-y-1.5 ${className}`}>
-      <span className="flex items-baseline justify-between gap-2 text-[13px] font-medium">
+      <span className="flex items-baseline justify-between gap-2 text-sm font-medium">
         {label}
         {bad ? <span className="text-xs font-normal text-danger">Required</span> : hint && <span className="text-xs font-normal text-muted">{hint}</span>}
       </span>
@@ -41,7 +41,7 @@ export function StatusPicker({ value, onChange }: { value: Status; onChange: (s:
           role="radio"
           aria-checked={value === s}
           onClick={() => onChange(s)}
-          className={`h-8 rounded-md text-[13px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${value === s ? "bg-foreground font-medium text-background" : "text-muted hover:bg-surface-hover hover:text-foreground"}`}
+          className={`h-8 rounded-md text-sm transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring ${value === s ? "bg-foreground font-medium text-background" : "text-muted hover:bg-surface-hover hover:text-foreground"}`}
         >
           {STATUSES[s]}
         </button>
@@ -63,9 +63,9 @@ export function Tags({ value, onChange, placeholder, bad, max, suggestions = [] 
   const unused = suggestions.filter((s) => s && !value.some((v) => v.toLowerCase() === s.toLowerCase()));
   return (
     <div>
-      <div className={`flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 focus-within:border-ring ${ring(!!bad)}`}>
+      <div className={`flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors duration-150 focus-within:border-ring ${ring(!!bad)}`}>
         {value.map((t) => (
-          <span key={t} className="inline-flex h-6 items-center gap-1 rounded bg-surface-hover pl-2 pr-1 text-xs">
+          <span key={t} className="inline-flex h-6 items-center gap-1 rounded-md bg-surface-hover pl-2 pr-1 text-xs">
             {t}
             <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((v) => v !== t))} className="rounded p-0.5 text-muted hover:text-foreground">
               <Icon d={icons.close} size={12} />
@@ -103,11 +103,11 @@ export function Tags({ value, onChange, placeholder, bad, max, suggestions = [] 
 
 function Section({ title, hint, bad, onAdd, addLabel, children }: { title: string; hint?: string; bad?: boolean; onAdd?: () => void; addLabel?: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 border-t border-border pt-6 first:border-0 first:pt-0">
+    <section className="space-y-4 border-t border-border pt-6 first:border-0 first:pt-0">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {bad ? <p className="text-xs text-danger">Add at least one</p> : hint && <p className="text-xs text-muted">{hint}</p>}
+          <h3 className="text-sm font-medium">{title}</h3>
+          {bad ? <p className="mt-1 text-sm text-danger">Add at least one</p> : hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
         </div>
         {onAdd && (
           <button type="button" onClick={onAdd} className={btnGhost}>
@@ -124,7 +124,7 @@ function Section({ title, hint, bad, onAdd, addLabel, children }: { title: strin
 /** A removable card for one list entry. */
 function Entry({ label, onRemove, children }: { label: string; onRemove: () => void; children: ReactNode }) {
   return (
-    <div className="relative grid gap-3 rounded-lg border border-border bg-surface/50 p-4 sm:grid-cols-2">
+    <div className="relative grid gap-3 rounded-lg border border-border bg-surface/50 p-4 pr-10 sm:grid-cols-2">
       <button type="button" aria-label={`Remove ${label}`} title="Remove" onClick={onRemove} className="absolute right-2 top-2 rounded-md p-1.5 text-muted hover:bg-surface-hover hover:text-danger">
         <Icon d={icons.trash} size={14} />
       </button>
@@ -277,10 +277,10 @@ export function ResumeForm({ initial }: { initial: Resume }) {
         <button type="button" aria-label="Back" onClick={() => leaveIfClean(dirty).then((ok) => ok && router.back())} className={backBtn}>
           <Icon d={icons.back} size={18} />
         </button>
-        <h1 className="flex-1 text-sm font-semibold">Edit resume</h1>
+        <h1 className="flex-1 text-sm font-medium">Edit resume</h1>
         <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
       </header>
-      <div className="space-y-4 px-5 pt-5">
+      <div className="space-y-4 px-4 pt-5">
         <ResumeEditor value={r} onChange={setR} missing={missing} show={show} />
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       </div>
@@ -373,7 +373,7 @@ function ExperienceDialog({ initial, logoUrl: initialLogo, onClose, onSave, onDe
       >
         <F label="Title" bad={p("title")} className="sm:col-span-2"><input data-autofocus value={e.title} onChange={(ev) => set({ title: ev.target.value })} maxLength={LIMITS.short} placeholder="Software engineer" className={`${input} ${ring(p("title"))}`} /></F>
         <div className="space-y-1.5 sm:col-span-2">
-          <span className="flex items-baseline justify-between text-[13px] font-medium">
+          <span className="flex items-baseline justify-between text-sm font-medium">
             Company
             {p("company") ? <span className="text-xs font-normal text-danger">Required</span> : <span className="text-xs font-normal text-muted">pick a page to show its logo</span>}
           </span>

@@ -162,7 +162,7 @@ export function HowItWorks({ children }: { children: ReactNode }) {
   return (
     <section id="how-it-works" className="scroll-mt-14 border-t border-border px-4 pb-32 pt-24 sm:px-8">
       <div className="flex flex-col items-center text-center">{children}</div>
-      <div ref={track} className="relative mx-auto mt-20 max-w-4xl">
+      <div ref={track} className="relative mx-auto mt-16 max-w-4xl">
         <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden style={isoVars}>
           {paths.map((d, i) => (
             <g key={i} fill="none">
@@ -197,7 +197,7 @@ export function HowItWorks({ children }: { children: ReactNode }) {
                 </svg>
                 <div className="min-w-0 max-w-64">
                   <h3 data-line className="text-sm font-medium">{n.title}</h3>
-                  <p data-line className="mt-1 text-sm text-muted">{n.body}</p>
+                  <p data-line className="mt-1 text-pretty text-sm text-muted">{n.body}</p>
                 </div>
               </li>
             );

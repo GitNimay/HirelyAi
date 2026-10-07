@@ -12,8 +12,8 @@ const item = (i: number) => (
     <Skeleton className="mt-0.5 size-9 shrink-0" />
     <div className="min-w-0 flex-1">
       <div className="flex justify-between gap-3"><Line className="flex-1 text-sm" w={["45%", "38%"][i % 2]} /><Line className="w-20 text-xs" w="100%" /></div>
-      <Line className="text-[13px]" w={["35%", "50%"][i % 2]} />
-      <div className="mt-1.5 text-[13px]"><Line w="92%" /><Line w="70%" /></div>
+      <Line className="text-sm" w={["35%", "50%"][i % 2]} />
+      <div className="mt-1.5 text-sm"><Line w="92%" /><Line w="70%" /></div>
     </div>
   </div>
 );
@@ -24,7 +24,7 @@ export default function ResumeLoading() {
     <Loading label="Loading resume…" className="space-y-6 px-4 py-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Line className="text-xs" w="260px" />
-        <div className="flex gap-2"><Skeleton className="h-8 w-32" /><Skeleton className="h-8 w-28" /></div>
+        <div className="flex gap-2"><Skeleton className="h-8 w-32 rounded-lg" /><Skeleton className="h-8 w-28 rounded-lg" /></div>
       </div>
       {block("12%", (
         <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">

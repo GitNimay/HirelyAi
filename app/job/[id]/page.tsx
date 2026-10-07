@@ -45,12 +45,12 @@ export default async function PublicJobPage({ params }: Props) {
         </div>
         <JobFacts job={j} h="h2" />
         <section className="border-b border-border p-4">
-          <h2 className="mb-1 text-sm font-semibold">Posted by</h2>
+          <h2 className="mb-3 text-sm font-medium">Posted by</h2>
           <p className="text-sm">{j.poster.name}</p>
           {j.poster.headline && <p className="text-xs text-muted">{j.poster.headline}</p>}
         </section>
         <section className={`p-4 ${j.page ? "border-b border-border" : ""}`}>
-          <h2 className="mb-3 text-sm font-semibold">About the job</h2>
+          <h2 className="mb-3 text-sm font-medium">About the job</h2>
           <div className="space-y-3 break-words text-sm leading-relaxed text-foreground/90">
             <Prose text={j.description} h="h3" />
           </div>

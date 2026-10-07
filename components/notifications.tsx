@@ -126,7 +126,7 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-4">
-          <h1 className="text-sm font-semibold">Notifications</h1>
+          <h1 className="text-sm font-medium">Notifications</h1>
           {page.items.some((n) => !n.read) && (
             <button type="button" className={btnGhost} onClick={readAll}>
               <Icon d={icons.check} size={14} />
@@ -146,10 +146,10 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
       </header>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center px-4 py-24 text-center">
+        <div className="flex flex-col items-center px-4 py-12 text-center">
           <Icon d={icons.notifications} size={28} className="text-muted" />
           <p className="mt-4 text-sm font-medium">{tab === "all" ? "No notifications yet" : "Nothing here"}</p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 max-w-sm text-pretty text-sm text-muted">
             {tab === "all" ? "Likes, comments, invitations and job updates show up here the moment they happen." : "Nothing in this category yet."}
           </p>
         </div>
@@ -186,7 +186,7 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
       <Link
         href={n.link}
         onClick={() => onOpen(n)}
-        className={`flex gap-3 px-4 py-3 pr-12 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${n.read ? "hover:bg-surface" : "bg-surface hover:bg-surface-hover"}`}
+        className="flex gap-3 px-4 py-3 pr-12 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <span className="relative shrink-0 self-start">
           <Avatar name={first?.name ?? "?"} src={first?.imageUrl ?? undefined} size={40} />
@@ -195,11 +195,11 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
           </span>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm">
+          <span className="block break-words text-sm">
             <span className="font-medium">{who(n.actors, n.count)}</span> <span className="text-muted">{verb(n.type, n.body)}</span>
           </span>
-          {hasPreview(n.type) && n.body && <span className="mt-0.5 line-clamp-2 block text-xs text-muted">{n.body}</span>}
-          <span className="mt-1 flex items-center gap-2 text-xs text-muted">
+          {hasPreview(n.type) && n.body && <span className="mt-0.5 line-clamp-2 block break-words text-xs text-muted">{n.body}</span>}
+          <span className="mt-1 flex items-center gap-2 text-xs tabular-nums text-muted">
             {ago(n.at)}
             {!n.read && (
               <>
@@ -242,11 +242,11 @@ export function QuickNotifications({ initial }: { initial: Notification[] }) {
   return (
     <section aria-labelledby="quick-notifs" className="border border-border bg-background">
       <div className="flex h-11 items-center justify-between border-b border-border px-4">
-        <h2 id="quick-notifs" className="text-sm font-semibold">Notifications</h2>
+        <h2 id="quick-notifs" className="text-sm font-medium">Notifications</h2>
         <Link href="/dashboard/notifications" className="text-xs text-link hover:underline">See all</Link>
       </div>
       {items.length === 0 ? (
-        <p className="flex items-center gap-2 px-4 py-6 text-sm text-muted">
+        <p className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-muted">
           <Icon d={icons.notifications} size={16} />
           No notifications
         </p>
@@ -257,7 +257,7 @@ export function QuickNotifications({ initial }: { initial: Notification[] }) {
               <Link
                 href={n.link}
                 onClick={() => open(n)}
-                className="flex gap-2.5 px-4 py-3 outline-none transition-colors hover:bg-surface focus-visible:bg-surface"
+                className="flex gap-2.5 px-4 py-3 outline-none transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover"
               >
                 <span className="relative shrink-0 self-start">
                   <Avatar name={n.actors[0]?.name ?? "?"} src={n.actors[0]?.imageUrl ?? undefined} size={32} />
@@ -269,7 +269,7 @@ export function QuickNotifications({ initial }: { initial: Notification[] }) {
                   <span className="line-clamp-2 text-xs leading-snug">
                     <span className="font-medium">{who(n.actors, n.count)}</span> <span className="text-muted">{verb(n.type, n.body)}</span>
                   </span>
-                  <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+                  <span className="mt-1 flex items-center gap-1.5 text-xs tabular-nums text-muted">
                     {ago(n.at)}
                     {!n.read && <span aria-label="Unread" className="size-1.5 rounded-full bg-link" />}
                   </span>

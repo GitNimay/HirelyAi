@@ -4,7 +4,7 @@ import { FieldSkeleton, Loading, PageHeader, Skeleton } from "@/components/skele
 export default function EditProfileLoading() {
   return (
     <div className="space-y-4 pb-8">
-      <PageHeader title="Edit profile" back className="gap-4 px-4" action={<Skeleton className="h-8 w-14" />} />
+      <PageHeader title="Edit profile" back className="gap-4 px-4" action={<Skeleton className="h-8 w-14 rounded-lg" />} />
       <Loading label="Loading your profile…" className="space-y-4">
         <Skeleton className="aspect-[3/1] rounded-none" />
         <div className="px-5">

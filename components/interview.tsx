@@ -2,15 +2,14 @@
 
 import type { RemoteParticipant, Room } from "livekit-client";
 import { useRouter } from "next/navigation";
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import { answer, beginTest, finishTest, onboard, start, verify, warm } from "@/app/interview/actions";
 import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, KINDS, NOTICE, screeningFacts, type McqPublic, type Profile } from "@/lib/interview-fields";
-import { Head, primary, StepFrame } from "./onboarding";
+import { Alert, Head, primary, StepFrame, ThemeToggle } from "./onboarding";
 import { F, input } from "./resume-editor";
 import { ask, Select } from "./kit";
-import { applyTheme } from "./account-menu";
 import { btnGhost, Icon, icons } from "./ui";
 
 type Step = "gate" | "details" | "mic" | "live" | "ready" | "test" | "done" | "closed";
@@ -31,19 +30,6 @@ const audioSession = (type: "play-and-record" | "auto") => {
   const s = (navigator as { audioSession?: { type: string } }).audioSession;
   if (s) s.type = type;
 };
-
-// The theme showing now: a saved choice on <html data-theme>, else the OS. Re-read when either changes.
-const isDark = () => {
-  const t = document.documentElement.dataset.theme;
-  return t ? t === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
-};
-function onThemeChange(cb: () => void) {
-  const mo = new MutationObserver(cb);
-  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  const mq = matchMedia("(prefers-color-scheme: light)");
-  mq.addEventListener("change", cb);
-  return () => (mo.disconnect(), mq.removeEventListener("change", cb));
-}
 
 function stepOf(v: CandidateView): Step {
   const s = v.session?.status;
@@ -172,7 +158,7 @@ export function Interview({ view }: { view: CandidateView }) {
         </F>
         {error && <Alert>{error}</Alert>}
         <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
-          <p className="text-[13px] text-muted" suppressHydrationWarning>Open until {date(view.deadline)}</p>
+          <p className="text-xs text-muted" suppressHydrationWarning>Open until {date(view.deadline)}</p>
           <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
         </div>
       </form>
@@ -189,7 +175,7 @@ export function Interview({ view }: { view: CandidateView }) {
               </p>
               {error && <Alert>{error}</Alert>}
               <div className="flex items-center justify-end gap-3 border-t border-border pt-5">
-                {!heard && <span className="text-[13px] text-muted">Waiting to hear you…</span>}
+                {!heard && <span className="text-xs text-muted">Waiting to hear you…</span>}
                 <button aria-busy={busy} type="button" className={primary} disabled={!heard || busy} onClick={begin}>
                   {view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
                 </button>
@@ -235,13 +221,13 @@ export function Interview({ view }: { view: CandidateView }) {
     done: (
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
         <span className="flex size-12 items-center justify-center rounded-full bg-success/15 text-success"><Icon d={icons.check} size={24} /></span>
-        <h2 className="mt-5 font-display text-lg font-normal">{view.kind === "mcq" ? "Test submitted" : "Interview submitted"}</h2>
+        <h2 className="mt-5 font-display text-xl font-normal">{view.kind === "mcq" ? "Test submitted" : "Interview submitted"}</h2>
         <p className="mt-1 text-sm text-muted">Thanks. {view.company} will be in touch. You can close this tab.</p>
       </div>
     ),
     closed: (
       <div className="py-8 text-center">
-        <h2 className="font-display text-lg font-normal">This interview has closed</h2>
+        <h2 className="font-display text-xl font-normal">This interview has closed</h2>
         <p className="mt-1 text-sm text-muted" suppressHydrationWarning>It closed on {date(view.deadline)}.</p>
       </div>
     ),
@@ -253,7 +239,6 @@ export function Interview({ view }: { view: CandidateView }) {
       steps={STEPS[view.kind]}
       current={INDEX[step]}
       stepKey={step}
-      card="bg-background"
       action={
         <span className="flex min-w-0 items-center gap-3">
           <span className="truncate text-sm text-muted">{view.company}</span>
@@ -264,25 +249,6 @@ export function Interview({ view }: { view: CandidateView }) {
       {card[step]}
     </StepFrame>
   );
-}
-
-/** Flips light/dark, starting from whatever is showing now (a saved choice, or the OS). */
-function ThemeToggle() {
-  const dark = useSyncExternalStore(onThemeChange, isDark, () => null); // null on the server
-  return (
-    <button
-      type="button"
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      onClick={() => applyTheme(dark ? "light" : "dark")}
-      className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted transition-colors outline-none hover:bg-surface hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <Icon d={dark === false ? icons.moon : icons.sun} size={16} />
-    </button>
-  );
-}
-
-function Alert({ children }: { children: React.ReactNode }) {
-  return <p role="alert" className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{children}</p>;
 }
 
 function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Profile>; onDone: () => void }) {
@@ -419,7 +385,7 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
             options={[{ value: "", label: "System default" }, ...devices.map((d, i) => ({ value: d.deviceId, label: d.label || `Microphone ${i + 1}` }))]}
           />
         )}
-        {heard && <p className="text-[13px] text-success">We can hear you.</p>}
+        {heard && <p className="text-sm text-success">We can hear you.</p>}
         {blocked && <button type="button" className={btnGhost} onClick={() => setAttempt((n) => n + 1)}>Try again</button>}
       </div>
       {children(heard)}
@@ -453,7 +419,7 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
   const secs = Math.ceil(left / 1000);
   return (
     <div className="flex flex-col items-center gap-8 text-center">
-      <div className="flex w-full items-center justify-between border-b border-border pb-4 text-[13px] text-muted">
+      <div className="flex w-full items-center justify-between border-b border-border pb-4 text-xs text-muted">
         <span className="flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />Live</span>
         <span className={`tabular-nums ${endsAt && secs <= 30 ? "font-medium text-danger" : ""}`}>
           {endsAt ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")} left` : "Starting…"}
@@ -470,7 +436,7 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
       <div className="min-h-24 w-full space-y-3" aria-live="polite">
         <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
         {caption.agent && <p className="text-base leading-relaxed text-balance">{caption.agent}</p>}
-        {caption.you && <p className="text-[13px] text-muted">You: {caption.you}</p>}
+        {caption.you && <p className="text-sm text-muted">You: {caption.you}</p>}
       </div>
 
       {muted && (
@@ -553,7 +519,7 @@ function McqTest({ slug, test, onDone }: { slug: string; test: { questions: McqP
   return (
     <div className="space-y-6">
       <div className="space-y-3 border-b border-border pb-4">
-        <div className="flex items-center justify-between text-[13px] text-muted">
+        <div className="flex items-center justify-between text-xs text-muted">
           <span>Question <span className="font-medium text-foreground tabular-nums">{at + 1}</span> of {qs.length}</span>
           <span className={`flex items-center gap-1.5 tabular-nums ${low ? "font-medium text-danger" : ""}`} suppressHydrationWarning>
             <Icon d={icons.clock} size={14} />{clock(left)}
@@ -600,7 +566,7 @@ function McqTest({ slug, test, onDone }: { slug: string; test: { questions: McqP
       </div>
 
       <nav aria-label="All questions" className="border-t border-border pt-5">
-        <div className="mb-3 flex items-center justify-between text-[13px] text-muted">
+        <div className="mb-3 flex items-center justify-between text-xs text-muted">
           <span>{answered} of {qs.length} answered</span>
           {at < qs.length - 1 && <button type="button" className="font-medium text-foreground hover:underline" disabled={busy} onClick={confirmSubmit}>Submit early</button>}
         </div>

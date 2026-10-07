@@ -45,7 +45,7 @@ export const icons = {
 
 // A quick ease-out, a press that sinks, icons thicken on hover. Focus uses the global :focus-visible outline.
 export const btn =
-  "inline-flex h-8 shrink-0 select-none items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-[background-color,color,box-shadow,transform,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:duration-75 motion-safe:active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:transition-[stroke-width] [&_svg]:duration-100 hover:[&_svg]:stroke-[2.25]";
+  "inline-flex h-8 shrink-0 select-none items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-[background-color,color,box-shadow,transform,scale,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:duration-75 motion-safe:active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:transition-[stroke-width] [&_svg]:duration-100 hover:[&_svg]:stroke-[2.25]";
 // Texture look (cult-ui texture-button), see tx-* in globals.css. Ghost stays flat for toolbar/icon actions.
 export const btnPrimary = `${btn} tx-primary`;
 export const btnOutline = `${btn} tx-secondary`;
@@ -54,7 +54,7 @@ export const btnDanger = `${btn} tx-danger`;
 /** Form controls are 40px (Geist medium); toolbar and inline buttons stay 32px (`btn`). */
 export const btnLg = "h-10 px-4";
 /** Icon-only back button in sticky page headers: 32px target, optically aligned to the header's padding. */
-export const backBtn = "-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:transition-[stroke-width] hover:[&_svg]:stroke-[2.25]";
+export const backBtn = "-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:transition-[stroke-width] hover:[&_svg]:stroke-[2.25]";
 /** One row in a dropdown menu (see Menu in kit.tsx). */
 // No hover fill: Menu's fluid highlight slides under the rows (hence `relative`, to paint above it)
 export const menuItem = "dd-item relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none";
@@ -105,7 +105,7 @@ export function CompanyLogo({ name, src, size = 48 }: { name: string; src?: stri
     // eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media
     <img src={src} alt="" width={size} height={size} className="shrink-0 rounded-md border border-border bg-background object-cover" style={{ width: size, height: size }} />
   ) : (
-    <span className="flex shrink-0 items-center justify-center rounded-md border border-border bg-surface font-semibold text-muted" style={{ width: size, height: size, fontSize: size / 2.6 }}>
+    <span className="flex shrink-0 items-center justify-center rounded-md border border-border bg-surface font-medium text-muted" style={{ width: size, height: size, fontSize: size / 2.6 }}>
       {name.trim()[0]?.toUpperCase() ?? "?"}
     </span>
   );

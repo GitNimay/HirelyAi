@@ -18,7 +18,7 @@ const footerCols = (signedIn: boolean): [string, [string, string][]][] => [
   ["Account", signedIn ? [["Dashboard", "/dashboard"]] : [["Sign up", "/sign-up"], ["Log in", "/sign-in"]]],
 ];
 
-const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-display font-normal tracking-[-0.01em]";
+const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-display font-normal tracking-[-0.01em] text-balance";
 const eyebrow = "inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted";
 
 const features: { tag: string; title: string; body: string; Visual: () => React.ReactNode }[] = [
@@ -78,14 +78,14 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
       </header>
 
       <main id="main" className="flex-1">
-        <section className="flex flex-col items-center px-4 pt-20 text-center sm:pt-28">
+        <section className="flex flex-col items-center px-4 pb-24 pt-20 text-center sm:px-8 sm:pt-28">
           <span className={eyebrow}>AI-first hiring network</span>
           <h1 className={`${display} mt-6 max-w-3xl`}>
             Hire on signal,
             <br />
             not on resumes.
           </h1>
-          <p className="mt-5 max-w-md text-sm text-muted">
+          <p className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-muted">
             An AI runs the first interview for every applicant, so recruiters meet the right people and candidates hear back fast.
           </p>
           <div className="mt-8 flex gap-2">
@@ -97,18 +97,18 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <HeroVideo />
         </section>
 
-        <section id="features" className="mt-24 scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
+        <section id="features" className="scroll-mt-14 border-t border-border px-4 py-24 sm:px-8">
           <div className="flex flex-col items-center text-center">
             <span className={eyebrow}>Features</span>
             <h2 className={`${display} mt-6 max-w-2xl`}>Every first round, handled.</h2>
-            <p className="mt-5 max-w-md text-sm text-muted">From the application to a ranked shortlist, inside one network.</p>
+            <p className="mt-5 max-w-md text-pretty text-sm text-muted">From the application to a ranked shortlist, inside one network.</p>
           </div>
           <div className="mt-16 grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f) => (
               <article key={f.tag}>
                 <f.Visual />
                 <h3 className="mt-5 text-sm font-medium">{f.title}</h3>
-                <p className="mt-1.5 text-sm text-muted">{f.body}</p>
+                <p className="mt-1.5 text-pretty text-sm text-muted">{f.body}</p>
               </article>
             ))}
           </div>
@@ -132,7 +132,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
                   <span className="font-mono text-xs uppercase tracking-wider text-muted">{s.tag}</span>
                 </div>
                 <h3 className="mt-8 text-sm font-medium">{s.title}</h3>
-                <p className="mt-1.5 max-w-sm text-sm text-muted">{s.body}</p>
+                <p className="mt-1.5 max-w-sm text-pretty text-sm leading-relaxed text-muted">{s.body}</p>
                 <ul className="mt-8 flex-1 space-y-3 text-sm">
                   {s.points.map((p) => (
                     <li key={p} className="flex items-center gap-3">
@@ -159,9 +159,9 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               <details key={q} className="group border-b border-border">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-sm font-medium [&::-webkit-details-marker]:hidden">
                   {q}
-                  <span className="text-muted transition-transform group-open:rotate-90"><Icon d={chevron} size={14} /></span>
+                  <span className="text-muted transition-colors group-hover:text-foreground motion-safe:transition-[color,rotate] group-open:rotate-90"><Icon d={chevron} size={14} /></span>
                 </summary>
-                <p className="-mt-1 pb-5 text-sm text-muted">{a}</p>
+                <p className="-mt-1 pb-5 text-pretty text-sm leading-relaxed text-muted">{a}</p>
               </details>
             ))}
           </div>

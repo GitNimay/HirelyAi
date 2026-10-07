@@ -13,7 +13,7 @@ export default async function SectionPage({ params }: PageProps<"/dashboard/[sec
   return (
     <>
       <header className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-4 backdrop-blur">
-        <h1 className="text-sm font-semibold">{item.label}</h1>
+        <h1 className="text-sm font-medium">{item.label}</h1>
       </header>
       <div className="flex flex-col items-center px-4 py-24 text-center">
         <Icon d={item.icon} size={28} className="text-muted" />

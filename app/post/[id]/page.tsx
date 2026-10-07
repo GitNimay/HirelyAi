@@ -37,7 +37,7 @@ export default async function PublicPostPage({ params }: Props) {
       <article className="p-4">
         <div className="flex gap-3">
           <Avatar name={p.author.name} src={publicAvatar(p.author.imageUrl)} />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{p.author.name}</p>
             {p.author.headline && <p className="truncate text-xs text-muted">{p.author.headline}</p>}
             <p className="text-xs text-muted">
@@ -46,14 +46,14 @@ export default async function PublicPostPage({ params }: Props) {
             </p>
           </div>
         </div>
-        {p.body && <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed">{p.body}</p>}
+        {p.body && <p className="mt-3 whitespace-pre-wrap break-words text-pretty text-sm leading-relaxed">{p.body}</p>}
         {media && (
           <p className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-muted">
             <Icon d={isVideo(p.media[0].type) ? icons.video : icons.photo} size={16} />
             This post includes {media}. Log in to see it.
           </p>
         )}
-        {stats.length > 0 && <p className="mt-3 border-t border-border pt-3 text-xs text-muted">{stats.join(" · ")}</p>}
+        {stats.length > 0 && <p className="mt-3 border-t border-border pt-3 text-xs tabular-nums text-muted">{stats.join(" · ")}</p>}
       </article>
     </PublicShell>
   );

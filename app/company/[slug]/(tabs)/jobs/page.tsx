@@ -27,7 +27,7 @@ export default async function JobsTab({ params }: { params: Promise<{ slug: stri
         <ul className="divide-y divide-border">
           {jobs.map((j) => (
             <li key={j.id}>
-              <Link href={`/dashboard/jobs?id=${j.id}`} className="flex gap-3 px-4 py-3 transition-colors hover:bg-surface">
+              <Link href={`/dashboard/jobs?id=${j.id}`} className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
                 <CompanyLogo name={c.name} src={c.logoUrl} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-link">{j.title}</p>

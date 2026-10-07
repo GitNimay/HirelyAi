@@ -68,7 +68,7 @@ export function Block({ title, empty, action, children }: { title: string; empty
   return (
     <section className="space-y-3 border-t border-border pt-5 first:border-0">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-medium">{title}</h2>
         {action}
       </div>
       {empty ? <p className="text-sm text-muted">Nothing added yet.</p> : children}
@@ -88,8 +88,8 @@ function Item({ title, sub, when, body, icon = icons.jobs, lead, action }: { tit
             {action}
           </span>
         </div>
-        {sub && <p className="text-[13px] text-muted">{sub}</p>}
-        {body && <p className="mt-1.5 whitespace-pre-line text-[13px] text-muted">{body}</p>}
+        {sub && <p className="text-sm text-muted">{sub}</p>}
+        {body && <p className="mt-1.5 whitespace-pre-line text-sm text-muted">{body}</p>}
       </div>
     </div>
   );
