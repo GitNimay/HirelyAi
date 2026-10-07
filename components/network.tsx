@@ -60,7 +60,9 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
   const refresh = () => actions.loadNetwork().then(setNet, () => {});
 
   useRealtime((e) => {
-    if (e.t === "net") setNet((n) => ({ ...apply(n, e), counts: e.counts }));
+    // Pushes sent while the socket was down are gone: reload
+    if (e.t === "resync") refresh();
+    else if (e.t === "net") setNet((n) => ({ ...apply(n, e), counts: e.counts }));
     // Someone edited their profile: same person, new name / photo / headline / bio, wherever they're listed
     else if (e.t === "profile") {
       const edit = (p: Person) => (p.id === e.id ? { ...p, name: e.name, handle: e.handle, headline: e.headline, bio: e.bio, imageUrl: e.imageUrl } : p);
@@ -68,13 +70,6 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
       setFound((f) => f && f.map(edit));
     }
   });
-
-  // Events sent while the socket was down are gone, so resync whenever the tab comes back
-  useEffect(() => {
-    const onShow = () => document.visibilityState === "visible" && refresh();
-    document.addEventListener("visibilitychange", onShow);
-    return () => document.removeEventListener("visibilitychange", onShow);
-  }, []);
 
   // Search everyone on the platform, debounced; a newer keystroke cancels an older request's result
   useEffect(() => {

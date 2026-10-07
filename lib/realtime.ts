@@ -30,8 +30,15 @@ export type JobEvent =
 /** Private: to the poster when someone applies, to the applicant when the poster moves their application. */
 export type AppEvent = { t: "app"; jobId: string; applicantId: string; status: AppStatus };
 
-/** Private: a new or updated notification with the recipient's fresh badge count, or "seen" after they opened the page anywhere. */
-export type NotifEvent = { t: "notif"; n: Notification; unseen: number } | { t: "notif-seen" };
+/**
+ * Private, to the recipient's every tab and device: a new or changed notification (with the fresh badge count), one that
+ * went away (deleted, or retracted because the like/follow/invite behind it was undone), read state, and "seen".
+ */
+export type NotifEvent =
+  | { t: "notif"; n: Notification; unseen: number }
+  | { t: "notif-del"; id: string; unseen: number }
+  | { t: "notif-read"; id?: string } // no id: all of them
+  | { t: "notif-seen" };
 
 export type RealtimeEvent = FeedEvent | NetEvent | JobEvent | AppEvent | NotifEvent;
 
@@ -54,7 +61,19 @@ export function broadcast(event: FeedEvent | JobEvent) {
   waitUntil(Promise.allSettled(Array.from({ length: HUB_SHARDS }, (_, i) => env.FEED_HUB.getByName(`hub-${i}`).broadcast(msg))));
 }
 
+type Private = NetEvent | AppEvent | NotifEvent;
+
 /** Push to one user's open sockets (every tab/device), which all live on that user's hub shard. */
-export function sendTo(userId: string, event: NetEvent | AppEvent | NotifEvent) {
+export function sendTo(userId: string, event: Private) {
   waitUntil(env.FEED_HUB.getByName(hubFor(userId)).broadcast(JSON.stringify(event), userId).catch(() => {}));
+}
+
+/** Many private pushes (a notification fanned out to followers): one call per hub shard instead of one per recipient. */
+export function sendEach(items: { to: string; event: Private }[]) {
+  const shards = new Map<string, [string, string][]>();
+  for (const { to, event } of items) {
+    const hub = hubFor(to);
+    shards.set(hub, [...(shards.get(hub) ?? []), [to, JSON.stringify(event)]]);
+  }
+  waitUntil(Promise.allSettled([...shards].map(([hub, list]) => env.FEED_HUB.getByName(hub).deliver(list))));
 }

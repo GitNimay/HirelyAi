@@ -78,6 +78,11 @@ export class FeedHub extends DurableObject<Env> {
     }
   }
 
+  /** Each message to its own user's sockets: lib/realtime.ts sendEach batches a fan-out into one call per shard. */
+  deliver(items: [userId: string, msg: string][]) {
+    for (const [userId, msg] of items) this.broadcast(msg, userId);
+  }
+
   webSocketMessage(ws: WebSocket) {
     // Server → client only ("ping" is answered by the auto-response without waking us): anything else is a misbehaving client
     ws.close(1008, "server to client only");

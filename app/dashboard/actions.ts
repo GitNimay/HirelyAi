@@ -10,7 +10,8 @@ import { canPostJobs, roleOf } from "@/lib/companies";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
 import { inFolder, isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
 import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
-import { followersOf, listNotifications, notifyUsers, unseenCount } from "@/lib/notifications";
+import { announceRemoved, followersOf, latestNotifications, listNotifications, notifyUsers, retractNotification, unseenCount } from "@/lib/notifications";
+import type { NotificationType } from "@/lib/notification-format";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
 import { signedIn } from "@/lib/profile";
 import { getResume } from "@/lib/resume";
@@ -29,6 +30,9 @@ async function pushStats(postId: string) {
 
 const snippet = (s: string) => s.slice(0, 140) || null;
 const postOf = (id: string) => env.DB.prepare("SELECT author_id, body FROM posts WHERE id = ?").bind(id).first<{ author_id: string; body: string }>();
+/** After the response: the undo is already committed, so the recipient's notification loses this actor (lib/notifications.ts). */
+const retract = (type: NotificationType, actor: string, ref: string, to: string) =>
+  waitUntil(retractNotification(type, actor, ref, to).catch((e) => console.error("retract failed", e)));
 const jobTitle = (id: string) => env.DB.prepare("SELECT title FROM jobs WHERE id = ?").bind(id).first<string>("title");
 
 export async function loadFeed(tab: FeedTab, cursor?: string) {
@@ -118,11 +122,12 @@ export async function deletePost(id: string) {
     .bind(String(id), userId).first<{ media: string | null; repost_of: string | null }>();
   if (!post) throw new Error("Not found");
   // Reposts of this post cascade in SQL; their counters don't matter since the original is gone
-  await env.DB.batch([
+  const [, notifs] = await env.DB.batch<{ id: string; user_id: string }>([
     env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(String(id)),
-    // Their notifications would only lead to a missing page
-    env.DB.prepare("DELETE FROM notifications WHERE link = ?").bind(`/dashboard/post/${String(id)}`),
+    // Their notifications would only lead to a missing page: gone from the list, and from open tabs
+    env.DB.prepare("DELETE FROM notifications WHERE link = ? RETURNING id, user_id").bind(`/dashboard/post/${String(id)}`),
   ]);
+  waitUntil(announceRemoved(notifs.results).catch(() => {}));
   if (post.media) await env.MEDIA.delete((JSON.parse(post.media) as Media[]).map((m) => m.key));
   broadcast({ t: "delete", id: String(id) });
   if (post.repost_of) await pushStats(post.repost_of);
@@ -137,6 +142,9 @@ export async function toggleLike(postId: string) {
       .bind(userId, Date.now(), id).run();
     const post = ins.meta.changes ? await postOf(id) : null;
     if (post) await notifyUsers([post.author_id], { type: "like", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
+  } else {
+    const post = await postOf(id);
+    if (post) retract("like", userId, id, post.author_id);
   }
   await pushStats(id);
   return { liked: !del.meta.changes };
@@ -148,6 +156,8 @@ export async function toggleRepost(postId: string) {
   const removed = await env.DB.prepare("DELETE FROM posts WHERE author_id = ? AND repost_of = ? RETURNING id").bind(userId, id).first<{ id: string }>();
   if (removed) {
     broadcast({ t: "delete", id: removed.id });
+    const post = await postOf(id);
+    if (post) retract("repost", userId, id, post.author_id);
   } else {
     const entryId = crypto.randomUUID();
     const ins = await env.DB.prepare(
@@ -210,6 +220,7 @@ export async function toggleFollow(targetId: string) {
   }
   notify("follow", userId, id);
   if (!del.meta.changes) await notifyUsers([id], { type: "follow", actor: userId, ref: "", link: "/dashboard/network" });
+  else retract("follow", userId, "", id);
   return { following: !del.meta.changes };
 }
 
@@ -275,6 +286,7 @@ export async function acceptInvite(fromId: string) {
     env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, id),
   ]);
   notify("connect", me, id);
+  retract("invite", id, id, me); // answered: no longer an open invitation
   await notifyUsers([id], { type: "accept", actor: me, ref: me, link: "/dashboard/network" });
 }
 
@@ -282,13 +294,19 @@ export async function acceptInvite(fromId: string) {
 export async function ignoreInvite(fromId: string) {
   const me = await writer();
   const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(String(fromId), me).run();
-  if (del.meta.changes) notify("uninvite", me, String(fromId), false);
+  if (del.meta.changes) {
+    notify("uninvite", me, String(fromId), false);
+    retract("invite", String(fromId), String(fromId), me);
+  }
 }
 
 export async function withdrawInvite(toId: string) {
   const me = await writer();
   const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, String(toId)).run();
-  if (del.meta.changes) notify("uninvite", me, String(toId));
+  if (del.meta.changes) {
+    notify("uninvite", me, String(toId));
+    retract("invite", me, me, String(toId));
+  }
 }
 
 export async function removeConnection(peerId: string) {
@@ -399,8 +417,13 @@ async function editJob(id: string, input: Record<string, unknown>) {
  */
 export async function deleteJob(jobId: string) {
   const me = await writer();
-  const del = await env.DB.prepare("DELETE FROM jobs WHERE id = ? AND poster_id = ?").bind(String(jobId), me).run();
+  const id = String(jobId);
+  const del = await env.DB.prepare("DELETE FROM jobs WHERE id = ? AND poster_id = ?").bind(id, me).run();
   if (!del.meta.changes) throw new Error("Job not found");
+  // Every notification about it (new job, applicants, status changes) would lead to a missing listing
+  const { results } = await env.DB.prepare("DELETE FROM notifications WHERE link IN (?1, ?2, ?3) RETURNING id, user_id")
+    .bind(`/dashboard/jobs?id=${id}`, `/dashboard/jobs?tab=applied&id=${id}`, `/dashboard/jobs?tab=posted&id=${id}`).all<{ id: string; user_id: string }>();
+  waitUntil(announceRemoved(results).catch(() => {}));
 }
 
 async function pushJobStats(jobId: string) {
@@ -526,30 +549,44 @@ export async function loadNotifications(cursor?: string) {
   return listNotifications(await viewer(), cursor ? String(cursor) : undefined);
 }
 
-/** Opening the page clears the badge on every open tab and device; items stay unread until clicked. */
+/** The newest three, for the dashboard rail after a reconnect. */
+export async function loadLatestNotifications() {
+  return latestNotifications(await viewer());
+}
+
+/**
+ * Opening the page clears the badge on every open tab and device; items stay unread until clicked.
+ * Writes (and pushes) only when something was actually unseen, since the open page calls this on every new notification.
+ */
 export async function markSeen() {
   const me = await viewer();
-  await env.DB.batch([
-    env.DB.prepare("UPDATE users SET notif_seen_at = ? WHERE id = ?").bind(Date.now(), me),
+  const now = Date.now();
+  const [upd] = await env.DB.batch([
+    env.DB.prepare("UPDATE users SET notif_seen_at = ?1 WHERE id = ?2 AND EXISTS (SELECT 1 FROM notifications WHERE user_id = ?2 AND created_at > users.notif_seen_at)").bind(now, me),
     // Keep the table bounded: nobody scrolls back three months
-    env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND created_at < ?").bind(me, Date.now() - 90 * 86_400_000),
+    env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND created_at < ?").bind(me, now - 90 * 86_400_000),
   ]);
-  sendTo(me, { t: "notif-seen" });
+  if (upd.meta.changes) sendTo(me, { t: "notif-seen" });
 }
+
+// Read state and deletions follow the member to every open tab and device
 
 export async function markRead(id: string) {
   const me = await viewer();
-  await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ? AND read_at IS NULL").bind(Date.now(), String(id), me).run();
+  const upd = await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ? AND read_at IS NULL").bind(Date.now(), String(id), me).run();
+  if (upd.meta.changes) sendTo(me, { t: "notif-read", id: String(id) });
 }
 
 export async function markAllRead() {
   const me = await viewer();
-  await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL").bind(Date.now(), me).run();
+  const upd = await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL").bind(Date.now(), me).run();
+  if (upd.meta.changes) sendTo(me, { t: "notif-read" });
 }
 
 export async function deleteNotification(id: string) {
   const me = await viewer();
-  await env.DB.prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?").bind(String(id), me).run();
+  const { results } = await env.DB.prepare("DELETE FROM notifications WHERE id = ? AND user_id = ? RETURNING id, user_id").bind(String(id), me).all<{ id: string; user_id: string }>();
+  waitUntil(announceRemoved(results).catch(() => {}));
 }
 
 export const loadUnseen = async () => unseenCount(await viewer());
