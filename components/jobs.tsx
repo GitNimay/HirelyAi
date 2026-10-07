@@ -128,19 +128,14 @@ export function Jobs({ viewerId, initialTab, initial, initialFilters, initialSel
   }
 
   useRealtime((e) => {
-    if (e.t === "job" && e.posterId !== viewerId) setFresh((n) => n + 1);
+    // Pushes sent while the socket was down are gone: reload what's on screen
+    if (e.t === "resync") load(tab, filters);
+    else if (e.t === "job" && e.posterId !== viewerId) setFresh((n) => n + 1);
     else if (e.t === "jobstat") patch(e.id, (j) => ({ applicants: e.applicants, closedAt: e.closed ? (j.closedAt ?? Date.now()) : null }));
     else if (e.t === "app" && e.applicantId === viewerId) patch(e.jobId, (j) => ({ application: { status: e.status, at: j.application?.at ?? Date.now() } }));
     else if (e.t === "app" && applicants[e.jobId]) refreshApplicants(e.jobId).catch(() => {});
   });
 
-  // Events sent while the socket was down are gone, so resync whenever the tab comes back
-  const resync = useEffectEvent(() => load(tab, filters));
-  useEffect(() => {
-    const onShow = () => document.visibilityState === "visible" && resync();
-    document.addEventListener("visibilitychange", onShow);
-    return () => document.removeEventListener("visibilitychange", onShow);
-  }, []);
 
   const loadMore = useEffectEvent(() => {
     if (list.next && !loading && !selectedId) load(tab, filters, true);

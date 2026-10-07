@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import type { Actor, NotificationType } from "./notification-format";
-import { sendTo } from "./realtime";
+import { sendEach, sendTo } from "./realtime";
 import { enqueue } from "./tasks";
 
 export type Notification = {
@@ -32,6 +32,28 @@ const SELECT = `SELECT n.id, n.user_id, n.type, n.link, n.body, n.created_at, n.
     (SELECT COUNT(*) FROM notifications x WHERE x.user_id = n.user_id AND x.created_at > me.notif_seen_at) AS unseen
   FROM notifications n JOIN users me ON me.id = n.user_id`;
 
+/**
+ * Is what the notification announces still true? Checked when a queued delivery lands: the actor may have unliked,
+ * unfollowed or withdrawn in the meantime, and a stale message must not resurface it. `to` is the recipient column.
+ * ?2 = ref, ?7 = actor. Status changes (app_*, job_closed) are facts at the time they happened.
+ */
+const STILL: Record<NotificationType, (to: string) => string> = {
+  like: () => "EXISTS (SELECT 1 FROM likes WHERE user_id = ?7 AND post_id = ?2)",
+  repost: () => "EXISTS (SELECT 1 FROM posts WHERE author_id = ?7 AND repost_of = ?2)",
+  comment: () => "EXISTS (SELECT 1 FROM comments WHERE id = ?2)",
+  thread: () => "EXISTS (SELECT 1 FROM comments WHERE id = ?2)",
+  post: () => "EXISTS (SELECT 1 FROM posts WHERE id = ?2)",
+  follow: (to) => `EXISTS (SELECT 1 FROM follows WHERE follower_id = ?7 AND followee_id = ${to})`,
+  invite: (to) => `EXISTS (SELECT 1 FROM invitations WHERE from_id = ?7 AND to_id = ${to})`,
+  accept: (to) => `EXISTS (SELECT 1 FROM connections WHERE user_id = ?7 AND peer_id = ${to})`,
+  applicant: () => "EXISTS (SELECT 1 FROM applications WHERE job_id = ?2 AND applicant_id = ?7)",
+  job: () => "EXISTS (SELECT 1 FROM jobs WHERE id = ?2)",
+  app_viewed: () => "1",
+  app_shortlisted: () => "1",
+  app_rejected: () => "1",
+  job_closed: () => "1",
+};
+
 // ponytail: a post/job fans out to at most this many followers, in one queue message. Split into chunked
 // messages (one per 200) for bigger audiences.
 const MAX_RECIPIENTS = 200;
@@ -50,24 +72,59 @@ export async function notifyUsers(to: string[], spec: Spec) {
 /**
  * Queue consumer side: store the notifications, then push them live to their open tabs. Same (type, ref) again
  * from a new actor joins the existing notification; the same actor twice is ignored, so like/unlike spam
- * can't pile up. Idempotent (INSERT OR IGNORE), so a retried message doesn't duplicate anything.
+ * can't pile up. Idempotent (INSERT OR IGNORE), so a retried message doesn't duplicate anything, and guarded by
+ * STILL, so a delivery that lands after the action was undone does nothing.
  */
 export async function deliverNotifications(to: string[], s: Spec) {
   const ids = JSON.stringify(to);
   const now = Date.now();
+  // ?3 / ?4 are unused by the second statement; one bind list keeps the numbering identical for STILL
+  const args = [s.type, s.ref, s.link, s.body ?? null, now, ids, s.actor];
   await env.DB.batch([
     env.DB.prepare(
       `INSERT OR IGNORE INTO notifications (id, user_id, type, ref_id, link, body, created_at)
-       SELECT lower(hex(randomblob(16))), value, ?1, ?2, ?3, ?4, ?5 FROM json_each(?6) WHERE value IN (SELECT id FROM users)`,
-    ).bind(s.type, s.ref, s.link, s.body ?? null, now, ids),
+       SELECT lower(hex(randomblob(16))), value, ?1, ?2, ?3, ?4, ?5 FROM json_each(?6) WHERE value IN (SELECT id FROM users) AND ${STILL[s.type]("value")}`,
+    ).bind(...args),
     env.DB.prepare(
       `INSERT OR IGNORE INTO notification_actors (notification_id, actor_id, created_at)
-       SELECT id, ?1, ?2 FROM notifications WHERE type = ?3 AND ref_id = ?4 AND user_id IN (SELECT value FROM json_each(?5))`,
-    ).bind(s.actor, now, s.type, s.ref, ids),
+       SELECT id, ?7, ?5 FROM notifications WHERE type = ?1 AND ref_id = ?2 AND user_id IN (SELECT value FROM json_each(?6)) AND ${STILL[s.type]("notifications.user_id")}`,
+    ).bind(...args),
   ]);
-  const { results } = await env.DB.prepare(`${SELECT} WHERE n.type = ?1 AND n.ref_id = ?2 AND n.user_id IN (SELECT value FROM json_each(?3))`)
-    .bind(s.type, s.ref, ids).all<Row>();
-  results.forEach((r) => sendTo(r.user_id, { t: "notif", n: toNotification(r), unseen: r.unseen }));
+  // Only rows this delivery changed (new, or resurfaced by a new actor: the trigger stamps them with `now`)
+  const { results } = await env.DB.prepare(`${SELECT} WHERE n.type = ?1 AND n.ref_id = ?2 AND n.user_id IN (SELECT value FROM json_each(?3)) AND n.created_at = ?4`)
+    .bind(s.type, s.ref, ids, now).all<Row>();
+  sendEach(results.map((r) => ({ to: r.user_id, event: { t: "notif", n: toNotification(r), unseen: r.unseen } })));
+}
+
+/**
+ * The actor undid what a notification announced (unlike, un-repost, unfollow, withdrawn or answered invite): take them
+ * off it, drop it when nobody is left, and update the recipient's open tabs. Call after the undo is committed; a delivery
+ * still in the queue is stopped by STILL, so the two can't race into a stale notification.
+ */
+export async function retractNotification(type: NotificationType, actor: string, ref: string, to: string) {
+  const [off, gone] = await env.DB.batch<{ id: string; user_id: string }>([
+    env.DB.prepare("DELETE FROM notification_actors WHERE actor_id = ?1 AND notification_id = (SELECT id FROM notifications WHERE user_id = ?2 AND type = ?3 AND ref_id = ?4)")
+      .bind(actor, to, type, ref),
+    env.DB.prepare(
+      `DELETE FROM notifications WHERE user_id = ?1 AND type = ?2 AND ref_id = ?3
+         AND NOT EXISTS (SELECT 1 FROM notification_actors WHERE notification_id = notifications.id) RETURNING id, user_id`,
+    ).bind(to, type, ref),
+  ]);
+  if (gone.results.length) return announceRemoved(gone.results);
+  if (!off.meta.changes) return; // they weren't on it (never delivered): nothing on screen to change
+  const row = await env.DB.prepare(`${SELECT} WHERE n.user_id = ?1 AND n.type = ?2 AND n.ref_id = ?3`).bind(to, type, ref).first<Row>();
+  if (row) sendTo(to, { t: "notif", n: toNotification(row), unseen: row.unseen });
+}
+
+/** Notifications just deleted (`DELETE … RETURNING id, user_id`): remove them from their owners' open tabs, with fresh badge counts. */
+export async function announceRemoved(rows: { id: string; user_id: string }[]) {
+  if (!rows.length) return;
+  const { results } = await env.DB.prepare(
+    `SELECT u.id, (SELECT COUNT(*) FROM notifications x WHERE x.user_id = u.id AND x.created_at > u.notif_seen_at) AS n
+     FROM users u WHERE u.id IN (SELECT value FROM json_each(?))`,
+  ).bind(JSON.stringify([...new Set(rows.map((r) => r.user_id))])).all<{ id: string; n: number }>();
+  const unseen = new Map(results.map((r) => [r.id, r.n]));
+  sendEach(rows.map((r) => ({ to: r.user_id, event: { t: "notif-del", id: r.id, unseen: unseen.get(r.user_id) ?? 0 } })));
 }
 
 export async function listNotifications(userId: string, cursor?: string) {

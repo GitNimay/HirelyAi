@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
 import { categoryOf, hasPreview, verb, who, type Category, type NotificationType } from "@/lib/notification-format";
 import type { Notification } from "@/lib/notifications";
 import { setParam, Tabs, useClientValue } from "./kit";
 import { NotificationRowsSkeleton } from "./skeleton";
 import { ago, Avatar, btnGhost, Icon, icons, type IconDef } from "./ui";
-import { useRealtime } from "./use-realtime";
+import { useRealtime, type ClientEvent } from "./use-realtime";
 
 type Page = { items: Notification[]; next: string | null };
 export type NotificationTab = "all" | Category;
@@ -29,6 +29,30 @@ const ICON: Record<NotificationType, IconDef> = {
 
 const newestFirst = (a: Notification, b: Notification) => b.at - a.at;
 
+type ListEvent = Extract<ClientEvent, { t: "notif" | "notif-del" | "notif-read" }>;
+const isListEvent = (e: ClientEvent): e is ListEvent => e.t === "notif" || e.t === "notif-del" || e.t === "notif-read";
+
+/** A pushed change applied to a newest-first list: new/updated moves into place, deleted goes, read marks. */
+function applyEvent(items: Notification[], e: ListEvent): Notification[] {
+  if (e.t === "notif") return [e.n, ...items.filter((n) => n.id !== e.n.id)].sort(newestFirst);
+  if (e.t === "notif-del") return items.filter((n) => n.id !== e.id);
+  return items.map((n) => (!e.id || n.id === e.id ? { ...n, read: true } : n));
+}
+
+/**
+ * Clears the badge everywhere, but only while the page is actually on screen (a background tab left on Notifications
+ * mustn't mark things seen), and at most once per burst: twenty likes in a second are one call, not twenty.
+ */
+function useMarkSeen() {
+  const timer = useRef(0);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return useCallback(() => {
+    if (document.visibilityState !== "visible") return;
+    clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => actions.markSeen().catch(() => {}), 1000);
+  }, []);
+}
+
 /** Split a newest-first list into Today / Earlier, dropping empty groups. `midnight` is null until mounted
     (the server doesn't know the viewer's time zone), so the first render is one plain list. */
 function groups(items: Notification[], midnight: number | null): [string, Notification[]][] {
@@ -46,29 +70,25 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
   const [loading, setLoading] = useState(false);
 
   const refresh = () => actions.loadNotifications().then(setPage, () => {});
+  const markSeen = useMarkSeen();
 
-  // Being here means they're seen: clears the badge on every open tab and device
+  // Being here (and looking at it) means they're seen: clears the badge on every open tab and device
   useEffect(() => {
-    actions.markSeen().catch(() => {});
-  }, []);
-
-  useRealtime((e) => {
-    if (e.t !== "notif") return;
-    // A known notification (more likes on the same post) moves to the top with its new count
-    setPage((p) => ({ ...p, items: [e.n, ...p.items.filter((n) => n.id !== e.n.id)].sort(newestFirst) }));
-    actions.markSeen().catch(() => {});
-  });
-
-  // Events sent while the socket was down are gone, so resync whenever the tab comes back
-  useEffect(() => {
-    const onShow = () => {
-      if (document.visibilityState !== "visible") return;
-      refresh();
-      actions.markSeen().catch(() => {});
-    };
+    markSeen();
+    const onShow = () => markSeen();
     document.addEventListener("visibilitychange", onShow);
     return () => document.removeEventListener("visibilitychange", onShow);
-  }, []);
+  }, [markSeen]);
+
+  useRealtime((e) => {
+    // Missed pushes while the socket was down: reload the first page (older pages are history, they don't change)
+    if (e.t === "resync") return void refresh().then(markSeen);
+    // A known notification (more likes on the same post) moves to the top with its new count; read state and
+    // deletions from other tabs and devices, and retracted likes/follows, apply in place
+    if (!isListEvent(e)) return;
+    setPage((p) => ({ ...p, items: applyEvent(p.items, e) }));
+    if (e.t === "notif") markSeen();
+  });
 
   async function more() {
     if (!page.next || loading) return;
@@ -206,8 +226,11 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
 /** Dashboard right rail: the newest three, kept live. The full list lives at /dashboard/notifications. */
 export function QuickNotifications({ initial }: { initial: Notification[] }) {
   const [items, setItems] = useState(initial);
+  const reload = () => actions.loadLatestNotifications().then(setItems, () => {});
   useRealtime((e) => {
-    if (e.t === "notif") setItems((l) => [e.n, ...l.filter((n) => n.id !== e.n.id)].sort(newestFirst).slice(0, 3));
+    // A deleted one leaves a gap the client can't fill (the 4th newest isn't here), so refetch the three
+    if (e.t === "resync" || (e.t === "notif-del" && items.some((n) => n.id === e.id))) return void reload();
+    if (isListEvent(e)) setItems((l) => applyEvent(l, e).slice(0, 3));
   });
 
   function open(n: Notification) {

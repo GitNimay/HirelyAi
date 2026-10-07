@@ -40,16 +40,11 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
   }, [count, pathname]);
 
   useRealtime((e) => {
-    if (e.t === "notif") setCount(e.unseen);
+    if (e.t === "notif" || e.t === "notif-del") setCount(e.unseen);
     else if (e.t === "notif-seen") setCount(0);
+    // Pushes sent while the socket was down are gone: recount
+    else if (e.t === "resync") actions.loadUnseen().then(setCount, () => {});
   });
-
-  // Events sent while the socket was down are gone, so recount when the tab comes back
-  useEffect(() => {
-    const onShow = () => document.visibilityState === "visible" && actions.loadUnseen().then(setCount, () => {});
-    document.addEventListener("visibilitychange", onShow);
-    return () => document.removeEventListener("visibilitychange", onShow);
-  }, []);
 
   return (
     <nav
