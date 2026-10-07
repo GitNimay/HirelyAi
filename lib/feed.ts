@@ -1,5 +1,6 @@
 import { env, waitUntil } from "cloudflare:workers";
 import { rank } from "./rank";
+import type { Reaction, ReactionCounts } from "./reactions";
 
 /** `alt`: the author's description of an image, read by screen readers. */
 export type Media = { key: string; type: string; alt?: string };
@@ -18,10 +19,13 @@ export type FeedPost = {
   author: { id: string; name: string; imageUrl: string | null; headline: string | null; handle: string | null };
   /** Posted on behalf of a company page (by one of its admins, `author`): shown as the company. */
   company: { id: string; slug: string; name: string; logoUrl: string | null } | null;
+  /** Total reactions; per-kind in `reactions`. */
   likes: number;
+  reactions: ReactionCounts;
   comments: number;
   reposts: number;
-  liked: boolean;
+  /** The viewer's own reaction, if any. */
+  reaction: Reaction | null;
   reposted: boolean;
   following: boolean;
 };
@@ -31,8 +35,8 @@ type Row = {
   id: string; body: string; media: string | null; created_at: number; edited_at: number | null; author_id: string;
   name: string; image_url: string | null; headline: string | null; handle: string | null;
   company_id: string | null; co_slug: string | null; co_name: string | null; co_logo: string | null;
-  like_count: number; comment_count: number; repost_count: number;
-  liked: number; reposted: number; following: number;
+  like_count: number; reactions: string; comment_count: number; repost_count: number;
+  reaction: Reaction | null; reposted: number; following: number;
 };
 
 export const PAGE = 20;
@@ -43,8 +47,8 @@ const SELECT = `
   SELECT p.id AS entry_id, p.created_at AS entry_at, p.author_id AS entry_author, ru.name AS reposter_name, p.repost_of,
          t.id, t.body, t.media, t.created_at, t.edited_at, t.author_id, u.name, u.image_url, u.headline, u.handle,
          t.company_id, co.slug AS co_slug, co.name AS co_name, co.logo_key AS co_logo,
-         t.like_count, t.comment_count, t.repost_count,
-         EXISTS (SELECT 1 FROM likes l WHERE l.post_id = t.id AND l.user_id = ?1) AS liked,
+         t.like_count, t.reactions, t.comment_count, t.repost_count,
+         (SELECT l.kind FROM likes l WHERE l.user_id = ?1 AND l.post_id = t.id) AS reaction,
          EXISTS (SELECT 1 FROM posts r WHERE r.repost_of = t.id AND r.author_id = ?1) AS reposted,
          EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ?1 AND f.followee_id = t.author_id) AS following
   FROM posts p
@@ -65,9 +69,10 @@ const toPost = (r: Row): FeedPost => ({
   author: { id: r.author_id, name: r.name, imageUrl: r.image_url, headline: r.headline, handle: r.handle },
   company: r.company_id ? { id: r.company_id, slug: r.co_slug!, name: r.co_name!, logoUrl: r.co_logo ? `/api/media/${r.co_logo}` : null } : null,
   likes: r.like_count,
+  reactions: JSON.parse(r.reactions),
   comments: r.comment_count,
   reposts: r.repost_count,
-  liked: !!r.liked,
+  reaction: r.reaction,
   reposted: !!r.reposted,
   following: !!r.following,
 });

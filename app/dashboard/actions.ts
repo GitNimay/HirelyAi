@@ -13,6 +13,7 @@ import { inFolder, isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_PO
 import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
 import { announceRemoved, followersOf, latestNotifications, listNotifications, notifyUsers, retractNotification, unseenCount } from "@/lib/notifications";
 import type { NotificationType } from "@/lib/notification-format";
+import { isReaction, type Reaction } from "@/lib/reactions";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
 import { signedIn } from "@/lib/profile";
 import { getResume } from "@/lib/resume";
@@ -23,9 +24,9 @@ import { enqueue } from "@/lib/tasks";
 // No Clerk call on writes: the dashboard layout already synced this member's users row on page load.
 
 async function pushStats(postId: string) {
-  const p = await env.DB.prepare("SELECT like_count, comment_count, repost_count FROM posts WHERE id = ?")
-    .bind(postId).first<{ like_count: number; comment_count: number; repost_count: number }>();
-  if (p) broadcast({ t: "stats", id: postId, likes: p.like_count, comments: p.comment_count, reposts: p.repost_count });
+  const p = await env.DB.prepare("SELECT like_count, reactions, comment_count, repost_count FROM posts WHERE id = ?")
+    .bind(postId).first<{ like_count: number; reactions: string; comment_count: number; repost_count: number }>();
+  if (p) broadcast({ t: "stats", id: postId, likes: p.like_count, reactions: JSON.parse(p.reactions), comments: p.comment_count, reposts: p.repost_count });
   return p;
 }
 
@@ -135,21 +136,26 @@ export async function deletePost(id: string) {
   if (post.repost_of) await pushStats(post.repost_of);
 }
 
-export async function toggleLike(postId: string) {
+/** Set the viewer's reaction to a post (`null` removes it). Only a first reaction notifies; switching kind doesn't. */
+export async function react(postId: string, kind: Reaction | null) {
   const userId = await writer();
   const id = String(postId);
-  const del = await env.DB.prepare("DELETE FROM likes WHERE user_id = ? AND post_id = ?").bind(userId, id).run();
-  if (!del.meta.changes) {
-    const ins = await env.DB.prepare("INSERT INTO likes (user_id, post_id, created_at) SELECT ?, id, ? FROM posts WHERE id = ? AND repost_of IS NULL")
-      .bind(userId, Date.now(), id).run();
-    const post = ins.meta.changes ? await postOf(id) : null;
-    if (post) await notifyUsers([post.author_id], { type: "like", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
-  } else {
-    const post = await postOf(id);
+  if (kind !== null && !isReaction(kind)) throw new Fail("Unknown reaction");
+  if (kind === null) {
+    const del = await env.DB.prepare("DELETE FROM likes WHERE user_id = ? AND post_id = ?").bind(userId, id).run();
+    const post = del.meta.changes ? await postOf(id) : null;
     if (post) retract("like", userId, id, post.author_id);
+  } else {
+    // Switch an existing reaction, or add one (OR IGNORE: a double-click race is a no-op, not an error)
+    const upd = await env.DB.prepare("UPDATE likes SET kind = ? WHERE user_id = ? AND post_id = ?").bind(kind, userId, id).run();
+    const ins = upd.meta.changes ? null : await env.DB.prepare(
+      "INSERT OR IGNORE INTO likes (user_id, post_id, kind, created_at) SELECT ?, id, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL",
+    ).bind(userId, kind, Date.now(), id).run();
+    const post = ins?.meta.changes ? await postOf(id) : null;
+    if (post) await notifyUsers([post.author_id], { type: "like", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
   }
   await pushStats(id);
-  return { liked: !del.meta.changes };
+  return { reaction: kind };
 }
 
 export async function toggleRepost(postId: string) {

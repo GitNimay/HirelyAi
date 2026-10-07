@@ -11,7 +11,7 @@ assert.equal(who(n("Cy", "Bo", "Ada"), 3), "Cy, Bo and 1 other");
 assert.equal(who(n("Cy", "Bo", "Ada"), 12), "Cy, Bo and 10 others");
 
 assert.equal(verb("applicant", "Designer"), "applied to Designer");
-assert.equal(verb("like", null), "liked your post");
+assert.equal(verb("like", null), "reacted to your post");
 
 assert.equal(categoryOf("like"), "posts");
 assert.equal(categoryOf("invite"), "network");

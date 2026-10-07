@@ -15,10 +15,10 @@ export function who(shown: Pick<Actor, "name">[], count: number) {
   return `${a}, ${b} and ${rest} other${rest === 1 ? "" : "s"}`;
 }
 
-/** What happened, without the people: "liked your post". `body` is the job title for job types. */
+/** What happened, without the people: "reacted to your post". `body` is the job title for job types. */
 export function verb(type: NotificationType, body: string | null) {
   switch (type) {
-    case "like": return "liked your post";
+    case "like": return "reacted to your post";
     case "repost": return "reposted your post";
     case "comment": return "commented on your post";
     case "thread": return "also commented on a post you commented on";

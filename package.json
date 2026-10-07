@@ -9,7 +9,7 @@
     "deploy": "npm run build && wrangler d1 migrations apply hire-excellence-db --remote && wrangler deploy",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types lib/rank.test.ts && node --experimental-strip-types lib/job-fields.test.ts && node --experimental-strip-types lib/notification-format.test.ts && node --experimental-strip-types lib/profile-fields.test.ts && node --experimental-strip-types lib/media.test.ts && node --experimental-strip-types lib/resume-fields.test.ts && node --experimental-strip-types lib/interview-fields.test.ts && node --experimental-strip-types lib/company-fields.test.ts && node --experimental-strip-types lib/prose.test.ts",
+    "test": "node --experimental-strip-types lib/rank.test.ts && node --experimental-strip-types lib/job-fields.test.ts && node --experimental-strip-types lib/notification-format.test.ts && node --experimental-strip-types lib/profile-fields.test.ts && node --experimental-strip-types lib/media.test.ts && node --experimental-strip-types lib/resume-fields.test.ts && node --experimental-strip-types lib/interview-fields.test.ts && node --experimental-strip-types lib/company-fields.test.ts && node --experimental-strip-types lib/prose.test.ts && node --experimental-strip-types lib/reactions.test.ts",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply hire-excellence-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply hire-excellence-db --remote"
