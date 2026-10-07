@@ -412,13 +412,34 @@ function Sessions({ run }: { run: Run }) {
 function UsageAnalytics() {
   // Only rendered once Clerk has the user, which is in the browser, so the cookie is readable here
   const [on, setOn] = useState(analyticsOn);
+  const flip = () => (setAnalytics(!on), setOn(!on));
   return (
-    <Section title="Usage analytics" desc="Pages you visit and features you use, linked to your account ID, help us improve Hire Excellence. Your email, resume and messages are never sent.">
-      <label className="flex min-h-10 items-center gap-2 text-sm sm:min-h-0">
-        <input type="checkbox" checked={on} onChange={(e) => (setAnalytics(e.target.checked), setOn(e.target.checked))} className="size-4 accent-foreground" />
-        Share usage analytics on this browser
-      </label>
-    </Section>
+    <section className="border-b border-border px-4 py-6 sm:px-5">
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
+          <h2 id="analytics-title" className="text-sm font-medium">Usage analytics</h2>
+          <p id="analytics-desc" className="mt-1 max-w-prose text-sm text-muted">
+            Share which pages you visit and features you use, linked to your account ID, to help us improve Hire Excellence. Your email, resume and messages are never sent.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-labelledby="analytics-title"
+          aria-describedby="analytics-desc"
+          onClick={flip}
+          // The visible track is small; the ::after area makes the tap target 40px for touch
+          className={`relative mt-0.5 inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border transition-colors outline-none after:absolute after:-inset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none ${on ? "border-foreground bg-foreground" : "border-border bg-surface-hover hover:border-muted"}`}
+        >
+          <span className={`size-[18px] rounded-full shadow-sm transition-transform motion-reduce:transition-none ${on ? "translate-x-[18px] bg-background" : "translate-x-0.5 bg-muted"}`} />
+        </button>
+      </div>
+      <p className="mt-3 flex items-center gap-2 text-xs text-muted" aria-live="polite">
+        <span className={`size-1.5 rounded-full ${on ? "bg-success" : "bg-muted/60"}`} aria-hidden />
+        {on ? "On for this browser" : "Off for this browser. Nothing is sent."}
+      </p>
+    </section>
   );
 }
 
