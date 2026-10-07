@@ -4,5 +4,7 @@
 # Not content-hashed: browsers reuse them for a day, then revalidate in the background for a week
 /landing/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/reactions/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /logo-*.png
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800

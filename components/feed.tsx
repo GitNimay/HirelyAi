@@ -8,9 +8,11 @@ import type { Comment, MediaInput } from "@/app/dashboard/actions";
 import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
 import { isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
 import { profileHref } from "@/lib/profile-fields";
+import { moveReaction, type Reaction } from "@/lib/reactions";
+import { playLike, playPost, unlockSfx } from "@/lib/sfx";
 import { cn } from "@/lib/utils";
 import { ask, Clamp, Menu, Modal, scrollToTop, setParam, Tabs, toast } from "./kit";
-import { LikeButton } from "./like-button";
+import { ReactionButton, ReactionSummary } from "./reaction-button";
 import { CommentsSkeleton, PostsSkeleton } from "./skeleton";
 import { ago, Avatar, btnGhost, btnLg, btnPrimary, CompanyLogo, Icon, icons, menuItem } from "./ui";
 import { useRealtime } from "./use-realtime";
@@ -53,7 +55,7 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
   }
 
   useRealtime((e) => {
-    if (e.t === "stats") patch(e.id, () => ({ likes: e.likes, comments: e.comments, reposts: e.reposts }));
+    if (e.t === "stats") patch(e.id, () => ({ likes: e.likes, reactions: e.reactions, comments: e.comments, reposts: e.reposts }));
     else if (e.t === "edit") patch(e.id, () => ({ body: e.body, media: e.media, editedAt: e.editedAt }));
     else if (e.t === "delete") setPage((pg) => ({ ...pg, posts: pg.posts.filter((p) => p.entryId !== e.id && p.id !== e.id) }));
     else if (e.t === "profile")
@@ -87,13 +89,18 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
   }, []);
 
   const handlers = {
-    async like(p: FeedPost) {
-      patch(p.id, (q) => ({ liked: !q.liked, likes: q.likes + (q.liked ? -1 : 1) }));
+    async react(p: FeedPost, kind: Reaction | null) {
+      if (kind === p.reaction) return;
+      if (kind) playLike();
+      // Optimistic: move the viewer's reaction locally; on failure move it back from whatever it is now
+      const to = (q: FeedPost, k: Reaction | null) => ({ reaction: k, reactions: moveReaction(q.reactions, q.reaction, k), likes: q.likes + (k ? 1 : 0) - (q.reaction ? 1 : 0) });
+      const prev = p.reaction;
+      patch(p.id, (q) => to(q, kind));
       try {
-        await actions.toggleLike(p.id);
+        await actions.react(p.id, kind);
       } catch {
-        patch(p.id, (q) => ({ liked: !q.liked, likes: q.likes + (q.liked ? -1 : 1) }));
-        toast("Couldn't update the like. Try again.", "error");
+        patch(p.id, (q) => to(q, prev));
+        toast("Couldn't update your reaction. Try again.", "error");
       }
     },
     async repost(p: FeedPost) {
@@ -356,6 +363,7 @@ export function Composer({ viewer, company, onPosted }: { viewer: Viewer; compan
   const media = useMediaDraft();
 
   async function submit() {
+    unlockSfx(); // upload can outlast the click's audio permission
     setBusy(true);
     media.setError("");
     try {
@@ -364,6 +372,7 @@ export function Composer({ viewer, company, onPosted }: { viewer: Viewer; compan
       media.clear();
       setBody("");
       onPosted(res.post);
+      playPost();
       toast("Posted");
     } catch (e) {
       media.setError(errMsg(e));
@@ -467,14 +476,14 @@ function PostEditor({ post, save, onDone }: { post: FeedPost; save: Handlers["ed
 }
 
 type Handlers = {
-  like: (p: FeedPost) => void;
+  react: (p: FeedPost, kind: Reaction | null) => void;
   repost: (p: FeedPost) => void;
   follow: (authorId: string) => void;
   edit: (p: FeedPost, body: string, media: MediaInput[]) => Promise<string | null>;
   remove: (p: FeedPost) => void;
 };
 
-function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit, remove }: { post: FeedPost; viewerId: string; openComments?: boolean } & Handlers) {
+function PostCard({ post: p, viewerId, openComments, react, repost, follow, edit, remove }: { post: FeedPost; viewerId: string; openComments?: boolean } & Handlers) {
   const [editing, setEditing] = useState(false);
   const [showComments, setShowComments] = useState(!!openComments);
   const mine = p.author.id === viewerId;
@@ -576,8 +585,9 @@ function PostCard({ post: p, viewerId, openComments, like, repost, follow, edit,
         </div>
       </div>
 
+      <ReactionSummary counts={p.reactions} total={p.likes} />
       <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center">
-        <LikeButton liked={p.liked} count={p.likes} onClick={() => like(p)} className={iconBtn} />
+        <ReactionButton reaction={p.reaction} onReact={(k) => react(p, k)} className={cn(iconBtn, "h-11 justify-center")} />
         <button type="button" aria-label={named("Comment", p.comments)} aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={cn(iconBtn, "hover:text-link", showComments && "text-foreground")}>
           <Icon d={icons.comment} size={16} />
           <span className="hidden sm:inline">Comment</span>

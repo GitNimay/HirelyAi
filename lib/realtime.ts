@@ -1,5 +1,6 @@
 import { env, waitUntil } from "cloudflare:workers";
 import type { Media } from "./feed";
+import type { ReactionCounts } from "./reactions";
 import type { AppStatus } from "./job-fields";
 import type { Counts, Person } from "./network";
 import type { Notification } from "./notifications";
@@ -7,7 +8,7 @@ import type { Notification } from "./notifications";
 /** Messages pushed to every connected (signed-in) feed: ids, counts, and edited content of posts they can already read. */
 export type FeedEvent =
   | { t: "post"; id: string; authorId: string }
-  | { t: "stats"; id: string; likes: number; comments: number; reposts: number }
+  | { t: "stats"; id: string; likes: number; reactions: ReactionCounts; comments: number; reposts: number }
   | { t: "edit"; id: string; body: string; media: Media[]; editedAt: number }
   | { t: "delete"; id: string }
   // A member edited their profile: everyone showing them (feed, network, profile page) updates in place

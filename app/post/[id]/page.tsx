@@ -27,7 +27,7 @@ export default async function PublicPostPage({ params }: Props) {
 
   const media = p.media.length === 0 ? null : isVideo(p.media[0].type) ? "a video" : p.media.length === 1 ? "a photo" : `${p.media.length} photos`;
   const stats = [
-    [p.likes, "like"],
+    [p.likes, "reaction"],
     [p.comments, "comment"],
     [p.reposts, "repost"],
   ].filter(([n]) => Number(n) > 0).map(([n, w]) => `${n} ${w}${n === 1 ? "" : "s"}`);
