@@ -67,7 +67,7 @@ export async function extractResume(raw: unknown): Promise<Resume> {
   if (text.length < 80) throw new Fail("That PDF has no readable text (it may be a scanned image). Fill in your details manually.");
 
   // ponytail: first 20k chars (~5 pages) only; plenty for resumes.
-  const r = await bedrockJson(PROMPT, `Resume:
+  const r = await bedrockJson("resume", PROMPT, `Resume:
 """
 ${text.slice(0, 20_000)}
 """`, 6000);

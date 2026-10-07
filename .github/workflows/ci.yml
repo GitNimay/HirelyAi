@@ -75,6 +75,7 @@ jobs:
           NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${{ vars.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL }}
           NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${{ vars.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL }}
           NEXT_PUBLIC_CLERK_KEYLESS_DISABLED: ${{ vars.NEXT_PUBLIC_CLERK_KEYLESS_DISABLED }}
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.NEXT_PUBLIC_POSTHOG_KEY }}
       # Smoke test the live site; on failure, put the previous Worker version back and fail the run.
       # D1 migrations are forward-only and stay applied, so keep them additive (expand first, drop columns a release later).
       - name: Smoke test (rollback on failure)

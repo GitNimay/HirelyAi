@@ -2,6 +2,7 @@
 
 import { env } from "cloudflare:workers";
 import { cookies, headers } from "next/headers";
+import { track } from "@/lib/analytics";
 import { Fail, failed, text } from "@/lib/guard";
 import { saveAnswer, saveProfile, startInterview, startTest, submitTest, verifyCandidate, warmInterview } from "@/lib/interview";
 import { cleanProfile } from "@/lib/interview-fields";
@@ -9,6 +10,11 @@ import { cleanProfile } from "@/lib/interview-fields";
 // Candidates aren't signed in: the password gate issues a session cookie scoped to this interview's path.
 const COOKIE = "iv";
 const session = async () => (await cookies()).get(COOKIE)?.value;
+// Candidates may have no account: events go under the interview session id, without a person profile
+const event = async (name: string, kind: "voice" | "mcq") => {
+  const id = await session();
+  if (id) await track(id, name, { kind, $process_person_profile: false });
+};
 
 export async function verify(slug: string, input: Record<string, unknown>) {
   try {
@@ -35,7 +41,7 @@ export async function onboard(slug: string, input: Record<string, unknown>) {
 }
 
 export async function start(slug: string) {
-  return startInterview(String(slug), await session()).catch(failed);
+  return startInterview(String(slug), await session()).then(async (r) => (await event("interview started", "voice"), r), failed);
 }
 
 /** Best effort: if it fails, Start dispatches the agent the usual (slower) way. */
@@ -45,7 +51,7 @@ export async function warm(slug: string) {
 
 // MCQ test: start the clock, save each pick as it's made, submit
 export async function beginTest(slug: string) {
-  return startTest(String(slug), await session()).then(() => ({ ok: true as const }), failed);
+  return startTest(String(slug), await session()).then(async () => (await event("interview started", "mcq"), { ok: true as const }), failed);
 }
 
 export async function answer(slug: string, index: number, pick: number) {
@@ -53,5 +59,5 @@ export async function answer(slug: string, index: number, pick: number) {
 }
 
 export async function finishTest(slug: string) {
-  return submitTest(String(slug), await session()).then(() => ({ ok: true as const }), failed);
+  return submitTest(String(slug), await session()).then(async () => (await event("interview completed", "mcq"), { ok: true as const }), failed);
 }

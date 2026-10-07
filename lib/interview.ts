@@ -97,6 +97,7 @@ export async function generateMcq(input: Record<string, unknown>) {
   const count = Math.min(MCQ.maxQuestions, Math.max(1, Math.round(Number(input.count) || 10)));
   if (!topic) throw new Fail("Add a topic to generate questions");
   const out = await bedrockJson(
+    "questions",
     GENERATE,
     `Topic: ${topic}\nDifficulty: ${difficulty}\nNumber of questions: ${count}${summary ? `\nContext from the recruiter: ${summary}` : ""}`,
     Math.min(16_000, 2000 + count * 400),
@@ -379,6 +380,7 @@ export async function evaluate(sessionId: string, final = true) {
     report = cleanReport({ score: 0, fit: "weak", summary: "The candidate joined but didn't answer any questions." });
   } else {
     const out = await bedrockJson(
+      "grading",
       JUDGE,
       `Job: ${r.title} at ${r.company}\n\nJob description:\n${r.description.slice(0, 6000)}\n\nInterview questions:\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\n<transcript>\n${transcript.map((l) => `${l.role === "agent" ? "Interviewer" : "Candidate"}: ${l.text.replaceAll("<", "‹")}`).join("\n")}\n</transcript>`,
       4000,

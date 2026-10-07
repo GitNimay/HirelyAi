@@ -2,6 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { cookies } from "next/headers";
+import { Analytics } from "@/components/analytics";
 import { Feedback } from "@/components/kit";
 import "./globals.css";
 
@@ -48,6 +49,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <ClerkProvider>
           {children}
           <Feedback />
+          <Analytics />
         </ClerkProvider>
       </body>
     </html>
