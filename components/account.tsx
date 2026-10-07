@@ -6,6 +6,7 @@ import type { EmailAddressResource, OAuthStrategy, SessionWithActivitiesResource
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { deleteAccount, refreshMember } from "@/app/settings/actions";
+import { maskEmail, maskPhone } from "@/lib/profile-fields";
 import { validPhone } from "@/lib/resume-fields";
 import { analyticsOn, setAnalytics } from "./analytics";
 import { errorText, providerIcons, providers } from "./auth";
@@ -159,7 +160,7 @@ function Emails({ run }: { run: Run }) {
                 </>
               )}
             >
-              <span className="break-all sm:truncate">{e.emailAddress}</span>
+              <span className="break-all sm:truncate">{maskEmail(e.emailAddress)}</span>
               {primary && <span className={badge}>Primary</span>}
               {!verified && <span className={badge}>Unverified</span>}
             </Row>
@@ -205,7 +206,7 @@ function Phones() {
               </>
             }
           >
-            <span>{phone}</span>
+            <span>{maskPhone(phone)}</span>
           </Row>
         </ul>
       )}
@@ -328,7 +329,7 @@ function Connected({ run }: { run: Run }) {
             >
               <span className="flex w-5 justify-center">{providerIcons[strategy]}</span>
               <span>{label}</span>
-              {acct && <span className="break-all text-muted sm:truncate">{linked ? acct.emailAddress || acct.username : "Couldn't connect"}</span>}
+              {acct && <span className="break-all text-muted sm:truncate">{linked ? (acct.emailAddress ? maskEmail(acct.emailAddress) : acct.username) : "Couldn't connect"}</span>}
             </Row>
           );
         })}

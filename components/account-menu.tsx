@@ -3,6 +3,7 @@
 import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { useState } from "react";
+import { maskEmail } from "@/lib/profile-fields";
 import { Menu } from "./kit";
 import { Avatar, Icon, icons, menuItem, type IconDef } from "./ui";
 
@@ -63,7 +64,7 @@ export function AccountMenu({ name, email, imageUrl, compact }: { name: string; 
               <Avatar name={name} src={imageUrl} size={32} />
               <span className="hidden min-w-0 flex-1 xl:block">
                 <span className="block truncate text-sm font-medium">{name}</span>
-                <span className="block truncate text-xs text-muted">{email}</span>
+                <span className="block truncate text-xs text-muted">{email && maskEmail(email)}</span>
               </span>
               <Icon d="m18 15-6-6-6 6" size={16} className="menu-chevron hidden text-muted xl:block" />
             </>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createMyProfile, extractFromText } from "@/app/onboarding/actions";
 import { emptyResume, MAX_RESUME_PDF_BYTES, mergeResume, missingFields, validPhone, type Resume } from "@/lib/resume-fields";
+import { maskEmail } from "@/lib/profile-fields";
 import { applyTheme } from "./account-menu";
 import { errorText, Logo } from "./auth";
 import { CodeField } from "./input-otp";
@@ -231,7 +232,7 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
     ),
     verify: (
       <form onSubmit={verify} className="space-y-5">
-        <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email || "your email"}. This confirms the address recruiters will use to reach you, even if you signed in with Google, GitHub or X.`} />
+        <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email ? maskEmail(initial.email) : "your email"}. This confirms the address recruiters will use to reach you, even if you signed in with Google, GitHub or X.`} />
         <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         {error && <Alert>{error}</Alert>}
         <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
