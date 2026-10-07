@@ -7,7 +7,7 @@ import { addAdmin, createCompany, findCompanies, removeAdmin, toggleCompanyFollo
 import type { Admin, Company, CompanyCard } from "@/lib/companies";
 import { INDUSTRIES, LIMITS, SIZES, TYPES } from "@/lib/company-fields";
 import { cropImage } from "@/lib/crop-image";
-import { AVATAR_PX, COVER_PX, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl, slugify } from "@/lib/profile-fields";
+import { AVATAR_PX, COVER_PX, maskEmail, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl, slugify } from "@/lib/profile-fields";
 import { field, Field } from "./jobs";
 import { ask, BackButton, leaveIfClean, Select, TabLabel, toast, useUnsavedGuard } from "./kit";
 import { uploadImage } from "./profile";
@@ -54,7 +54,7 @@ export function CompanyHeader({ company: c }: { company: Company }) {
       if (await ask({ title: "Verify your work email", body: r.error, confirm: "Open account settings" })) router.push("/settings/account");
       return;
     }
-    toast(`Verified with ${r.email}`);
+    toast(`Verified with ${maskEmail(r.email)}`);
     router.refresh();
   }
 

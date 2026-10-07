@@ -34,3 +34,17 @@ export function normalizeWebsite(v: string): string | null | undefined {
 
 /** Display form: no protocol, no trailing slash. */
 export const shortUrl = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+/** Half-masks your own email for display (shoulder-surfing, screenshots): "nimesh.kulkarni@gmail.com" -> "nimesh.k*******@gmail.com". */
+export function maskEmail(email: string) {
+  const at = email.lastIndexOf("@");
+  if (at < 1) return email;
+  const keep = Math.ceil(at / 2);
+  return email.slice(0, keep) + "*".repeat(at - keep) + email.slice(at);
+}
+
+/** Same for your phone: the first half of the digits stay, spacing kept. "+91 98765 43210" -> "+91 9876* *****". */
+export function maskPhone(phone: string) {
+  let keep = Math.ceil(phone.replace(/\D/g, "").length / 2);
+  return phone.replace(/\d/g, (d) => (keep-- > 0 ? d : "*"));
+}

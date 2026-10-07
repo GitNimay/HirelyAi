@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { CompanyCard } from "@/lib/companies";
+import { maskEmail, maskPhone } from "@/lib/profile-fields";
 import { fmtRange, STATUSES, type Experience, type Resume } from "@/lib/resume-fields";
 import { CompanyLogo, Icon, icons, type IconDef } from "./ui";
 
@@ -18,7 +19,7 @@ export function ResumeSections({ r, own, companies = {}, experience }: { r: Resu
       {own && (
         <Block title="Contact">
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-            {[["Email", r.email], ["Phone", r.phone], ["City", r.city], ["Status", STATUSES[r.status]]].map(([k, v]) => (
+            {[["Email", r.email && maskEmail(r.email)], ["Phone", r.phone && maskPhone(r.phone)], ["City", r.city], ["Status", STATUSES[r.status]]].map(([k, v]) => (
               <div key={k}><dt className="text-xs text-muted">{k}</dt><dd className="break-words sm:truncate">{v || "—"}</dd></div>
             ))}
           </dl>

@@ -6,7 +6,7 @@ import { Avatar, CompanyLogo } from "./ui";
 export function ProfileCard({ me, summary: s }: { me: Viewer; summary: Summary }) {
   const href = `/in/${me.handle}`;
   return (
-    <section aria-label="Your profile" className="overflow-hidden rounded-xl border border-border bg-background">
+    <section aria-label="Your profile" className="overflow-hidden border border-border bg-background">
       <Link href={href} className="block outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
         <div className={`aspect-[4/1] border-b border-border ${s.coverUrl ? "" : "cover-hatch"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
