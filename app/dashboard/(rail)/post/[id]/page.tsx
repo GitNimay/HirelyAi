@@ -20,7 +20,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         <BackButton />
         <h1 className="text-sm font-semibold">Post</h1>
       </header>
-      <Feed single viewer={viewer} initial={{ posts: [post], next: null }} followingIds={[]} />
+      <Feed single viewer={viewer} initial={{ posts: [post], next: null }} />
     </>
   );
 }

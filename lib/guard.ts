@@ -24,6 +24,13 @@ export async function writer() {
   return userId;
 }
 
+/** Bedrock calls cost money and take seconds, so they get a much tighter per-user cap than other writes. */
+export async function aiWriter() {
+  const userId = await writer();
+  if (!(await env.AI_LIMIT.limit({ key: userId })).success) throw new Fail("Too many AI requests. Try again in a minute.");
+  return userId;
+}
+
 export const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim() : "").slice(0, max);
 
 /** A JPEG/PNG/WebP this member just uploaded to `folder` (avatars, covers, company logos). */

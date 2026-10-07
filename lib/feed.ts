@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import { rank } from "./rank";
 
 /** `alt`: the author's description of an image, read by screen readers. */
@@ -87,13 +87,27 @@ async function following(viewerId: string, cursor?: string) {
   return { posts, next: posts.length === PAGE && last ? `${last.entryAt}:${last.entryId}` : null };
 }
 
+// The ranked list from a viewer's first page, kept briefly (Cache API: per data center, no KV writes) so "load more"
+// pages through the same order instead of re-ranking 400 candidates, and entries don't shift between pages.
+const RANKED_TTL = 120;
+const rankedKey = (viewerId: string) => `${env.APP_URL}/__cache/for-you/${encodeURIComponent(viewerId)}`;
+
 /**
  * For you: candidate generation (recent posts from everyone) → personalised ranking → page.
- * ponytail: candidates = latest 400 in 14 days and offset paging over a re-ranked list (entries can
- * shift between pages as scores change). Precompute per-user timelines in KV/Queues when volume needs it.
+ * The first page always ranks fresh; later pages read that ranking back (re-ranked only if it expired).
+ * ponytail: candidates = latest 400 in 14 days. Precompute per-user timelines in KV/Queues when volume needs it.
  */
 async function forYou(viewerId: string, cursor?: string) {
   const offset = Number(cursor) || 0;
+  const cache = await caches.open("for-you");
+  const hit = offset > 0 ? await cache.match(rankedKey(viewerId)) : undefined;
+  const ranked: FeedPost[] = hit ? await hit.json() : await rankForYou(viewerId);
+  if (!hit) waitUntil(cache.put(rankedKey(viewerId), Response.json(ranked, { headers: { "Cache-Control": `max-age=${RANKED_TTL}` } })).catch(() => {}));
+  const page = ranked.slice(offset, offset + PAGE);
+  return { posts: page, next: offset + PAGE < ranked.length ? String(offset + PAGE) : null };
+}
+
+async function rankForYou(viewerId: string): Promise<FeedPost[]> {
   const since = Date.now() - 14 * DAY;
   // Affinity: how much the viewer interacted with each author lately. Follows count most, then reposts, comments, likes.
   const [candidates, affinity] = await env.DB.batch<Row | { author_id: string; w: number }>([
@@ -116,8 +130,7 @@ async function forYou(viewerId: string, cursor?: string) {
     viewerId,
     aff,
   );
-  const page = ranked.slice(offset, offset + PAGE);
-  return { posts: page.map((c) => toPost(c.row)), next: offset + PAGE < ranked.length ? String(offset + PAGE) : null };
+  return ranked.map((c) => toPost(c.row));
 }
 
 export const getFeed = (viewerId: string, tab: FeedTab, cursor?: string) =>

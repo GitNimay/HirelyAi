@@ -19,7 +19,7 @@ async function report(sessionId: string, transcript: Line[]) {
     if (res && res.status < 500) return; // 204 stored, 409 already stored
     await new Promise((r) => setTimeout(r, attempt * 2000));
   }
-  console.error('report: giving up', sessionId, JSON.stringify(transcript));
+  console.error('report: giving up', sessionId, `${transcript.length} lines`); // no transcript content in logs
 }
 
 export default defineAgent({

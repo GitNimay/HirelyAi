@@ -1,0 +1,8 @@
+# Static asset caching (Workers Static Assets). Having this file stops vinext generating its own, so keep its rule here.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+# Not content-hashed: browsers reuse them for a day, then revalidate in the background for a week
+/landing/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/logo-*.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

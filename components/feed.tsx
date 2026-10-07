@@ -27,7 +27,8 @@ const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "S
 /** `list.compose`: a company page's Posts tab for its admins: a composer that posts as the company. */
 type AsCompany = { id: string; name: string; logoUrl: string | null };
 
-export function Feed({ viewer, initial, initialTab = "for-you", followingIds, single, list }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string; compose?: AsCompany } }) {
+// `followingIds` only matters for the main feed's "new posts" pill; single posts and profile/company lists don't read it
+export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [], single, list }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds?: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string; compose?: AsCompany } }) {
   const [tab, setTab] = useState<FeedTab>(initialTab);
   const [page, setPage] = useState(initial);
   const [fresh, setFresh] = useState(0);

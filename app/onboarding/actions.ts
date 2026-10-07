@@ -1,18 +1,14 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { failed, Fail, writer } from "@/lib/guard";
+import { aiWriter, failed, Fail, writer } from "@/lib/guard";
 import { extractResume, saveResume } from "@/lib/resume";
-import { MAX_RESUME_PDF_BYTES } from "@/lib/resume-fields";
 
-/** Read an uploaded PDF resume into structured fields for the member to review. Nothing is stored. */
-export async function extractFromPdf(fd: FormData) {
+/** Turn the text of a resume PDF (extracted in the browser) into structured fields for the member to review. Nothing is stored. */
+export async function extractFromText(text: string) {
   try {
-    await writer();
-    const file = fd.get("file");
-    if (!(file instanceof File) || file.type !== "application/pdf") throw new Fail("Upload a PDF file");
-    if (file.size > MAX_RESUME_PDF_BYTES) throw new Fail("Resume must be 5 MB or smaller");
-    return { resume: await extractResume(await file.arrayBuffer()) };
+    await aiWriter();
+    return { resume: await extractResume(text) };
   } catch (e) {
     return failed(e);
   }

@@ -53,4 +53,8 @@ assert.deepEqual(parseInline("See **perks** at https://acme.com/jobs. Mail hr@ac
   { t: "email", text: "hr@acme.co.in" },
   { t: "text", text: "!" },
 ]);
+// A long "# a     …x" line once backtracked for ~100 s (ReDoS); it must stay linear
+const t0 = performance.now();
+parseProse("# a" + " ".repeat(7000) + "x");
+assert.ok(performance.now() - t0 < 200, "heading regex backtracking");
 console.log("prose: ok");

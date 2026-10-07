@@ -14,20 +14,34 @@ function open() {
   let retry = 0;
   let ping = 0;
   let timer = 0;
+  let heard = 0;
   const connect = () => {
     ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/realtime`);
     ws.onopen = () => {
       retry = 0;
-      ping = window.setInterval(() => ws?.send("ping"), 25_000);
+      heard = Date.now();
+      ping = window.setInterval(() => {
+        // After sleep or a network switch a socket can be dead without ever firing close: no pong in 60 s, reconnect
+        if (Date.now() - heard > 60_000) ws?.close();
+        else ws?.send("ping");
+      }, 25_000);
     };
     ws.onmessage = (m) => {
+      heard = Date.now();
       if (m.data === "pong") return;
       const event = JSON.parse(m.data);
-      handlers.forEach((h) => h(event));
+      handlers.forEach((h) => {
+        try {
+          h(event);
+        } catch (e) {
+          console.error(e); // one broken subscriber must not starve the rest
+        }
+      });
     };
     ws.onclose = () => {
       clearInterval(ping);
-      if (!stopped) timer = window.setTimeout(connect, Math.min(30_000, 1000 * 2 ** retry++));
+      // Jitter: after a deploy or outage, every tab shouldn't reconnect in the same instant
+      if (!stopped) timer = window.setTimeout(connect, Math.min(30_000, 1000 * 2 ** retry++) * (0.5 + Math.random() / 2));
     };
   };
   connect();

@@ -42,8 +42,9 @@ export async function deleteAccount() {
     "DELETE FROM applications WHERE applicant_id = ?1",
     "DELETE FROM jobs WHERE poster_id = ?1",
     "DELETE FROM resumes WHERE user_id = ?1",
-    // Company pages stay (and keep their logos, under companies/). Admins of a page they owned become its owners.
-    `UPDATE company_admins SET role = 'owner' WHERE user_id <> ?1 AND company_id IN (SELECT company_id FROM company_admins WHERE user_id = ?1 AND role = 'owner')`,
+    // Company pages stay (and keep their logos, under companies/). If they were its only owner, its admins become owners.
+    `UPDATE company_admins SET role = 'owner' WHERE user_id <> ?1 AND company_id IN (SELECT company_id FROM company_admins WHERE user_id = ?1 AND role = 'owner')
+       AND company_id NOT IN (SELECT company_id FROM company_admins WHERE role = 'owner' AND user_id <> ?1)`,
     "DELETE FROM company_admins WHERE user_id = ?1",
     "DELETE FROM company_follows WHERE user_id = ?1",
     "DELETE FROM company_members WHERE user_id = ?1",
