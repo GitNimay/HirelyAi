@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import * as actions from "@/app/dashboard/actions";
-import { JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
+import { EXPORT_FORMATS, JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type ExportFormat, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
 import { DIFFICULTY, FITS, INTERVIEW, KINDS, MCQ, NOTICE, screeningFacts, type Fit, type Kind, type Mcq } from "@/lib/interview-fields";
 import type { Applicant, Job, JobPage, PublicJob } from "@/lib/jobs";
 import { parseInline, parseProse } from "@/lib/prose";
-import { ask, Clamp, leaveIfClean, Modal, Select, Tabs, toast, useUnsavedGuard } from "./kit";
+import { ask, Clamp, leaveIfClean, Menu, Modal, Select, Tabs, toast, useUnsavedGuard } from "./kit";
 import { JobRowsSkeleton, Line, Loading, Skeleton, times } from "./skeleton";
-import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, CompanyLogo, Icon, icons } from "./ui";
+import { ago, Avatar, backBtn, btn, btnGhost, btnLg, btnOutline, btnPrimary, CompanyLogo, Icon, icons, menuItem } from "./ui";
 import { useRealtime } from "./use-realtime";
 
 type Tab = "search" | MyJobsTab;
@@ -467,7 +467,7 @@ function JobDetail({ job: j, mine, applicants, onApply, onSave, onClose, onLoadA
       )}
 
       {view === "applicants" ? (
-        <Applicants jobId={j.id} list={applicants} onStatus={onStatus} />
+        <Applicants jobId={j.id} screening={j.interview?.kind ?? null} list={applicants} onStatus={onStatus} />
       ) : (
         <>
           <section className="border-b border-border p-4">
@@ -585,7 +585,7 @@ function Inline({ text }: { text: string }) {
   );
 }
 
-function Applicants({ jobId, list, onStatus }: { jobId: string; list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
+function Applicants({ jobId, screening, list, onStatus }: { jobId: string; screening: Kind | null; list?: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
   if (!list)
     return (
       <Loading label="Loading applicants…" className="divide-y divide-border">
@@ -605,7 +605,7 @@ function Applicants({ jobId, list, onStatus }: { jobId: string; list?: Applicant
       </Loading>
     );
   if (list.length === 0) return <p className="p-4 text-sm text-muted">No applicants yet. New ones show up here as they apply.</p>;
-  return <ApplicantList jobId={jobId} list={list} onStatus={onStatus} />;
+  return <ApplicantList jobId={jobId} screening={screening} list={list} onStatus={onStatus} />;
 }
 
 type Stage = "all" | "viewed" | "shortlisted" | "rejected";
@@ -618,8 +618,9 @@ const STAGES: { id: Stage; label: string }[] = [
 const stageOf = (a: Applicant): Stage => (a.status === "submitted" ? "viewed" : (a.status as Stage));
 
 /** Pipeline view (LinkedIn Recruiter / Greenhouse): filter by stage with counts, optionally rank by interview score. */
-function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
+function ApplicantList({ jobId, screening, list, onStatus }: { jobId: string; screening: Kind | null; list: Applicant[]; onStatus: (a: Applicant, s: AppStatus) => void }) {
   const [stage, setStage] = useState<Stage>("all");
+  const completed = list.filter((a) => a.interview?.status === "done").length;
   const [byScore, setByScore] = useState(false);
   const scored = list.some((a) => a.interview?.score != null);
   const shown = list
@@ -651,6 +652,26 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
           </label>
         )}
       </div>
+      {screening && (
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+          <p className="text-xs text-muted"><span className="font-medium tabular-nums text-foreground">{completed}</span> of {list.length} completed</p>
+          {completed > 0 && (
+            <Menu
+              label="Export completed applicants"
+              className={`${btnOutline} h-10 sm:h-8`}
+              panelClassName="right-0 top-full mt-1 w-44"
+              button={<><Icon d={icons.download} size={14} />Export<Icon d="m6 9 6 6 6-6" size={14} className="menu-chevron text-muted" /></>}
+            >
+              {(Object.keys(EXPORT_FORMATS) as ExportFormat[]).map((f) => (
+                <a key={f} role="menuitem" href={`/api/jobs/${jobId}/export?format=${f}`} download className={menuItem}>
+                  <Icon d={icons.file} size={14} />
+                  {EXPORT_FORMATS[f]}
+                </a>
+              ))}
+            </Menu>
+          )}
+        </div>
+      )}
       {shown.length === 0 && <p className="p-4 text-sm text-muted">No applicants in this stage.</p>}
       <ul className="divide-y divide-border">
       {shown.map((a) => (
@@ -661,6 +682,7 @@ function ApplicantList({ jobId, list, onStatus }: { jobId: string; list: Applica
               <div className="min-w-0">
                 <Link href={applicantHref(jobId, a.id)} className="block truncate text-sm font-medium hover:underline underline-offset-2">{a.name}</Link>
                 {a.headline && <p className="truncate text-xs text-muted">{a.headline}</p>}
+                {screening && <ScreeningBadge a={a} />}
               </div>
               <Select
                 aria-label={`Status for ${a.name}`}
@@ -1088,6 +1110,17 @@ const IV_STATUS: Record<SessionStatus, string> = {
   failed: "Evaluation failed",
 };
 const FIT_TONE: Record<Fit, string> = { strong: "text-success", moderate: "text-foreground", weak: "text-danger" };
+
+/** Where the applicant stands on the screening: applied but not taken, part-way, or completed. */
+export function ScreeningBadge({ a }: { a: Pick<Applicant, "interview"> }) {
+  const done = a.interview?.status === "done";
+  return (
+    <span className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${done ? "text-success" : "text-muted"}`}>
+      <Icon d={done ? icons.check : icons.clock} size={14} />
+      {done ? "Interview completed" : "Interview pending"}
+    </span>
+  );
+}
 
 export const applicantHref = (jobId: string, applicantId: string) => `/dashboard/jobs/${jobId}/applicants/${applicantId}`;
 

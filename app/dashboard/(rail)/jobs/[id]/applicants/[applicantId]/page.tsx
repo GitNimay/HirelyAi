@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ApplicantInterview, FormSection } from "@/components/jobs";
+import { ApplicantInterview, FormSection, ScreeningBadge } from "@/components/jobs";
 import { BackButton } from "@/components/kit";
 import { ResumeSections } from "@/components/resume-view";
 import { Avatar, Icon, icons } from "@/components/ui";
@@ -42,6 +42,7 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
             <div className="min-w-0">
               <Link href={`/in/${a.id}`} className="block truncate font-display text-xl font-normal hover:underline underline-offset-2">{a.name}</Link>
               {a.headline && <p className="truncate text-sm text-muted">{a.headline}</p>}
+              {job.interview && <ScreeningBadge a={a} />}
             </div>
             <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-border px-2.5 text-xs font-medium">{a.status === "submitted" ? "Under review" : STATUSES[a.status]}</span>
           </div>
