@@ -9,12 +9,12 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
    ScrollTrigger. Only the SVG parts and the text lines animate. Plain SVG in true 30° isometric. */
 
 const NODES = [
-  { title: "You have a role to fill", body: "Here is what happens next." },
-  { title: "Verify your company", body: "One page per domain, confirmed by work email." },
-  { title: "Post a job", body: "Pick the first round: a voice interview or an MCQ test." },
-  { title: "Candidates apply", body: "One resume upload becomes a full profile." },
-  { title: "AI interviews everyone", body: "Five spoken minutes, any time before the deadline." },
-  { title: "Get a ranked shortlist", body: "Score, fit, strengths and concerns for every applicant." },
+  { title: "Identify the role", body: "Begin with a position your organization needs to fill." },
+  { title: "Verify your organization", body: "Confirm ownership of your company domain with a work email address." },
+  { title: "Publish the position", body: "Select the screening format: a voice interview or a timed assessment." },
+  { title: "Receive applications", body: "Candidates apply with a resume, which is converted into a complete profile." },
+  { title: "Interviews are conducted", body: "Each applicant completes a five-minute LLM-led interview before the closing date." },
+  { title: "Review the shortlist", body: "Applicants are ranked by score, each with a fit rating and a written assessment." },
 ];
 const SIDE = ["L", "L", "R", "R", "L", "L"] as const;
 
