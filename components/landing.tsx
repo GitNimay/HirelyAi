@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ThemeToggle } from "./account-menu";
 import { Logo } from "./auth";
-import { HeroVideo } from "./hero-video";
+import { HeroDashboard } from "./hero-dashboard";
 import { HowItWorks } from "./landing-steps";
 import { Wordmark } from "./landing-wordmark";
 import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, VoiceVisual } from "./landing-features";
@@ -94,7 +94,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             </Link>
             {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${btnLg}`}>Log in</Link>}
           </div>
-          <HeroVideo />
+          <HeroDashboard />
         </section>
 
         <section id="features" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
