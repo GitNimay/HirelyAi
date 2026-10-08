@@ -1,8 +1,9 @@
 import { env } from "cloudflare:workers";
 import { bedrockJson } from "./bedrock";
+import { esc, layout, MONO, MUTED, p } from "./email";
 import { Fail } from "./guard";
 import {
-  cleanAnswers, cleanMcq, cleanQuestions, cleanReport, DIFFICULTY, gradeMcq, INTERVIEW, MCQ, mcqSeconds, screeningFacts,
+  cleanAnswers, cleanMcq, cleanQuestions, cleanReport, DIFFICULTY, gradeMcq, INTERVIEW, MCQ, mcqSeconds,
   type Kind, type Line, type Mcq, type McqPublic, type McqReview, type Profile, type Report,
 } from "./interview-fields";
 import { sendTo } from "./realtime";
@@ -108,8 +109,8 @@ export async function generateMcq(input: Record<string, unknown>) {
   return questions.slice(0, count);
 }
 
-const when = (ms: number) => `${new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} IST`;
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+// "15 Oct, 6:00 pm IST": deadlines are at most 90 days out, and the year only made the line wrap
+const when = (ms: number) => `${new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} IST`;
 
 /**
  * Mails the interview link and password to a new applicant (Resend's REST API; the SDK adds nothing here).
@@ -123,17 +124,27 @@ export async function sendInvite(jobId: string, to: string) {
   const link = `${env.APP_URL}/interview/${iv.slug}`;
   const voice = iv.kind === "voice";
   const what = voice ? "voice interview" : "online test";
+  const minutes = (voice ? INTERVIEW.seconds : mcqSeconds(iv.n)) / 60;
+  const signIn = "Sign in with the email this was sent to and this password:";
   const lines = [
-    `Thanks for applying for ${iv.title} at ${iv.company}.`,
-    `The next step is a short ${voice ? "AI voice interview" : "multiple-choice test"}: ${screeningFacts(iv.kind, iv.n)} at most. Take it any time before ${when(iv.deadline)}.`,
-    `Open ${link} and sign in with the email you applied with and this password: ${iv.password}`,
-    voice ? "You'll need a quiet place and a microphone. Chrome, Edge or Safari work best." : "It's timed, one attempt: keep the tab open until you submit. Your answers save as you go.",
+    `We've received your application for ${iv.title} at ${iv.company}.`,
+    `The next step is a short ${voice ? "AI voice interview" : "multiple-choice test"}: ${iv.n} question${iv.n === 1 ? "" : "s"}, ${voice ? "about " : ""}${minutes} minutes. Take it before ${when(iv.deadline)}.`,
+    `Start your ${what}: ${link}`,
+    `${signIn} ${iv.password}`,
+    voice ? "You'll need a quiet place and a microphone. Chrome, Edge or Safari work best." : "It's timed and you get one attempt, so keep the tab open until you submit. Your answers save as you go.",
   ];
-  const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;color:#111;max-width:520px">
-<p>${esc(lines[0])}</p><p>${esc(lines[1])}</p>
-<p style="margin:24px 0"><a href="${esc(link)}" style="background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">Start your ${what}</a></p>
-<p>Password: <code style="font-size:16px;background:#f2f2f2;padding:2px 8px;border-radius:4px">${esc(iv.password)}</code><br>Use the email address this message was sent to.</p>
-<p style="color:#666;font-size:13px">${esc(lines[3])}</p></div>`;
+  const html = layout({
+    art: voice ? "voice" : "mcq",
+    heading: "Thanks for applying",
+    body:
+      p(esc(lines[0]), 16) +
+      p(esc(lines[1])) +
+      p(`<a href="${esc(link)}" style="color:#0068d6;text-decoration:underline">Start your ${what} →</a>`, 32, "font-size:17px;font-weight:500") +
+      `<div style="border-top:1px solid #e4e4de;padding:24px 0 28px">${p(signIn, 6, `font-size:14px;line-height:22px;color:${MUTED}`)}${p(esc(iv.password), 0, `font-family:${MONO};font-size:26px;line-height:34px;font-weight:500;letter-spacing:0.06em`)}</div>` +
+      p(esc(lines[4])),
+    to,
+    reason: "You're receiving it because you applied for a job on Hire Excellence.",
+  });
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
