@@ -67,6 +67,7 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
               aria-current={pathname === href ? "page" : undefined}
               title={label}
               data-rail
+              data-tour={slug || "home"}
               className={`relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:items-center sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
                 // light: a soft tinted fill, since white barely shows on the off-white page
                 active ? "font-medium text-foreground sm:bg-surface sm:light:bg-surface-hover" : "text-muted hover:text-foreground"

@@ -7,13 +7,14 @@ import { Nav } from "@/components/nav";
 import { PostButton } from "@/components/post-button";
 import { QuickNotifications } from "@/components/notifications";
 import { ProfileCard } from "@/components/profile-card";
-import { getSummary, signedIn } from "@/lib/profile";
+import { Tour } from "@/components/tour";
+import { getSummary, seenTour, signedIn } from "@/lib/profile";
 import { latestNotifications, unseenCount } from "@/lib/notifications";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const { userId } = await auth.protect();
   // Name and photo come from D1 (editable on the profile), not Clerk
-  const [session, unseen, summary, latest] = await Promise.all([signedIn(), unseenCount(userId), getSummary(userId), latestNotifications(userId)]);
+  const [session, unseen, summary, latest, toured] = await Promise.all([signedIn(), unseenCount(userId), getSummary(userId), latestNotifications(userId), seenTour(userId, "welcome")]);
   const me = session?.me;
   // New members set up their profile first
   if (me && !me.onboarded) redirect("/onboarding");
@@ -61,6 +62,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           </aside>
         )}
       </div>
+      {/* First visit after onboarding: a short hand-drawn tour of the dashboard, shown once */}
+      <Tour auto={!toured} />
     </>
   );
 }

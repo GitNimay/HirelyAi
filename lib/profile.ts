@@ -166,3 +166,8 @@ export async function getSummary(userId: string): Promise<Summary | null> {
     company: r.company ? { name: r.company, slug: r.slug, logoUrl: r.logo_key ? `/api/media/${r.logo_key}` : null } : null,
   };
 }
+
+/** Whether the member has finished or skipped this product tour (see migrations/0017_tours.sql). */
+export async function seenTour(userId: string, tourId: string) {
+  return !!(await env.DB.prepare("SELECT 1 FROM user_tours WHERE user_id = ? AND tour_id = ?").bind(userId, tourId).first());
+}
