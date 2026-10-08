@@ -1,18 +1,17 @@
 "use client";
 
-import { AnimatePresence, LayoutGroup, motion, MotionConfig, useInView } from "motion/react";
+import { AnimatePresence, LayoutGroup, motion, useInView, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { spring } from "@/lib/fluid-hover";
-import { playLike, playPost } from "@/lib/sfx";
 import { cn } from "@/lib/utils";
 import { Logo } from "./auth";
 import { Icon, icons, navItems } from "./ui";
 
 /*
  * The landing hero's product shot: the Home dashboard (designed in Paper) as live markup, drawn at desktop size
- * (1440×900) and scaled to fit. It plays along: likes, follows, reposts and tabs work, a notification arrives
- * once it's on screen, the composer types a draft when clicked, and a post's reactions burst when you poke them.
- * Decorative for assistive tech (the hero copy says it all); nothing in it is a tab stop.
+ * (1440×900) and scaled to fit. Once on screen it plays one short story, once: a post in the feed gets a like,
+ * the composer types and publishes a photo post, then a text post, and notifications arrive alongside.
+ * Decorative for assistive tech (the hero copy says it all) and not interactive.
  */
 
 const W = 1440;
@@ -33,21 +32,39 @@ function Face({ f, size, className }: { f: Face; size: number; className?: strin
   return <span className={cn("block shrink-0 rounded-full bg-[#f0a0a8] bg-no-repeat", className)} style={style} />;
 }
 
-type Post = { id: string; who: keyof typeof face; name: string; sub: string; ago: string; body: string; likes: number; comments: number; reposts: number; following?: boolean };
+type Post = { id: string; who: keyof typeof face; name: string; sub: string; ago: string; body: string; likes: number; comments: number; reposts: number; following?: boolean; image?: string };
 const seed: Post[] = [
   { id: "p1", who: "priya", name: "Priya Sharma", sub: "Senior Product Designer at Razorpay", ago: "2h", likes: 48, comments: 12, reposts: 3, body: "We're hiring two product designers in Bengaluru to work on payments for small businesses. Hybrid, mid to senior level. If you love untangling messy flows into something calm, my DMs are open." },
   { id: "p2", who: "kavya", name: "Kavya Rao", sub: "Talent Partner at Freshworks", ago: "3h", likes: 73, comments: 8, reposts: 2, body: "Reminder for anyone interviewing this month: a short, specific story beats a long list of tools every single time." },
   { id: "p3", who: "arjun", name: "Arjun Mehta", sub: "Engineering Manager at Zerodha", ago: "5h", likes: 126, comments: 24, reposts: 9, following: true, body: "Six months into running our platform team. The biggest lesson so far: write the decision down before the meeting, not after. It cut our review cycles in half." },
 ];
-const draft = "Just wrapped my first AI-screened interview round. Shortlist in a day, not a month.";
+const me = { who: "me", name: "James Carter", sub: "Full-stack engineer building hiring tools", ago: "now", likes: 0, comments: 0, reposts: 0 } as const;
+const textPost: Post = { ...me, id: "me-text", body: "Just wrapped our first structured interview round. Shortlist in a day, not a month." };
+const photoPost: Post = { ...me, id: "me-photo", body: "Hiring day at our London office. Twelve offers extended, each one after a structured first round.", image: "/landing/tile-grading.webp" };
 
 type Notif = { id: string; who: keyof typeof face; actor: string; verb: string; ago: string; icon: string; unread: boolean };
 const seedNotifs: Notif[] = [
-  { id: "n1", who: "priya", actor: "Priya Sharma and 4 others", verb: "reacted to your post", ago: "12m", icon: icons.like, unread: true },
-  { id: "n2", who: "arjun", actor: "Arjun Mehta", verb: "commented on your post", ago: "1h", icon: icons.comment, unread: true },
   { id: "n3", who: "kavya", actor: "Kavya Rao", verb: "started following you", ago: "3h", icon: icons.plus, unread: false },
+  { id: "n2", who: "arjun", actor: "Arjun Mehta", verb: "commented on your post", ago: "1h", icon: icons.comment, unread: false },
+  { id: "n1", who: "priya", actor: "Priya Sharma and 4 others", verb: "reacted to your post", ago: "12m", icon: icons.like, unread: true },
 ];
-const arriving: Notif = { id: "n0", who: "meera", actor: "Meera Joshi", verb: "viewed your profile", ago: "now", icon: icons.search, unread: true };
+// One arrives with each beat of the loop (after the like, the text post and the photo post)
+const arrivals: Omit<Notif, "id">[] = [
+  { who: "meera", actor: "Meera Joshi", verb: "viewed your profile", ago: "now", icon: icons.search, unread: true },
+  { who: "arjun", actor: "Arjun Mehta", verb: "commented on your photo", ago: "now", icon: icons.comment, unread: true },
+  { who: "kavya", actor: "Kavya Rao and 6 others", verb: "reacted to your post", ago: "now", icon: icons.like, unread: true },
+];
+
+// The story: idle, like, type photo, photo posted, type text, text posted (and it stays there). Milliseconds per phase.
+const TYPE_MS = 30;
+const PHASES = [1200, 1600, photoPost.body.length * TYPE_MS + 400, 1800, textPost.body.length * TYPE_MS + 400, 3200];
+
+/** Newest first, three at a time: the seeds, then the first `count` arrivals. */
+function notifsAt(count: number) {
+  const all = (k: number): Notif => (k < seedNotifs.length ? seedNotifs[k] : { id: `a${k}`, ...arrivals[k - seedNotifs.length] });
+  const last = seedNotifs.length + count;
+  return [last - 1, last - 2, last - 3].map(all);
+}
 
 /** Scale the 1440px frame to its box. Hidden until measured, then it settles in. */
 function useFit() {
@@ -65,54 +82,51 @@ function useFit() {
 
 export function HeroDashboard() {
   const { box, s } = useFit();
-  const seen = useInView(box, { once: true, amount: 0.4 });
-  const [posts, setPosts] = useState(seed);
-  const [tab, setTab] = useState<"for-you" | "following">("for-you");
-  const [notifs, setNotifs] = useState(seedNotifs);
+  const inView = useInView(box, { amount: 0.4 });
+  const reduce = useReducedMotion();
+  const [step, setStep] = useState(0);
+  const last = PHASES.length - 1;
+  const phase = reduce ? last : step; // reduced motion shows the finished frame
 
-  // A notification lands a moment after the shot scrolls into view (once)
+  // Advances only while on screen, and stops on the last phase
   useEffect(() => {
-    if (!seen) return;
-    const t = setTimeout(() => setNotifs((l) => [arriving, ...l].slice(0, 3)), 2600);
+    if (!inView || reduce || step >= last) return;
+    const t = setTimeout(() => setStep((n) => n + 1), PHASES[step]);
     return () => clearTimeout(t);
-  }, [seen]);
-  const unseen = notifs.filter((n) => n.unread).length + 1; // +1: one more unread than the panel shows, like the real badge
+  }, [inView, reduce, step, last]);
 
-  const shown = tab === "following" ? posts.filter((p) => p.following) : posts;
+  const posts = [...(phase >= 5 ? [textPost] : []), ...(phase >= 3 ? [photoPost] : []), ...seed];
+  const typing = phase === 2 ? photoPost : phase === 4 ? textPost : null;
+  const notifs = notifsAt((phase >= 1 ? 1 : 0) + (phase >= 3 ? 1 : 0) + (phase >= 5 ? 1 : 0));
 
   return (
     <div className="relative mt-12 flex aspect-[16/10] w-full items-center justify-center overflow-hidden border border-border bg-[url(/landing/hero-sky.webp)] bg-cover bg-center sm:mt-16 sm:aspect-[2/1]">
       <span className="sr-only">The Hire Excellence home feed: posts from your network, your profile, and your latest notifications.</span>
       <div ref={box} aria-hidden className="relative aspect-[16/10] w-[92%] select-none overflow-hidden border border-white/40 shadow-[0_24px_60px_rgb(0_0_0/0.35)] sm:w-[70%]">
-        <MotionConfig reducedMotion="user">
-          <motion.div
-            className="absolute left-0 top-0 flex origin-top-left justify-center bg-background text-left text-foreground"
-            style={{ width: W, height: H, scale: s }}
-            initial={false}
-            animate={{ opacity: s ? 1 : 0, y: s ? 0 : 12 }}
-            transition={spring.slow}
-          >
-            <Sidebar unseen={unseen} />
-            <main className="flex h-full w-[640px] shrink-0 flex-col overflow-hidden border-r border-border">
-              <Tabs tab={tab} onTab={setTab} />
-              <Composer onPost={(body) => setPosts((l) => [{ id: `me-${l.length}`, who: "me", name: "Nimesh Kulkarni", sub: "Full-stack engineer building hiring tools", ago: "now", body, likes: 0, comments: 0, reposts: 0, following: true }, ...l])} />
-              <LayoutGroup>
-                <AnimatePresence initial={false} mode="popLayout">
-                  {shown.map((p) => (
-                    <PostCard key={p.id} post={p} onFollow={() => setPosts((l) => l.map((q) => (q.id === p.id ? { ...q, following: true } : q)))} />
-                  ))}
-                </AnimatePresence>
-              </LayoutGroup>
-            </main>
-            <RightRail notifs={notifs} onOpen={(id) => setNotifs((l) => l.map((n) => (n.id === id ? { ...n, unread: false } : n)))} />
-          </motion.div>
-        </MotionConfig>
+        <div
+          className="pointer-events-none absolute left-0 top-0 flex origin-top-left justify-center bg-background text-left text-foreground"
+          style={{ width: W, height: H, transform: `scale(${s})`, opacity: s ? 1 : 0 }}
+        >
+          <Sidebar />
+          <main className="flex h-full w-[640px] shrink-0 flex-col overflow-hidden border-r border-border">
+            <Tabs />
+            <Composer key={typing ? phase : "idle"} post={typing} />
+            <LayoutGroup>
+              <AnimatePresence initial={false} mode="popLayout">
+                {posts.map((p) => (
+                  <PostCard key={p.id} post={p} liked={p.id === "p1" && phase >= 1} />
+                ))}
+              </AnimatePresence>
+            </LayoutGroup>
+          </main>
+          <RightRail notifs={notifs} />
+        </div>
       </div>
     </div>
   );
 }
 
-function Sidebar({ unseen }: { unseen: number }) {
+function Sidebar() {
   return (
     <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-border px-3 py-4">
       <div className="mb-6 flex h-10 items-center gap-2 px-3">
@@ -125,9 +139,7 @@ function Sidebar({ unseen }: { unseen: number }) {
             <span className="relative flex">
               <Icon d={icon} />
               {slug === "notifications" && (
-                <motion.span key={unseen} initial={{ scale: 1.5 }} animate={{ scale: 1 }} transition={spring.slow} className="absolute -right-2.5 -top-2 h-[18px] min-w-[18px] rounded-full bg-danger px-1 text-center text-xs font-medium leading-[18px] tabular-nums text-background">
-                  {unseen}
-                </motion.span>
+                <span className="absolute -right-2.5 -top-2 h-[18px] min-w-[18px] rounded-full bg-danger px-1 text-center text-xs font-medium leading-[18px] tabular-nums text-background">3</span>
               )}
             </span>
             {label}
@@ -139,8 +151,8 @@ function Sidebar({ unseen }: { unseen: number }) {
         <span className="flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-surface light:hover:bg-surface-hover">
           <Face f={face.me} size={32} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">Nimesh Kulkarni</span>
-            <span className="block truncate text-xs text-muted">ni•••••@gmail.com</span>
+            <span className="block truncate text-sm font-medium">James Carter</span>
+            <span className="block truncate text-xs text-muted">james.carter@example.com</span>
           </span>
           <Icon d="m18 15-6-6-6 6" size={16} className="text-muted" />
         </span>
@@ -149,80 +161,75 @@ function Sidebar({ unseen }: { unseen: number }) {
   );
 }
 
-function Tabs({ tab, onTab }: { tab: string; onTab: (t: "for-you" | "following") => void }) {
+function Tabs() {
   return (
     <div className="flex h-14 shrink-0 border-b border-border">
-      {(["for-you", "following"] as const).map((t) => (
-        <button key={t} type="button" tabIndex={-1} onClick={() => onTab(t)} className={cn("flex flex-1 justify-center text-sm transition-colors hover:bg-surface", tab === t ? "font-medium text-foreground" : "text-muted")}>
+      {["For you", "Following"].map((t, i) => (
+        <span key={t} className={cn("flex flex-1 justify-center text-sm", i ? "text-muted" : "font-medium text-foreground")}>
           <span className="relative flex h-full items-center">
-            {t === "for-you" ? "For you" : "Following"}
-            {tab === t && <motion.span layoutId="hero-tab" transition={spring.moderate} className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-link" />}
+            {t}
+            {!i && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-link" />}
           </span>
-        </button>
+        </span>
       ))}
     </div>
   );
 }
 
-/** Click the box: it types a draft. Post it and it lands at the top of the feed. */
-function Composer({ onPost }: { onPost: (body: string) => void }) {
-  const [typed, setTyped] = useState(-1); // -1: placeholder; then characters typed so far
+/** Given a `post`, types its text out (and attaches its photo); the parent remounts it (keyed) to clear it once posted. */
+function Composer({ post }: { post: Post | null }) {
+  const text = post?.body ?? "";
+  const [typed, setTyped] = useState(post ? 0 : -1); // -1: placeholder; then characters typed so far
   useEffect(() => {
-    if (typed < 0 || typed >= draft.length) return;
-    const t = setTimeout(() => setTyped((n) => n + 1), 28);
+    if (typed < 0 || typed >= text.length) return;
+    const t = setTimeout(() => setTyped((n) => n + 1), TYPE_MS);
     return () => clearTimeout(t);
-  }, [typed]);
-  const ready = typed >= draft.length;
+  }, [typed, text]);
+  const ready = typed >= text.length;
 
   return (
     <section className="flex shrink-0 gap-3 border-b border-border p-4">
       <Face f={face.me} size={40} />
       <div className="min-w-0 flex-1">
-        <button type="button" tabIndex={-1} onClick={() => typed < 0 && setTyped(0)} className="block h-[54px] w-full cursor-text pt-2 text-left text-sm leading-relaxed">
-          {typed < 0 ? (
-            <span className="text-muted">Share an update or opportunity</span>
-          ) : (
-            <>
-              {draft.slice(0, typed)}
-              <span className="ml-px inline-block h-4 w-px translate-y-0.5 animate-pulse bg-foreground" />
-            </>
+        <div className="flex h-[54px] gap-3">
+          <p className="min-w-0 flex-1 pt-2 text-sm leading-relaxed">
+            {typed < 0 ? (
+              <span className="text-muted">Share an update or opportunity</span>
+            ) : (
+              <>
+                {text.slice(0, typed)}
+                <span className="ml-px inline-block h-4 w-px translate-y-0.5 animate-pulse bg-foreground" />
+              </>
+            )}
+          </p>
+          {post?.image && (
+            <motion.span
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={spring.slow}
+              className="block w-24 shrink-0 rounded-md border border-border bg-cover bg-center"
+              style={{ backgroundImage: `url(${post.image})` }}
+            />
           )}
-        </button>
+        </div>
         <div className="mt-2 flex items-center justify-between">
           <div className="flex gap-1 text-sm text-muted">
             {([[icons.photo, "Photo"], [icons.video, "Video"]] as const).map(([d, l]) => (
-              <span key={l} className="flex h-8 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-surface hover:text-foreground">
+              <span key={l} className="flex h-8 items-center gap-1.5 rounded-md px-2">
                 <Icon d={d} size={16} /> {l}
               </span>
             ))}
           </div>
-          <button
-            type="button"
-            tabIndex={-1}
-            disabled={!ready}
-            onClick={() => {
-              playPost();
-              onPost(draft);
-              setTyped(-1);
-            }}
-            className="tx-primary flex h-8 items-center rounded-lg px-4 text-sm font-medium transition-[opacity,scale] active:scale-[0.97] disabled:opacity-50"
-          >
-            Post
-          </button>
+          <span className={cn("tx-primary flex h-8 items-center rounded-lg px-4 text-sm font-medium transition-opacity", !ready && "opacity-50")}>Post</span>
         </div>
       </div>
     </section>
   );
 }
 
-const reactionKinds = ["like", "celebrate", "love", "insightful", "support", "funny"];
-
-function PostCard({ post: p, onFollow }: { post: Post; onFollow: () => void }) {
-  const [liked, setLiked] = useState(false);
-  const [reposted, setReposted] = useState(false);
-  const [burst, setBurst] = useState(0); // easter egg: poke the reaction stack
+function PostCard({ post: p, liked }: { post: Post; liked: boolean }) {
   const likes = p.likes + (liked ? 1 : 0);
-  const action = "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md text-sm text-muted transition-[background-color,color,scale] hover:bg-surface active:scale-[0.94]";
+  const action = "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md text-sm text-muted transition-colors";
 
   return (
     <motion.article
@@ -249,17 +256,18 @@ function PostCard({ post: p, onFollow }: { post: Post; onFollow: () => void }) {
                 <Icon d={icons.more} size={18} />
               </span>
             ) : (
-              <button type="button" tabIndex={-1} onClick={onFollow} className="-mt-1 flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-link transition-colors hover:bg-surface-hover">
+              <span className="-mt-1 flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-link">
                 <Icon d={icons.plus} size={14} /> Follow
-              </button>
+              </span>
             )}
           </div>
           <p className="mt-2 text-pretty text-sm leading-relaxed">{p.body}</p>
+          {p.image && <div className="mt-3 aspect-[2/1] rounded-md border border-border bg-cover bg-center" style={{ backgroundImage: `url(${p.image})` }} />}
         </div>
       </div>
 
       {likes > 0 && (
-        <button type="button" tabIndex={-1} onClick={() => setBurst((n) => n + 1)} className="relative mt-3 flex items-center gap-1.5 text-xs text-muted">
+        <div className="mt-3 flex items-center gap-1.5 text-xs text-muted">
           <span className="flex">
             {["like", "celebrate"].map((k, i) => (
               // eslint-disable-next-line @next/next/no-img-element -- tiny static sticker, same as ReactionSummary
@@ -271,37 +279,25 @@ function PostCard({ post: p, onFollow }: { post: Post; onFollow: () => void }) {
               {likes}
             </motion.span>
           </AnimatePresence>
-          {burst > 0 && <Burst key={burst} />}
-        </button>
+        </div>
       )}
 
       <div className="mt-3 flex border-t border-border">
-        <button
-          type="button"
-          tabIndex={-1}
-          onClick={() => {
-            if (!liked) playLike();
-            setLiked(!liked);
-          }}
-          className={cn(action, liked ? "font-medium text-link" : "hover:text-foreground")}
-        >
+        <span className={cn(action, liked && "font-medium text-link")}>
           {liked ? (
             <motion.img src="/reactions/like.webp" alt="" width={18} height={18} initial={{ scale: 0.4, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={spring.slow} />
           ) : (
             <Icon d={icons.like} size={16} />
           )}
           Like
-        </button>
-        <span className={cn(action, "hover:text-link")}>
+        </span>
+        <span className={action}>
           <Icon d={icons.comment} size={16} /> Comment {p.comments > 0 && <span className="tabular-nums">{p.comments}</span>}
         </span>
-        <button type="button" tabIndex={-1} disabled={p.who === "me"} onClick={() => setReposted(!reposted)} className={cn(action, reposted ? "text-success" : "hover:text-success")}>
-          <motion.span animate={{ rotate: reposted ? 180 : 0 }} transition={spring.slow} className="flex">
-            <Icon d={icons.repost} size={16} />
-          </motion.span>
-          Repost {p.reposts + (reposted ? 1 : 0) > 0 && <span className="tabular-nums">{p.reposts + (reposted ? 1 : 0)}</span>}
-        </button>
-        <span className={cn(action, "hover:text-foreground")}>
+        <span className={action}>
+          <Icon d={icons.repost} size={16} /> Repost {p.reposts > 0 && <span className="tabular-nums">{p.reposts}</span>}
+        </span>
+        <span className={action}>
           <Icon d={icons.share} size={16} /> Share
         </span>
       </div>
@@ -309,48 +305,18 @@ function PostCard({ post: p, onFollow }: { post: Post; onFollow: () => void }) {
   );
 }
 
-/** A little fountain of reactions out of the stack. */
-function Burst() {
-  return (
-    <span className="pointer-events-none absolute bottom-full left-2">
-      {reactionKinds.map((k, i) => (
-        <motion.img
-          key={k}
-          src={`/reactions/${k}.webp`}
-          alt=""
-          width={22}
-          height={22}
-          className="absolute left-0 top-0"
-          initial={{ opacity: 1, x: 0, y: 0, scale: 0.6 }}
-          animate={{ opacity: 0, x: (i - 2.5) * 16, y: -70 - (i % 3) * 18, scale: 1.1, rotate: (i - 2.5) * 12 }}
-          transition={{ duration: 0.9, ease: [0.23, 1, 0.32, 1], delay: i * 0.03 }}
-        />
-      ))}
-    </span>
-  );
-}
-
-function RightRail({ notifs, onOpen }: { notifs: Notif[]; onOpen: (id: string) => void }) {
-  const [wave, setWave] = useState(0); // easter egg: say hi to yourself
+function RightRail({ notifs }: { notifs: Notif[] }) {
   return (
     <aside className="h-full w-[320px] shrink-0 space-y-4 px-5 py-4">
       <section className="overflow-hidden border border-border bg-background">
         <div className="aspect-[4/1] border-b border-border bg-[url(/landing/tile-profile.webp)] bg-cover bg-[50%_40%]" />
         <div className="px-4 pb-4">
-          <motion.button
-            type="button"
-            tabIndex={-1}
-            onClick={() => setWave((n) => n + 1)}
-            animate={wave ? { rotate: [0, -12, 10, -8, 6, 0] } : undefined}
-            key={wave}
-            transition={{ duration: 0.7 }}
-            className="-mt-9 block w-fit origin-bottom rounded-full border-4 border-background bg-background"
-          >
+          <div className="-mt-9 w-fit rounded-full border-4 border-background bg-background">
             <Face f={face.me} size={64} />
-          </motion.button>
-          <h2 className="mt-2 text-sm font-medium leading-tight">Nimesh Kulkarni</h2>
+          </div>
+          <h2 className="mt-2 text-sm font-medium leading-tight">James Carter</h2>
           <p className="mt-1 text-sm text-foreground/90">Full-stack engineer building hiring tools</p>
-          <p className="mt-1 text-xs text-muted">Pune, Maharashtra, India</p>
+          <p className="mt-1 text-xs text-muted">London, United Kingdom</p>
         </div>
         <p className="flex items-center gap-3 border-t border-border px-4 py-3 text-sm font-medium">
           <span className="flex size-6 items-center justify-center rounded-md border border-border bg-background">
@@ -360,7 +326,7 @@ function RightRail({ notifs, onOpen }: { notifs: Notif[]; onOpen: (id: string) =
         </p>
         <ul className="border-t border-border py-2 text-sm">
           {([["Connections", "214"], ["Followers", "1,038"]] as const).map(([l, n]) => (
-            <li key={l} className="flex items-center justify-between px-4 py-1.5 transition-colors hover:bg-surface">
+            <li key={l} className="flex items-center justify-between px-4 py-1.5">
               <span className="text-muted">{l}</span>
               <span className="font-medium tabular-nums text-link">{n}</span>
             </li>
@@ -368,23 +334,22 @@ function RightRail({ notifs, onOpen }: { notifs: Notif[]; onOpen: (id: string) =
         </ul>
       </section>
 
-      <section className="border border-border bg-background">
+      <section className="overflow-hidden border border-border bg-background">
         <div className="flex h-11 items-center justify-between border-b border-border px-4">
           <h2 className="text-sm font-medium">Notifications</h2>
           <span className="text-xs text-link">See all</span>
         </div>
-        <ul>
+        <ul className="relative">
           <AnimatePresence initial={false} mode="popLayout">
             {notifs.map((n) => (
               <motion.li
                 key={n.id}
                 layout
-                initial={{ opacity: 0, x: 24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, transition: spring.moderate.exit }}
+                initial={{ opacity: 0, y: -16, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.2 } }}
                 transition={spring.slow}
-                onClick={() => onOpen(n.id)}
-                className="flex cursor-pointer gap-2.5 border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-hover"
+                className="flex gap-2.5 border-b border-border bg-background px-4 py-3 last:border-b-0"
               >
                 <span className="relative shrink-0 self-start">
                   <Face f={face[n.who]} size={32} />
@@ -398,7 +363,7 @@ function RightRail({ notifs, onOpen }: { notifs: Notif[]; onOpen: (id: string) =
                   </span>
                   <span className="mt-1 flex items-center gap-1.5 text-xs tabular-nums text-muted">
                     {n.ago}
-                    <AnimatePresence>{n.unread && <motion.span exit={{ scale: 0 }} transition={spring.moderate.exit} className="size-1.5 rounded-full bg-link" />}</AnimatePresence>
+                    {n.unread && <span className="size-1.5 rounded-full bg-link" />}
                   </span>
                 </span>
               </motion.li>

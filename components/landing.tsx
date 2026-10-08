@@ -22,35 +22,47 @@ const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-display font-
 const eyebrow = "inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted";
 
 const features: { tag: string; title: string; body: string; Visual: () => React.ReactNode }[] = [
-  { tag: "Voice", Visual: VoiceVisual, title: "AI voice interviews", body: "A five-minute spoken first round, any time before the deadline. No scheduling." },
-  { tag: "Screening", Visual: McqVisual, title: "MCQ tests", body: "Prefer writing to talking? Run a timed multiple-choice screen instead." },
-  { tag: "Grading", Visual: ScoreVisual, title: "Scored against the job", body: "Every candidate gets a score, a fit verdict, strengths and concerns." },
-  { tag: "Profile", Visual: ResumeVisual, title: "Resume to profile", body: "Upload a resume and the profile fills itself. Export an ATS-clean PDF." },
-  { tag: "Pipeline", Visual: PipelineVisual, title: "One hiring pipeline", body: "Submitted, viewed, shortlisted, rejected. The interview rides along." },
-  { tag: "Trust", Visual: CompanyVisual, title: "Verified company pages", body: "One page per domain, verified by work email. No look-alikes." },
+  { tag: "Voice", Visual: VoiceVisual, title: "Structured voice interviews", body: "A five-minute spoken first round, conducted by an LLM and completed at the candidate's convenience before the closing date." },
+  { tag: "Screening", Visual: McqVisual, title: "Timed assessments", body: "Recruiters may replace the spoken interview with a timed multiple-choice assessment." },
+  { tag: "Grading", Visual: ScoreVisual, title: "Evaluation against the role", body: "Each response is assessed against the job description, producing a score, a fit rating, and documented strengths and concerns." },
+  { tag: "Profile", Visual: ResumeVisual, title: "Profiles from resumes", body: "An uploaded resume populates the profile automatically, and the profile can be exported as an ATS-compatible PDF." },
+  { tag: "Pipeline", Visual: PipelineVisual, title: "Unified applicant pipeline", body: "Track each application from submission to shortlist, with interview results attached at every stage." },
+  { tag: "Trust", Visual: CompanyVisual, title: "Verified company pages", body: "Each company page is bound to a single domain and verified through a work email address." },
 ];
 
 const sides = (signedIn: boolean) => [
   {
-    tag: "For candidates", icon: icons.network, title: "Get heard, not filtered.",
-    body: "Every applicant gets a real first round, so your experience speaks before a keyword filter does.",
-    points: ["Interview any time before the deadline", "Profile filled from your resume", "ATS-clean PDF export", "Hear back in days, not weeks"],
-    cta: signedIn ? { href: "/dashboard/jobs", label: "Browse jobs" } : { href: "/sign-up", label: "Find a job" },
+    tag: "For candidates", icon: icons.network, title: "Be assessed on your experience.",
+    body: "A structured first-round interview for every applicant, evaluated on substance rather than keywords.",
+    points: [
+      "An authentic professional network",
+      "A fair hearing for every application",
+      "Interview on your own schedule",
+      "A complete profile in one step",
+      "Visibility at every stage",
+    ],
+    cta: signedIn ? { href: "/dashboard/jobs", label: "Browse jobs" } : { href: "/sign-up", label: "Explore positions" },
   },
   {
-    tag: "For recruiters", icon: icons.company, title: "Meet the right people first.",
-    body: "Skip the phone screens. Open a ranked shortlist with the reasoning behind every score.",
-    points: ["No interviews to schedule", "Score and fit verdict per applicant", "Strengths and concerns, in writing", "A verified page for your company"],
-    cta: signedIn ? { href: "/dashboard/jobs/post", label: "Post a job" } : { href: "/sign-up", label: "Start hiring" },
+    tag: "For recruiters", icon: icons.company, title: "Focus on qualified candidates.",
+    body: "Replace preliminary phone screens with a ranked shortlist, supported by the rationale behind each score.",
+    points: [
+      "A first round without scheduling",
+      "Evidence-based rankings",
+      "A credible employer presence",
+      "A single applicant pipeline",
+      "Reporting your team can use",
+    ],
+    cta: signedIn ? { href: "/dashboard/jobs/post", label: "Post a position" } : { href: "/sign-up", label: "Begin hiring" },
   },
 ];
 
 const faqs: [string, string][] = [
-  ["Is it free to use?", "Yes. Creating a profile, posting jobs and applying are free."],
-  ["How long is the AI interview?", "About five minutes, taken any time before the job's deadline."],
-  ["Who sees my interview?", "Only the recruiters of the job you applied to."],
-  ["Can I skip the voice interview?", "If the recruiter allows it, take a timed MCQ test instead."],
-  ["How are companies verified?", "Each page is tied to one domain and verified by a work email."],
+  ["Is there a cost to use the platform?", "No. Creating a profile, posting positions and submitting applications are free of charge."],
+  ["How long does the interview take?", "Approximately five minutes. It may be completed at any time before the position's closing date."],
+  ["Who can view my interview?", "Only the recruiters responsible for the position you applied to."],
+  ["Is the voice interview mandatory?", "Not necessarily. Where the recruiter permits it, you may complete a timed multiple-choice assessment instead."],
+  ["How are companies verified?", "Each company page is associated with a single domain and verified through a work email address on that domain."],
 ];
 
 export function Landing({ signedIn }: { signedIn: boolean }) {
@@ -100,8 +112,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         <section id="features" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
             <span className={eyebrow}>Features</span>
-            <h2 className={`${display} mt-6 max-w-2xl`}>Every first round, handled.</h2>
-            <p className="mt-5 max-w-md text-pretty text-sm text-muted">From the application to a ranked shortlist, inside one network.</p>
+            <h2 className={`${display} mt-6 max-w-2xl`}>A consistent first round<br />for every applicant.</h2>
+            <p className="mt-5 max-w-md text-pretty text-sm text-muted">From application to shortlist, the entire screening stage is managed on a single platform.</p>
           </div>
           <div className="mt-12 grid gap-x-6 gap-y-12 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f) => (
@@ -116,13 +128,13 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
 
         <HowItWorks>
           <span className={eyebrow}>How it works</span>
-          <h2 className={`${display} mt-6`}>From job post<br />to shortlist.</h2>
+          <h2 className={`${display} mt-6`}>From job posting<br />to shortlist.</h2>
         </HowItWorks>
 
         <section id="both-sides" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
-            <span className={eyebrow}>Built for both sides</span>
-            <h2 className={`${display} mt-6 max-w-2xl`}>One interview,<br />two sides served.</h2>
+            <span className={eyebrow}>Candidates and employers</span>
+            <h2 className={`${display} mt-6 max-w-2xl`}>One process, designed<br />for both parties.</h2>
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-x-16 gap-y-12 sm:mt-16 sm:grid-cols-2 sm:gap-y-16">
             {sides(signedIn).map((s, i) => (
@@ -135,7 +147,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
                 <p className="mt-1.5 max-w-sm text-pretty text-sm leading-relaxed text-muted">{s.body}</p>
                 <ul className="mt-8 flex-1 space-y-3 text-sm">
                   {s.points.map((p) => (
-                    <li key={p} className="flex items-center gap-3">
+                    <li key={p} className="flex items-center gap-3 font-medium">
                       <Icon d={icons.check} size={14} className="shrink-0 text-muted" />
                       {p}
                     </li>
@@ -152,7 +164,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
             <span className={eyebrow}>FAQ</span>
-            <h2 className={`${display} mt-6`}>Questions, answered.</h2>
+            <h2 className={`${display} mt-6`}>Frequently asked questions.</h2>
           </div>
           <div className="mx-auto mt-12 max-w-2xl border-t border-border sm:mt-16">
             {faqs.map(([q, a]) => (
@@ -188,7 +200,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         <div className="-mx-4 mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:mt-16 sm:px-8">
           <p>© {new Date().getFullYear()} Hire Excellence</p>
           <a href="https://github.com/GitNimay/hire-excellence" target="_blank" rel="noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
-            Connect with us
+            View on GitHub
             <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor" aria-label="GitHub" className="text-foreground">
               <path d={github} />
             </svg>
