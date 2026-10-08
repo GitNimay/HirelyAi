@@ -4,6 +4,9 @@ export const JOB_TYPES = { "full-time": "Full-time", "part-time": "Part-time", c
 export const LEVELS = { internship: "Internship", entry: "Entry level", associate: "Associate", "mid-senior": "Mid-Senior level", director: "Director", executive: "Executive" } as const;
 export const POSTED = { day: "Past 24 hours", week: "Past week", month: "Past month" } as const;
 export const STATUSES = { submitted: "Submitted", viewed: "Viewed", shortlisted: "Shortlisted", rejected: "Not selected" } as const;
+/** Completed-applicant downloads (app/api/jobs/[id]/export). */
+export const EXPORT_FORMATS = { csv: "CSV", pdf: "PDF", docx: "Word" } as const;
+export type ExportFormat = keyof typeof EXPORT_FORMATS;
 
 export type Workplace = keyof typeof WORKPLACES;
 export type JobType = keyof typeof JOB_TYPES;

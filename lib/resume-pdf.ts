@@ -14,9 +14,18 @@ const winAnsi = (s: string) =>
 
 /** A clean one-column resume, the layout ATS parsers read best. */
 export async function resumePdf(r: Resume): Promise<Uint8Array> {
+  const w = await pdfWriter(`${r.name} – Resume`, r.name);
+  drawResume(w, r);
+  return w.doc.save();
+}
+
+export type PdfWriter = Awaited<ReturnType<typeof pdfWriter>>;
+
+/** A4 text flow with wrapping and page breaks; shared by the resume and the applicant export. */
+export async function pdfWriter(title: string, author: string) {
   const doc = await PDFDocument.create();
-  doc.setTitle(`${r.name} – Resume`);
-  doc.setAuthor(r.name);
+  doc.setTitle(title);
+  doc.setAuthor(author);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   let page: PDFPage = doc.addPage([W, H]);
@@ -71,6 +80,14 @@ export async function resumePdf(r: Resume): Promise<Uint8Array> {
     for (const l of text.split("\n").map((s) => s.replace(/^[\s•*·-]+/, "").trim()).filter(Boolean)) write(`•  ${l}`, { size: 9.5, x: M + 6, width: W - 2 * M - 6, color: SOFT });
   };
 
+  const newPage = () => {
+    page = doc.addPage([W, H]);
+    y = H - M;
+  };
+  return { doc, bold, write, row, section, bullets, newPage, SOFT };
+}
+
+export function drawResume({ bold, write, row, section, bullets, SOFT }: PdfWriter, r: Resume) {
   write(r.name, { f: bold, size: 22, gap: 6 });
   if (r.headline) write(r.headline, { size: 11, color: SOFT, gap: 4 });
   write([r.email, r.phone, r.city].filter(Boolean).join("   ·   "), { size: 9.5, color: SOFT });
@@ -82,7 +99,7 @@ export async function resumePdf(r: Resume): Promise<Uint8Array> {
   if (r.experience.length) {
     section("Experience");
     r.experience.forEach((e, i) => {
-      if (i) y -= 6;
+      if (i) write("", { size: 3 });
       row(`${e.title} — ${e.company}`, fmtRange(e.start, e.end, e.current));
       if (e.location) write(e.location, { size: 9.5, color: SOFT });
       if (e.description) bullets(e.description);
@@ -91,7 +108,7 @@ export async function resumePdf(r: Resume): Promise<Uint8Array> {
   if (r.projects.length) {
     section("Projects");
     r.projects.forEach((p, i) => {
-      if (i) y -= 6;
+      if (i) write("", { size: 3 });
       row(p.name, "");
       if (p.link) write(p.link, { size: 9.5, color: SOFT });
       if (p.description) bullets(p.description);
@@ -100,7 +117,7 @@ export async function resumePdf(r: Resume): Promise<Uint8Array> {
   if (r.education.length) {
     section("Education");
     r.education.forEach((e, i) => {
-      if (i) y -= 6;
+      if (i) write("", { size: 3 });
       row(e.school, fmtRange(e.start, e.end));
       write([[e.degree, e.field].filter(Boolean).join(", "), e.grade].filter(Boolean).join("   ·   "), { size: 9.5, color: SOFT });
     });
@@ -111,6 +128,4 @@ export async function resumePdf(r: Resume): Promise<Uint8Array> {
   }
   section("Preferences");
   write([STATUSES[r.status], r.preferredLocations.length ? `Preferred locations: ${r.preferredLocations.join(", ")}` : ""].filter(Boolean).join("   ·   "), { size: 10, color: SOFT });
-
-  return doc.save();
 }
