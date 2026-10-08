@@ -628,3 +628,13 @@ export async function retryInterview(jobId: string, applicantId: string) {
   await retryEvaluation(me, String(jobId), String(applicantId));
   return interviewResult(me, String(jobId), String(applicantId));
 }
+
+const TOURS = ["welcome"];
+
+/** The member finished (or skipped, at `step`) a product tour, so it won't auto-start again on any device. */
+export async function finishTour(tourId: string, skipped: boolean, step: number) {
+  const me = await viewer();
+  if (!TOURS.includes(tourId)) return;
+  await env.DB.prepare("INSERT OR IGNORE INTO user_tours (user_id, tour_id, skipped, done_at) VALUES (?, ?, ?, ?)").bind(me, tourId, skipped ? 1 : 0, Date.now()).run();
+  await track(me, skipped ? "tour skipped" : "tour completed", { tour: tourId, step: Number(step) || 0 });
+}

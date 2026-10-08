@@ -384,7 +384,7 @@ export function Composer({ viewer, company, onPosted }: { viewer: Viewer; compan
   const canPost = !busy && (body.trim().length > 0 || media.items.length > 0);
 
   return (
-    <section className="flex gap-3 border-b border-border p-4">
+    <section data-tour="composer" className="flex gap-3 border-b border-border p-4">
       {company ? <CompanyLogo name={company.name} src={company.logoUrl} size={40} /> : <Avatar name={viewer.name} src={viewer.imageUrl} />}
       <div className="min-w-0 flex-1">
         <textarea

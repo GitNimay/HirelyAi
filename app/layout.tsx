@@ -1,6 +1,6 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Caveat, Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { cookies } from "next/headers";
 import { preconnect } from "react-dom";
 import { Analytics } from "@/components/analytics";
@@ -21,6 +21,13 @@ const geistMono = Geist_Mono({
 const newsreader = Newsreader({
   variable: "--font-newsreader",
   subsets: ["latin"],
+});
+
+// Handwritten notes in the product tour (`font-hand`). Only the tour uses it, so it isn't preloaded
+const caveat = Caveat({
+  variable: "--font-caveat",
+  subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -52,7 +59,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       data-theme={theme === "light" || theme === "dark" ? theme : undefined}
-      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} ${caveat.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ClerkProvider>
