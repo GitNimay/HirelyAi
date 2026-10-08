@@ -24,32 +24,26 @@ function useStep(count: number, ms: number) {
   return [ref, reduce ? count - 1 : step] as const;
 }
 
-// One pastel per tile. Light mode paints it flat. Dark mode sits on the neutral surface and keeps the hue only as
-// a soft glow behind the mini screen, since a full-strength or a darkened pastel both look muddy on dark.
+// One painted backdrop per tile, the same in both themes (the images carry their own colour).
 const TONES = {
-  lime: "#eef5a3",
-  lavender: "#d6c9f8",
-  pink: "#f7c3da",
-  mint: "#c2edd3",
-  peach: "#fdd5b5",
-  sky: "#c4def8",
+  lime: "/landing/tile-voice.webp",
+  lavender: "/landing/tile-screening.webp",
+  pink: "/landing/tile-grading.webp",
+  mint: "/landing/tile-profile.webp",
+  peach: "/landing/tile-pipeline.webp",
+  sky: "/landing/tile-trust.webp",
 };
 
-/** The tile: square pastel frame, a mono label, the mini screen centred. */
+/** The tile: square painted frame, a mono label, the mini screen centred. */
 function Frame({ label, tone, frameRef, children }: { label: string; tone: keyof typeof TONES; frameRef: React.Ref<HTMLDivElement>; children: ReactNode }) {
   return (
     <div
       ref={frameRef}
       aria-hidden
-      className="relative flex aspect-[6/5] items-center justify-center overflow-hidden border sm:aspect-[4/3]"
-      style={{
-        "--tone": TONES[tone],
-        backgroundColor: "light-dark(var(--tone), var(--surface))",
-        backgroundImage: "radial-gradient(ellipse 70% 60% at 50% 55%, light-dark(transparent, color-mix(in oklab, var(--tone) 12%, transparent)), transparent)",
-        borderColor: "var(--border)",
-      } as React.CSSProperties}
+      className="relative flex aspect-[6/5] items-center justify-center overflow-hidden border border-border bg-surface bg-cover bg-center sm:aspect-[4/3]"
+      style={{ backgroundImage: `url(${TONES[tone]})` }}
     >
-      <span className="absolute left-4 top-3 font-mono text-xs uppercase tracking-wider text-foreground/60">{label}</span>
+      <span className="absolute left-4 top-3 font-mono text-xs uppercase tracking-wider text-white/90 [text-shadow:0_1px_2px_rgb(0_0_0/0.25)]">{label}</span>
       <div className="mt-6 w-[88%] border border-border bg-surface p-4 shadow-pop sm:w-[80%]">{children}</div>
     </div>
   );
