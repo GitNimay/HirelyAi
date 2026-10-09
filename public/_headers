@@ -8,3 +8,5 @@
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /logo-*.png
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/og.jpg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

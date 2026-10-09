@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!j) return { title: "Job not found | Hire Excellence" };
   const title = `${j.title} at ${j.company}`;
   const description = [j.location, WORKPLACES[j.workplace], JOB_TYPES[j.type], j.salary].filter(Boolean).join(" · ");
-  return { title: `${title} | Hire Excellence`, description, openGraph: { title, description, type: "website" } };
+  return { title: `${title} | Hire Excellence`, description, openGraph: { title, description, type: "website", images: "/og.jpg" } };
 }
 
 /** The shared-link view of a job for people without an account. Members go straight to it in the app. */
