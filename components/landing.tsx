@@ -82,8 +82,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           ))}
           <ThemeToggle />
         </nav>
-        <div className="ml-auto flex items-center px-3">
-          <Link href={cta.href} className={`${btnPrimary} ${btnLg}`}>
+        <div className="ml-auto flex items-center px-2.5 sm:px-3">
+          <Link href={cta.href} className={`${btnPrimary} ${btnLg} max-sm:!h-9 max-sm:px-3 max-sm:text-[13px]`}>
             {cta.label} <Icon d={chevron} size={14} />
           </Link>
         </div>
@@ -101,7 +101,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             An AI runs the first interview for every applicant, so recruiters meet the right people and candidates hear back fast.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-2">
-            <Link href={cta.href} className={`${btnPrimary} ${btnLg}`}>
+            <Link href={cta.href} className={`${btnPrimary} ${btnLg} max-sm:!h-9 max-sm:px-3 max-sm:text-[13px]`}>
               {cta.label} <Icon d={chevron} size={14} />
             </Link>
             {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${btnLg}`}>Log in</Link>}
