@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!p) return { title: "Post not found | Hire Excellence" };
   const text = p.body.replace(/\s+/g, " ").slice(0, 160);
   const title = `${p.author.name} on Hire Excellence`;
-  return { title: `${title}${text ? `: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"` : ""}`, description: text, openGraph: { title, description: text, type: "article" } };
+  return { title: `${title}${text ? `: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"` : ""}`, description: text, openGraph: { title, description: text, type: "article", images: "/og.jpg" } };
 }
 
 /** The shared-link view of a post for people without an account. Members go straight to it in the app. */
