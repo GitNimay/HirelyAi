@@ -7,6 +7,7 @@ export type Meta = {
   job: { title: string; company: string; description: string };
   candidate: { name: string; city: string; role: string; years: number };
   questions: string[];
+  keyterms?: string[]; // the candidate's skills/employers and JD jargon, for speech-to-text (absent from older app builds)
 };
 
 // Universal-3 Pro labels a quiet stretch (the candidate listening to a question) as "Silence." and the like.

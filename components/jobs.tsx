@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import * as actions from "@/app/dashboard/actions";
 import { EXPORT_FORMATS, JOB_TYPES, LEVELS, LIMITS, MAX_RESUME_BYTES, POSTED, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type ExportFormat, type JobFilters, type MyJobsTab } from "@/lib/job-fields";
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
@@ -1137,6 +1138,21 @@ export function ApplicantViews({ profile, application }: { profile: React.ReactN
 
 export const applicantHref =(jobId: string, applicantId: string) => `/dashboard/jobs/${jobId}/applicants/${applicantId}`;
 
+/** One measure as a labelled track with a filled bar; a native meter for screen readers. Bars animate on mount unless reduced motion is on. */
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const reduce = useReducedMotion();
+  const tone = value >= 75 ? "bg-success" : value >= 50 ? "bg-foreground/70" : "bg-danger";
+  return (
+    <div className="grid grid-cols-[6.5rem_1fr_2.25rem] items-center gap-3 text-sm">
+      <span className="text-muted">{label}</span>
+      <div role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} className="h-1.5 overflow-hidden rounded-full bg-surface-hover">
+        <motion.div className={`h-full rounded-full ${tone}`} initial={{ width: 0 }} animate={{ width: `${value}%` }} transition={{ duration: reduce ? 0 : 0.6, ease: "easeOut" }} />
+      </div>
+      <span className="text-right font-medium tabular-nums">{value}</span>
+    </div>
+  );
+}
+
 /** Applicant page: onboarding answers, then the AI verdict and transcript (voice) or the score and every answer (MCQ). */
 export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: string; applicantId: string; initial: InterviewResult }) {
   const [r, setR] = useState(initial);
@@ -1176,20 +1192,27 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
       {r.kind === "mcq" ? <McqResult r={r} /> : <>
       <FormSection title="AI evaluation" hint={r.startedAt ? `Interview taken ${dateTime(r.startedAt)}` : undefined}>
         {rep ? (
-          <div className="space-y-4 text-sm">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="space-y-5 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
               <p className="text-3xl font-medium tabular-nums">{rep.score}<span className="text-sm font-normal text-muted">/100</span></p>
               <p className={`inline-flex h-6 shrink-0 items-center rounded-full border border-border px-2.5 text-xs font-medium ${FIT_TONE[rep.fit]}`}>{FITS[rep.fit]}</p>
             </div>
-            {rep.summary && <p className="leading-relaxed text-foreground/90">{rep.summary}</p>}
+            {rep.summary && <p title={rep.summary} className="line-clamp-2 leading-relaxed text-foreground/90">{rep.summary}</p>}
+            {/* older reports have no part scores: their bars are hidden */}
+            {(rep.resumeFit != null || rep.roleFit != null) && (
+              <div className="space-y-2">
+                {rep.resumeFit != null && <ScoreBar label="Resume fit" value={rep.resumeFit} />}
+                {rep.roleFit != null && <ScoreBar label="Role fit" value={rep.roleFit} />}
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               {([["Strengths", rep.strengths, "text-success"], ["Concerns", rep.concerns, "text-danger"]] as const).map(([title, list, tone]) => (
-                <div key={title} className="rounded-lg border border-border p-3">
-                  <p className={`mb-1.5 text-xs font-medium ${tone}`}>{title}</p>
+                <div key={title}>
+                  <p className={`mb-1 text-xs font-medium ${tone}`}>{title}</p>
                   {list.length > 0 ? (
-                    <ul className="list-disc space-y-1 pl-4 text-sm text-foreground/90">{list.map((x) => <li key={x}>{x}</li>)}</ul>
+                    <ul className="list-disc space-y-0.5 pl-4 text-foreground/90">{list.map((x) => <li key={x}>{x}</li>)}</ul>
                   ) : (
-                    <p className="text-sm text-muted">None noted.</p>
+                    <p className="text-muted">None noted.</p>
                   )}
                 </div>
               ))}
@@ -1207,14 +1230,20 @@ export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: str
 
       <FormSection title="Full transcript">
         {r.transcript.length > 0 ? (
-          <ol className="space-y-3 text-sm">
-            {r.transcript.map((l, i) => (
-              <li key={i} className={`max-w-[85%] rounded-lg px-3 py-2 ${l.role === "agent" ? "bg-surface" : "ml-auto border border-border"}`}>
-                <p className="mb-0.5 text-xs font-medium text-muted">{l.role === "agent" ? "Interviewer" : "Candidate"}</p>
-                <p className="whitespace-pre-wrap leading-relaxed">{l.text}</p>
-              </li>
-            ))}
-          </ol>
+          <details className="group text-sm">
+            <summary className="cursor-pointer text-link underline-offset-2 hover:underline">
+              <span className="group-open:hidden">Show transcript ({r.transcript.length} lines)</span>
+              <span className="hidden group-open:inline">Hide transcript</span>
+            </summary>
+            <ol className="mt-4 space-y-3">
+              {r.transcript.map((l, i) => (
+                <li key={i} className={`max-w-[85%] rounded-lg px-3 py-2 ${l.role === "agent" ? "bg-surface" : "ml-auto border border-border"}`}>
+                  <p className="mb-0.5 text-xs font-medium text-muted">{l.role === "agent" ? "Interviewer" : "Candidate"}</p>
+                  <p className="whitespace-pre-wrap leading-relaxed">{l.text}</p>
+                </li>
+              ))}
+            </ol>
+          </details>
         ) : (
           <p className="text-sm text-muted">No transcript yet.</p>
         )}

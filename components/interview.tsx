@@ -8,21 +8,25 @@ import { ThinkingOrb } from "thinking-orbs";
 import { answer, beginTest, finishTest, onboard, start, verify, warm } from "@/app/interview/actions";
 import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, KINDS, NOTICE, screeningFacts, type McqPublic, type Profile } from "@/lib/interview-fields";
+import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
+import { TurnstileField } from "./human-check";
 import { Alert, Head, primary, StepFrame, ThemeToggle } from "./onboarding";
 import { F, input } from "./resume-editor";
 import { ask, Select } from "./kit";
 import { btnGhost, Icon, icons } from "./ui";
 
-type Step = "gate" | "details" | "mic" | "live" | "ready" | "test" | "done" | "closed";
+type Step = "gate" | "details" | "mic" | "brief" | "live" | "ready" | "test" | "done" | "closed";
 type AgentState = "connecting" | "initializing" | "listening" | "thinking" | "speaking";
-const STEPS = { voice: ["Sign in", "Your details", "Mic check", "Interview"], mcq: ["Sign in", "Your details", "Instructions", "Test"] };
-const INDEX: Record<Step, number> = { gate: 0, details: 1, mic: 2, live: 3, ready: 2, test: 3, done: 4, closed: 0 };
+const STEPS = { voice: ["Sign in", "Your details", "Mic check", "Overview", "Interview"], mcq: ["Sign in", "Your details", "Instructions", "Test"] };
+const INDEX: Record<Step, number> = { gate: 0, details: 1, mic: 2, brief: 3, live: 4, ready: 2, test: 3, done: 5, closed: 0 };
 // The orb's tuned animation for each interviewer state
 const ORB = { connecting: "connecting", initializing: "connecting", listening: "listening", thinking: "solving", speaking: "composing" } as const;
 const STATE_LABEL: Record<AgentState, string> = {
   connecting: "Connecting…", initializing: "Your interviewer is joining…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking",
 };
 const mic = icons.mic;
+// Same processing in the mic check as in the call, so the check hears what the interviewer will
+const CAPTURE = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
 const chevron = "m9 18 6-6-6-6";
 const field = (bad: boolean) => `${input} h-10 ${bad ? "border-danger" : "border-border"}`;
 const date = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -45,11 +49,10 @@ function stepOf(v: CandidateView): Step {
  * a mic check and a live voice call with the AI interviewer (LiveKit, capped at five minutes; the agent reports the
  * transcript), or instructions and a timed MCQ test whose picks save as they're made.
  */
-export function Interview({ view }: { view: CandidateView }) {
+export function Interview({ view, turnstile }: { view: CandidateView; turnstile: { sitekey: string; action: string } }) {
   const router = useRouter();
   const [local, setLocal] = useState<Step | null>(null);
   const step = local ?? stepOf(view);
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [deviceId, setDeviceId] = useState("");
@@ -57,6 +60,9 @@ export function Interview({ view }: { view: CandidateView }) {
   const [caption, setCaption] = useState({ agent: "", you: "" });
   const [endsAt, setEndsAt] = useState(0); // 0 until the interviewer is in the call
   const [muted, setMuted] = useState(false); // the browser blocked autoplay (Safari, mostly)
+  const [agreed, setAgreed] = useState(false); // read the overview
+  const [human, setHuman] = useState(""); // Turnstile token for the sign-in form
+  const [resetHuman, setResetHuman] = useState(0);
   const room = useRef<Room | null>(null);
   const go = (s: Step | null) => (setError(""), setLocal(s), window.scrollTo({ top: 0 }));
   // Just finished (not a revisit of the done screen): the browser event a PostHog survey can be triggered by
@@ -64,8 +70,9 @@ export function Interview({ view }: { view: CandidateView }) {
 
   useEffect(() => () => void room.current?.disconnect(), []);
   // Get the interviewer into the room while the candidate checks their mic (hides the agent's cold start)
+  // and fetch the call library now rather than on the Start click
   useEffect(() => {
-    if (step === "mic" && view.kind === "voice") void warm(view.slug);
+    if (step === "mic" && view.kind === "voice") void (warm(view.slug), import("livekit-client")); // waits through the overview too
   }, [step, view.kind, view.slug]);
 
   async function signIn(e: React.FormEvent<HTMLFormElement>) {
@@ -73,10 +80,9 @@ export function Interview({ view }: { view: CandidateView }) {
     const fd = Object.fromEntries(new FormData(e.currentTarget));
     setBusy(true);
     setError("");
-    const r = await verify(view.slug, fd).catch(() => ({ error: "Couldn't reach the server. Check your connection." }));
+    const r = await verify(view.slug, { ...fd, token: human }).catch(() => ({ error: "Couldn't reach the server. Check your connection." }));
     setBusy(false);
-    if ("error" in r) return setError(r.error);
-    setName(String(fd.name ?? "").trim());
+    if ("error" in r) return (setError(r.error), setHuman(""), setResetHuman((n) => n + 1)); // the token is spent either way
     go(null); // the refreshed view knows the session
     router.refresh();
   }
@@ -99,7 +105,7 @@ export function Interview({ view }: { view: CandidateView }) {
       const r = await start(view.slug);
       if ("error" in r) throw new Error(r.error);
       const { DisconnectReason, RemoteParticipant, Room, RoomEvent, Track } = await import("livekit-client");
-      const rm = new Room({ audioCaptureDefaults: { deviceId: deviceId || undefined, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const rm = new Room({ audioCaptureDefaults: { deviceId: deviceId || undefined, ...CAPTURE } });
       rm.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind === Track.Kind.Audio) document.body.appendChild(track.attach());
       });
@@ -146,27 +152,29 @@ export function Interview({ view }: { view: CandidateView }) {
     }
   }
 
+  // A dropped call skips the overview: they've read it and the clock is running
+  const rejoin = view.session?.status === "live" || error.startsWith("The connection dropped");
+  const j = view.job;
+
   const card: Record<Step, React.ReactNode> = {
     gate: (
       <form onSubmit={signIn} className="space-y-5">
         <Head title={`${KINDS[view.kind]} for ${view.title}`} sub="Use the details from your invitation email." />
-        <F label="Full name">
-          <input name="name" required maxLength={60} autoComplete="name" autoFocus placeholder="Ada Lovelace" className={field(false)} />
-        </F>
         <F label="Email" hint="the one you applied with">
-          <input name="email" type="email" required maxLength={254} autoComplete="email" className={field(false)} />
+          <input name="email" type="email" required maxLength={254} autoComplete="email" autoFocus className={field(false)} />
         </F>
         <F label="Interview password">
           <input name="password" required maxLength={40} autoComplete="off" spellCheck={false} placeholder="xxxx-xxxx" className={`${field(false)} font-mono`} />
         </F>
+        <TurnstileField {...turnstile} onToken={setHuman} reset={resetHuman} />
         {error && <Alert>{error}</Alert>}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
           <p className="text-xs text-muted" suppressHydrationWarning>Open until {date(view.deadline)}</p>
-          <button aria-busy={busy} type="submit" className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
+          <button aria-busy={busy} type="submit" className={primary} disabled={busy || !human}>Continue<Icon d={chevron} size={16} /></button>
         </div>
       </form>
     ),
-    details: <Details initial={{ ...view.session?.prefill, ...(name ? { name } : {}) }} onDone={() => go(view.kind === "mcq" ? "ready" : "mic")} slug={view.slug} />,
+    details: <Details initial={view.session?.prefill ?? {}} onDone={() => go(view.kind === "mcq" ? "ready" : "mic")} slug={view.slug} />,
     mic: (
       <div className="space-y-6">
         <Head title="Mic check" sub="Say something to test your microphone." />
@@ -179,13 +187,48 @@ export function Interview({ view }: { view: CandidateView }) {
               {error && <Alert>{error}</Alert>}
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5">
                 {!heard && <span className="text-xs text-muted">Waiting to hear you…</span>}
-                <button aria-busy={busy} type="button" className={primary} disabled={!heard || busy} onClick={begin}>
-                  {view.session?.status === "live" || error.startsWith("The connection dropped") ? "Rejoin interview" : "Start interview"}
-                </button>
+                {rejoin ? (
+                  <button aria-busy={busy} type="button" className={primary} disabled={!heard || busy} onClick={begin}>Rejoin interview</button>
+                ) : (
+                  <button type="button" className={primary} disabled={!heard} onClick={() => go("brief")}>Continue<Icon d={chevron} size={16} /></button>
+                )}
               </div>
             </>
           )}
         </MicCheck>
+      </div>
+    ),
+    brief: (
+      <div className="space-y-6 text-sm leading-relaxed">
+        <Head title="Before you start" sub={`${view.title} at ${view.company}`} />
+        <section className="space-y-2">
+          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">The role</h3>
+          <ul className="list-disc space-y-1 pl-5 marker:text-muted">
+            <li><strong className="font-medium">{view.title}</strong> at <strong className="font-medium">{view.company}</strong></li>
+            <li><strong className="font-medium">Pay:</strong> {j.salary || <span className="text-muted">Not disclosed</span>}</li>
+            <li><strong className="font-medium">Location:</strong> {j.location || (j.workplace === "remote" ? "Anywhere" : "Not specified")} · {WORKPLACES[j.workplace]}</li>
+            <li><strong className="font-medium">Level:</strong> {LEVELS[j.level]} · {JOB_TYPES[j.type]}</li>
+          </ul>
+        </section>
+        <section className="space-y-2">
+          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">How it works</h3>
+          <ul className="list-disc space-y-1 pl-5 marker:text-muted">
+            <li>An <strong className="font-medium">AI interviewer</strong> asks <strong className="font-medium">{view.questions} question{view.questions === 1 ? "" : "s"}</strong>, one at a time. Answer out loud, like a phone call.</li>
+            <li>The call lasts <strong className="font-medium">{INTERVIEW.seconds / 60} minutes</strong>. The timer starts when the interviewer joins.</li>
+            <li><strong className="font-medium">One attempt only.</strong> If your connection drops, you can rejoin.</li>
+            <li>{view.company}&apos;s hiring team reviews your answers.</li>
+          </ul>
+        </section>
+        <p className="rounded-md border-l-2 border-link bg-surface px-3 py-2">Find a <strong className="font-medium">quiet spot</strong> and <strong className="font-medium">keep this tab open</strong> until the call ends.</p>
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-foreground" />
+          <span>I&apos;ve read this and I&apos;m ready to start.</span>
+        </label>
+        {error && <Alert>{error}</Alert>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
+          <button type="button" className={btnGhost} onClick={() => go("mic")}>Back</button>
+          <button aria-busy={busy} type="button" className={primary} disabled={!agreed || busy} onClick={begin}>Start interview</button>
+        </div>
       </div>
     ),
     live: (
@@ -310,7 +353,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
   );
 }
 
-/** Live input level from the chosen mic, plus a device picker. `children` gets whether we've heard the candidate yet. */
+/** Live input level from the chosen mic, plus a device picker. `children` gets whether they may start: we heard them, or a quiet mic had 10 s. */
 function MicCheck({ deviceId, onDevice, onError, children }: {
   deviceId: string;
   onDevice: (id: string) => void;
@@ -320,6 +363,7 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [level, setLevel] = useState(0);
   const [heard, setHeard] = useState(false);
+  const [waited, setWaited] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -327,16 +371,19 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
     let stream: MediaStream | undefined;
     let ctx: AudioContext | undefined;
     let raf = 0;
+    let wait = 0;
     let stopped = false;
     (async () => {
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true });
+        const s = await navigator.mediaDevices.getUserMedia({ audio: { ...CAPTURE, ...(deviceId && { deviceId: { exact: deviceId } }) } });
         if (stopped) return s.getTracks().forEach((t) => t.stop());
         stream = s;
+        wait = window.setTimeout(() => setWaited(true), 10_000);
         setBlocked(false);
         onError("");
         setDevices((await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput" && d.deviceId));
         ctx = new AudioContext();
+        void ctx.resume(); // some browsers start it suspended, which reads as silence
         const an = ctx.createAnalyser();
         an.fftSize = 512;
         ctx.createMediaStreamSource(s).connect(an);
@@ -361,6 +408,7 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
     return () => {
       stopped = true;
       cancelAnimationFrame(raf);
+      clearTimeout(wait);
       stream?.getTracks().forEach((t) => t.stop());
       ctx?.close();
     };
@@ -388,10 +436,10 @@ function MicCheck({ deviceId, onDevice, onError, children }: {
             options={[{ value: "", label: "System default" }, ...devices.map((d, i) => ({ value: d.deviceId, label: d.label || `Microphone ${i + 1}` }))]}
           />
         )}
-        {heard && <p className="text-sm text-success">We can hear you.</p>}
+        {heard ? <p className="text-sm text-success">We can hear you.</p> : waited && <p className="text-sm text-muted">Your mic sounds quiet. Pick another one above, or start anyway.</p>}
         {blocked && <button type="button" className={btnGhost} onClick={() => setAttempt((n) => n + 1)}>Try again</button>}
       </div>
-      {children(heard)}
+      {children(heard || waited)}
     </>
   );
 }
@@ -411,8 +459,8 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
       if (!endsAt) return; // not started yet
       const l = Math.max(0, endsAt - Date.now());
       setLeft(l);
-      // The agent cuts the call at the limit too; this is the backstop
-      if (l === 0) onTimeUp();
+      // The agent ends the call at the limit, finishing its sentence; this is the backstop if it doesn't
+      if (Date.now() > endsAt + 12_000) onTimeUp();
     }, 500);
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     addEventListener("beforeunload", warn);

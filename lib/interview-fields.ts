@@ -25,9 +25,11 @@ export type Fit = keyof typeof FITS;
 export type Profile = { name: string; phone: string; city: string; role: string; years: number; notice: keyof typeof NOTICE; link: string };
 export type Line = { role: "agent" | "candidate"; text: string };
 export type Report = {
-  score: number; // 0-100
+  score: number; // 0-100 overall
   fit: Fit;
   summary: string;
+  resumeFit?: number; // 0-100: resume vs job requirements; absent on old reports
+  roleFit?: number; // 0-100: interview answers vs the role; absent on old reports
   strengths: string[];
   concerns: string[];
 };
@@ -35,6 +37,11 @@ export type Report = {
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const num = (v: unknown, lo: number, hi: number) => Math.round(Math.min(hi, Math.max(lo, Number(v) || 0)));
 const strs = (v: unknown, n: number, max: number) => (Array.isArray(v) ? v.map((x) => str(x, max)).filter(Boolean).slice(0, n) : []);
+/** 0-100 from a number or numeric text; anything else is undefined, not 0. */
+const part = (v: unknown) => ((typeof v === "number" || (typeof v === "string" && v.trim())) && Number.isFinite(Number(v)) ? num(v, 0, 100) : undefined);
+
+/** Fit follows the score, so the label and the number never disagree (MCQ and voice alike). */
+export const fitFor = (score: number): Fit => (score >= 75 ? "strong" : score >= 50 ? "moderate" : "weak");
 
 /** One question per line (or an array), blanks dropped, capped so they fit the time limit. */
 export function cleanQuestions(input: unknown): string[] {
@@ -78,7 +85,7 @@ export function gradeMcq(questions: Mcq[], answers: number[]): Report {
   const score = questions.length ? Math.round((right / questions.length) * 100) : 0;
   return {
     score,
-    fit: score >= 75 ? "strong" : score >= 50 ? "moderate" : "weak",
+    fit: fitFor(score),
     summary: `${right} of ${questions.length} correct${skipped ? `, ${skipped} unanswered` : ""}.`,
     strengths: [],
     concerns: [],
@@ -101,23 +108,58 @@ export function cleanProfile(input: Record<string, unknown>): { profile: Profile
   return { profile, missing };
 }
 
-/** Model output → a Report we can render safely. Missing or odd fields become empty/zero instead of throwing. */
+/**
+ * Model output → a Report we can render safely. Missing or odd fields become empty/zero instead of throwing.
+ * The overall is 35% resume + 65% interview (just the interview when there's no resume); fit is derived from it.
+ */
 export function cleanReport(raw: unknown): Report {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const resumeFit = part(r.resumeFit);
+  const roleFit = part(r.roleFit);
+  const score = roleFit === undefined ? num(r.score, 0, 100) : resumeFit === undefined ? roleFit : Math.round(resumeFit * 0.35 + roleFit * 0.65);
   return {
-    score: num(r.score, 0, 100),
-    fit: typeof r.fit === "string" && Object.hasOwn(FITS, r.fit) ? (r.fit as Fit) : "weak",
-    summary: str(r.summary, 1200),
-    strengths: strs(r.strengths, 5, 200),
-    concerns: strs(r.concerns, 5, 200),
+    score,
+    fit: fitFor(score),
+    summary: str(r.summary, 220),
+    resumeFit,
+    roleFit,
+    strengths: strs(r.strengths, 3, 80),
+    concerns: strs(r.concerns, 3, 80),
   };
 }
 
-/** Transcript from the agent: only well-formed lines, bounded. */
+/** Transcript from the agent: only well-formed lines, bounded. A pause mid-answer ends a speech-to-text turn, so back-to-back lines from one speaker are joined. */
 export function cleanTranscript(input: unknown): Line[] {
   if (!Array.isArray(input)) return [];
-  return input
-    .map((l) => ({ role: l?.role === "agent" ? "agent" : "candidate", text: str(l?.text, 4000) }) as Line)
-    .filter((l) => l.text)
-    .slice(0, 400);
+  const out: Line[] = [];
+  for (const l of input) {
+    const line = { role: l?.role === "agent" ? "agent" : "candidate", text: str(l?.text, 4000) } as Line;
+    if (!line.text) continue;
+    const last = out.at(-1);
+    if (last?.role === line.role) last.text = `${last.text} ${line.text}`.slice(0, 8000);
+    else out.push(line);
+  }
+  return out.slice(0, 400);
+}
+
+/**
+ * Speech-to-text hints for the call: the candidate's skills, employers and job titles, plus technical-looking terms in the
+ * job description (Node.js, C++, AWS, PostgreSQL). AssemblyAI takes up to 100 terms of up to 50 chars; plain English words
+ * make it overcorrect, so only names and jargon go in.
+ */
+export function callKeyterms(description: string, resume: { skills: string[]; experience: { title: string; company: string }[] } | null): string[] {
+  // ponytail: shape heuristic (inner capital, digit, symbol, acronym), misses plain-word tech like "Kubernetes"; a JD skills field would fix it
+  const jargon = description.match(/[A-Za-z][\w.+#-]*[A-Za-z0-9+#]/g)?.filter((w) => /[a-z][A-Z]|[A-Z]{2,}|\d|[.+#]/.test(w.slice(1)) || /^[A-Z]{2,}$/.test(w)) ?? [];
+  const terms = [...(resume?.skills ?? []), ...(resume?.experience.flatMap((e) => [e.company, e.title]) ?? []), ...jargon];
+  const seen = new Set<string>();
+  return terms.map((t) => t.trim().slice(0, 50)).filter((t) => t.length > 1 && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, 80);
+}
+
+/** Whole years since the earliest "YYYY-MM" start on the resume. */
+export function resumeYears(experience: { start: string }[], now = new Date()): number {
+  // ponytail: first start to today, ignores gaps and overlaps; the candidate can correct it on the form
+  const starts = experience.map((e) => e.start).filter((s) => /^\d{4}-\d{2}/.test(s)).sort();
+  if (!starts.length) return 0;
+  const [y, m] = starts[0].split("-").map(Number);
+  return Math.max(0, Math.floor((now.getFullYear() * 12 + now.getMonth() - (y * 12 + m - 1)) / 12));
 }

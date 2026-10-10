@@ -4,6 +4,7 @@ import { env } from "cloudflare:workers";
 import { cookies, headers } from "next/headers";
 import { track } from "@/lib/analytics";
 import { Fail, failed, text } from "@/lib/guard";
+import { verifyTurnstile } from "@/lib/human";
 import { saveAnswer, saveProfile, startInterview, startTest, submitTest, verifyCandidate, warmInterview } from "@/lib/interview";
 import { cleanProfile } from "@/lib/interview-fields";
 
@@ -21,6 +22,7 @@ export async function verify(slug: string, input: Record<string, unknown>) {
     const ip = (await headers()).get("cf-connecting-ip") ?? "local";
     const { success } = await env.WRITE_LIMIT.limit({ key: `iv:${ip}` });
     if (!success) throw new Fail("Too many attempts. Try again in a minute.");
+    if (!(await verifyTurnstile(input.token, ip === "local" ? null : ip))) throw new Fail("We couldn't verify you're human. Complete the check and try again.");
     const id = await verifyCandidate(String(slug), text(input.email, 254), text(input.password, 40));
     (await cookies()).set(COOKIE, id, { httpOnly: true, secure: true, sameSite: "lax", path: `/interview/${slug}`, maxAge: 30 * 86_400 });
     return { ok: true as const };
