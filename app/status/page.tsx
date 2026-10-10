@@ -1,6 +1,4 @@
-import Link from "next/link";
-import { ThemeToggle } from "@/components/account-menu";
-import { Logo } from "@/components/auth";
+import { InfoHeader } from "@/components/public-shell";
 import { history, liveStatus } from "@/lib/status";
 import { COMPONENTS, tone, uptime, type Day } from "@/lib/status-fields";
 import { Refresh } from "./refresh";
@@ -28,18 +26,9 @@ export default async function StatusPage() {
   const down = COMPONENTS.filter(({ id }) => !live.up[id]);
   return (
     <div className="flex min-h-dvh flex-1 flex-col">
-      <header className="mx-auto flex h-16 w-full max-w-[640px] items-center px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo size={24} faint={false} />
-          <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
-        </Link>
-        {/* The toggle carries its own px-4: pulled out so the icon lines up with the right edge of the bars */}
-        <div className="-mr-4 ml-auto flex h-10">
-          <ThemeToggle />
-        </div>
-      </header>
+      <InfoHeader />
 
-      <main id="main" className="mx-auto w-full max-w-[640px] flex-1 px-4 pt-10 pb-24 sm:pt-16">
+      <main id="main" className="mx-auto w-full max-w-[720px] flex-1 px-4 pt-10 pb-24 sm:pt-16">
         <div className="flex items-center gap-2 text-sm text-muted">
           <span className={`size-2 rounded-full ${down.length ? "bg-amber-500" : "bg-success"}`} />
           Status

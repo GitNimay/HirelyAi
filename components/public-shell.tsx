@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ThemeToggle } from "./account-menu";
 import { Logo } from "./auth";
 import { btnGhost, btnLg, btnPrimary } from "./ui";
 
@@ -39,3 +40,23 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
 export const publicAvatar = (src: string | null) => (src && !src.startsWith("/api/") ? src : undefined);
 
 export const publicDate = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** Brand, the Changelog / Status pair and the theme toggle: the header of the open info pages. */
+export function InfoHeader() {
+  return (
+    <header className="mx-auto flex h-16 w-full max-w-[720px] items-center px-4">
+      <Link href="/" className="mr-auto flex items-center gap-2">
+        <Logo size={24} faint={false} />
+        <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
+      </Link>
+      <nav className="flex items-center gap-5 text-sm text-muted">
+        <Link href="/changelog" className="transition-colors hover:text-foreground">Changelog</Link>
+        <Link href="/status" className="transition-colors hover:text-foreground">Status</Link>
+      </nav>
+      {/* The toggle carries its own px-4: pulled out so the icon lines up with the content's right edge */}
+      <div className="-mr-4 flex h-10">
+        <ThemeToggle />
+      </div>
+    </header>
+  );
+}

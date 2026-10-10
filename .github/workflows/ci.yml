@@ -93,3 +93,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
+      # Queue this release for /changelog: the cron (lib/changelog.ts) writes the member-facing entry from the merged
+      # PR's title and description, or skips it when nothing changed for members. Never fails the deploy.
+      - name: Queue changelog entry
+        continue-on-error: true
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0] // {} | {title, body}' > pr.json
+          node scripts/changelog-pending.mjs > changelog.sql
+          npx wrangler d1 execute hire-excellence-db --remote --file changelog.sql
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
