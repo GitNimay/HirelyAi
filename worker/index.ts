@@ -6,6 +6,7 @@ import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../l
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/interview";
 import { cleanTranscript } from "../lib/interview-fields";
 import { syncDirectory } from "../lib/network";
+import { checkAll } from "../lib/status";
 import { deliverNotifications } from "../lib/notifications";
 import { hubFor } from "../lib/realtime";
 import { enqueue, type Task } from "../lib/tasks";
@@ -183,9 +184,10 @@ export default {
     );
   },
 
-  // Every 15 minutes: close expired interviews, fail stuck gradings, copy new Clerk members into D1
+  // Every 15 minutes: close expired interviews, fail stuck gradings, copy new Clerk members into D1, record /status checks
   async scheduled(_controller, _env, ctx) {
     ctx.waitUntil(syncDirectory());
+    ctx.waitUntil(checkAll()); // the status page's history
     await closeExpired();
   },
 } satisfies ExportedHandler<Env, Task>;
