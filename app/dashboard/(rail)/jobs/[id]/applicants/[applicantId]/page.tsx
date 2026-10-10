@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ApplicantInterview, FormSection, ScreeningBadge } from "@/components/jobs";
+import { ApplicantInterview, ApplicantViews, FormSection, ScreeningBadge } from "@/components/jobs";
 import { BackButton } from "@/components/kit";
 import { ResumeSections } from "@/components/resume-view";
 import { Avatar, Icon, icons } from "@/components/ui";
@@ -62,30 +62,34 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
         </div>
       </section>
 
-      {profile && (
-        <div className="space-y-6 border-b border-border px-4 py-5">
-          <ResumeSections r={profile} companies={companies} />
-          {profile.preferredLocations.length > 0 && (
-            <p className="border-t border-border pt-5 text-sm"><span className="font-medium">Preferred locations</span> <span className="text-muted">· {profile.preferredLocations.join(", ")}</span></p>
-          )}
-        </div>
-      )}
-
-      {a.note && (
-        <FormSection title="Why they're a fit">
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{a.note}</p>
-        </FormSection>
-      )}
-
-      {result ? (
-        <ApplicantInterview jobId={id} applicantId={applicantId} initial={result} />
-      ) : (
-        job.interview && (
-          <FormSection title={KINDS[job.interview.kind]}>
-            <p className="text-sm text-muted">Not taken yet.</p>
-          </FormSection>
-        )
-      )}
+      <ApplicantViews
+        profile={profile && (
+          <div className="space-y-6 border-b border-border px-4 py-5">
+            <ResumeSections r={profile} companies={companies} />
+            {profile.preferredLocations.length > 0 && (
+              <p className="border-t border-border pt-5 text-sm"><span className="font-medium">Preferred locations</span> <span className="text-muted">· {profile.preferredLocations.join(", ")}</span></p>
+            )}
+          </div>
+        )}
+        application={
+          <>
+            {a.note && (
+              <FormSection title="Why they're a fit">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{a.note}</p>
+              </FormSection>
+            )}
+            {result ? (
+              <ApplicantInterview jobId={id} applicantId={applicantId} initial={result} />
+            ) : job.interview ? (
+              <FormSection title={KINDS[job.interview.kind]}>
+                <p className="text-sm text-muted">Not taken yet.</p>
+              </FormSection>
+            ) : (
+              !a.note && <p className="px-4 py-5 text-sm text-muted">No note or screening for this application.</p>
+            )}
+          </>
+        }
+      />
     </>
   );
 }

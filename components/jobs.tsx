@@ -1122,7 +1122,20 @@ export function ScreeningBadge({ a }: { a: Pick<Applicant, "interview"> }) {
   );
 }
 
-export const applicantHref = (jobId: string, applicantId: string) => `/dashboard/jobs/${jobId}/applicants/${applicantId}`;
+/** Applicant page: switch between the profile they sent and the application itself (note + screening), so recruiters don't scroll past one to reach the other. */
+export function ApplicantViews({ profile, application }: { profile: React.ReactNode; application: React.ReactNode }) {
+  const [view, setView] = useState<"profile" | "application">(profile ? "profile" : "application");
+  return (
+    <>
+      <div className="sticky top-28 z-10 border-b border-border bg-background/80 backdrop-blur sm:top-14">
+        <Tabs label="Applicant views" fill tabs={[{ id: "profile", label: "Profile" }, { id: "application", label: "Application" }]} value={view} onChange={setView} />
+      </div>
+      {view === "profile" ? profile ?? <p className="px-4 py-5 text-sm text-muted">No profile shared.</p> : application}
+    </>
+  );
+}
+
+export const applicantHref =(jobId: string, applicantId: string) => `/dashboard/jobs/${jobId}/applicants/${applicantId}`;
 
 /** Applicant page: onboarding answers, then the AI verdict and transcript (voice) or the score and every answer (MCQ). */
 export function ApplicantInterview({ jobId, applicantId, initial }: { jobId: string; applicantId: string; initial: InterviewResult }) {

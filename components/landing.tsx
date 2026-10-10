@@ -82,8 +82,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           ))}
           <ThemeToggle />
         </nav>
-        <div className="ml-auto flex items-center px-3">
-          <Link href={cta.href} className={`${btnPrimary} ${btnLg}`}>
+        <div className="ml-auto flex items-center px-2.5 sm:px-3">
+          <Link href={cta.href} className={`${btnPrimary} ${btnLg} max-sm:!h-9 max-sm:px-3 max-sm:text-[13px]`}>
             {cta.label} <Icon d={chevron} size={14} />
           </Link>
         </div>
