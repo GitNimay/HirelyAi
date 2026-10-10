@@ -364,7 +364,7 @@ async function pingPoster(posterId: string, jobId: string, applicantId: string) 
 }
 
 /** LiveKit access token: an HS256 JWT signed with the project secret (same claims as the server SDK, no dependency). */
-async function livekitToken(claims: Record<string, unknown>) {
+export async function livekitToken(claims: Record<string, unknown>) {
   const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
   const json = (o: object) => b64(new TextEncoder().encode(JSON.stringify(o)));
   const now = Math.floor(Date.now() / 1000);
