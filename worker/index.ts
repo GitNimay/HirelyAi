@@ -2,6 +2,7 @@ import { createClerkClient } from "@clerk/backend";
 import { DurableObject } from "cloudflare:workers";
 import app from "vinext/server/app-router-entry";
 import { capture } from "../lib/analytics";
+import { writePendingReleases } from "../lib/changelog";
 import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../lib/human";
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/interview";
 import { cleanTranscript } from "../lib/interview-fields";
@@ -188,6 +189,7 @@ export default {
   async scheduled(_controller, _env, ctx) {
     ctx.waitUntil(syncDirectory());
     ctx.waitUntil(checkAll()); // the status page's history
+    ctx.waitUntil(writePendingReleases()); // /changelog entries for new deploys
     await closeExpired();
   },
 } satisfies ExportedHandler<Env, Task>;

@@ -199,7 +199,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         </div>
         <div className="-mx-4 mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:mt-16 sm:px-8">
           <p>© {new Date().getFullYear()} Hire Excellence</p>
-          <Link href="/status" className="ml-auto transition-colors hover:text-foreground">Status</Link>
+          <Link href="/changelog" className="ml-auto transition-colors hover:text-foreground">Changelog</Link>
+          <Link href="/status" className="transition-colors hover:text-foreground">Status</Link>
           <a href="https://github.com/GitNimay/hire-excellence" target="_blank" rel="noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
             View on GitHub
             <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor" aria-label="GitHub" className="text-foreground">

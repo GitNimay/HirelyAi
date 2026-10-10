@@ -7,7 +7,7 @@ import { capture } from "./analytics";
  * No response_format: this endpoint's JSON mode emits a stray "{", plain output is clean.
  * `task` names the call in PostHog's LLM analytics (cost, latency, failures per feature).
  */
-export async function bedrockJson(task: "resume" | "questions" | "grading", system: string, user: string, maxTokens: number, temperature = 0): Promise<{ ok: false; reason: "busy" | "unparseable" } | { ok: true; value: unknown }> {
+export async function bedrockJson(task: "resume" | "questions" | "grading" | "changelog", system: string, user: string, maxTokens: number, temperature = 0): Promise<{ ok: false; reason: "busy" | "unparseable" } | { ok: true; value: unknown }> {
   const t0 = Date.now();
   const res = await fetch(`${env.BEDROCK_BASE_URL}/chat/completions`, {
     method: "POST",
