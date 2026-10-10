@@ -1,0 +1,52 @@
+# Hire Excellence
+
+> Hire Excellence is a free, AI-first hiring network and professional social network. An AI runs a five-minute spoken first-round interview for every applicant, scores each answer against the job description, and gives recruiters a ranked shortlist with the reasoning behind every score, so recruiters meet the right people and candidates hear back fast.
+
+Website: https://hire-excellence.n1m35h.in
+Tagline: Hire on signal, not on resumes.
+Pricing: Free. Creating a profile, posting positions and applying to jobs cost nothing.
+Source code: https://github.com/GitNimay/hire-excellence
+
+## What it does
+
+- **Structured voice interviews**: a five-minute spoken first round, conducted by an LLM voice agent. Candidates take it whenever they like before the position's closing date.
+- **Timed assessments**: recruiters can swap the voice interview for a timed multiple-choice test.
+- **Evaluation against the role**: each answer is assessed against the job description, producing a score, a fit rating, and written strengths and concerns.
+- **Profiles from resumes**: uploading a resume fills in the profile automatically; the profile can be exported as an ATS-friendly PDF resume.
+- **Unified applicant pipeline**: recruiters track every application from submission to shortlist, with interview results attached.
+- **Verified company pages**: each company page is tied to a single domain and verified through a work email on that domain. Only verified pages can post jobs.
+- **Professional network**: posts, replies, reactions, follows, profiles and a feed, similar to LinkedIn.
+
+## How hiring works
+
+1. Identify the role.
+2. Verify your organization with a work email.
+3. Publish the position.
+4. Receive applications.
+5. The AI conducts first-round interviews.
+6. Review the ranked shortlist.
+
+## Who it is for
+
+- **Candidates**: be assessed on your experience rather than resume keywords; interview on your own schedule; build a complete profile in one step.
+- **Employers and recruiters**: replace preliminary phone screens with a ranked shortlist; no interview scheduling for the first round.
+
+## FAQ
+
+- **Is it free?** Yes. Profiles, job posts and applications are free.
+- **How long is the interview?** About five minutes, any time before the closing date.
+- **Who can see my interview?** Only the recruiters responsible for the position you applied to.
+- **Is the voice interview mandatory?** No. Where the recruiter allows it, you can take a timed multiple-choice assessment instead.
+- **How are companies verified?** Each company page is bound to one domain and verified through a work email address on that domain.
+
+## Pages
+
+- [Home](https://hire-excellence.n1m35h.in/): product overview, features and FAQ
+- [Sign up](https://hire-excellence.n1m35h.in/sign-up): create a free account (email code, Google, GitHub or X)
+- [Changelog](https://hire-excellence.n1m35h.in/changelog): new features, improvements and fixes
+- [Status](https://hire-excellence.n1m35h.in/status): live service status
+
+## Optional
+
+- [Privacy Policy](https://hire-excellence.n1m35h.in/privacy)
+- [Terms of Service](https://hire-excellence.n1m35h.in/terms)
