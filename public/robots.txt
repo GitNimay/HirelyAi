@@ -1,0 +1,23 @@
+# AI assistants and search engines are welcome on public pages.
+# Named explicitly so a future blanket rule can't silently shut them out.
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /onboarding
+Disallow: /api/
+Disallow: /sso-callback
+Disallow: /verify
+Disallow: /interview/
+
+Sitemap: https://hire-excellence.n1m35h.in/sitemap.xml

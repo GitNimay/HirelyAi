@@ -31,11 +31,12 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "Hire Excellence",
-  description: "Connect, hire and grow",
+  title: "Hire Excellence: AI-first hiring network",
+  description: "Free hiring network where an AI runs a five-minute voice interview for every applicant and gives recruiters a ranked shortlist scored against the job description.",
+  alternates: { types: { "text/plain": "/llms.txt" } },
   metadataBase: new URL("https://hire-excellence.n1m35h.in"),
   // 1200x630 JPG under 300 KB: WhatsApp drops larger or webp previews
-  openGraph: { title: "Hire Excellence", description: "Connect, hire and grow", type: "website", siteName: "Hire Excellence", images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "Hire Excellence feed" }] },
+  openGraph: { title: "Hire Excellence", description: "Hire on signal, not on resumes. An AI runs the first interview for every applicant.", type: "website", siteName: "Hire Excellence", images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "Hire Excellence feed" }] },
   twitter: { card: "summary_large_image", images: ["/og.jpg"] },
   icons: {
     icon: [

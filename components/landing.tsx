@@ -17,6 +17,7 @@ const github =
 const footerCols = (signedIn: boolean): [string, [string, string][]][] => [
   ["Product", [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"]]],
   ["Account", signedIn ? [["Dashboard", "/dashboard"]] : [["Sign up", "/sign-up"], ["Log in", "/sign-in"]]],
+  ["Resources", [["llms.txt", "/llms.txt"], ["robots.txt", "/robots.txt"], ["Sitemap", "/sitemap.xml"]]],
   ["Legal", [["Privacy", "/privacy"], ["Terms", "/terms"]]],
 ];
 
@@ -67,11 +68,42 @@ const faqs: [string, string][] = [
   ["How are companies verified?", "Each company page is associated with a single domain and verified through a work email address on that domain."],
 ];
 
+// Schema.org facts for search engines and AI assistants (ChatGPT search, Perplexity, Google). Keep in step with public/llms.txt
+const site = "https://hire-excellence.n1m35h.in";
+const jsonLd = JSON.stringify({
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "Organization", "@id": `${site}/#org`, name: "Hire Excellence", url: site, logo: `${site}/logo-light.png`, sameAs: ["https://github.com/GitNimay/hire-excellence"] },
+    { "@type": "WebSite", "@id": `${site}/#website`, name: "Hire Excellence", url: site, publisher: { "@id": `${site}/#org` } },
+    {
+      "@type": "WebApplication",
+      name: "Hire Excellence",
+      url: site,
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      description: "AI-first hiring network. An AI runs a five-minute voice interview for every applicant and gives recruiters a ranked shortlist scored against the job description.",
+      featureList: ["Structured AI voice interviews", "Timed multiple-choice assessments", "Evaluation against the job description", "Profiles from resumes with ATS PDF export", "Unified applicant pipeline", "Verified company pages", "Professional network feed"],
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      publisher: { "@id": `${site}/#org` },
+    },
+    { "@type": "FAQPage", mainEntity: faqs.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) },
+  ],
+}).replaceAll("<", "\\u003c");
+
+// "Ask AI" opens each assistant with a question about the site already typed. Marks from simple-icons / lobehub
+const askPrompt = encodeURIComponent(`Read ${site}/llms.txt and tell me what Hire Excellence is and how it works.`);
+const assistants: [name: string, href: string, color: string, d: string][] = [
+  ["Claude", `https://claude.ai/new?q=${askPrompt}`, "#D97757", "m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"],
+  ["ChatGPT", `https://chatgpt.com/?q=${askPrompt}`, "currentColor", "M21.55 10.004a5.416 5.416 0 00-.478-4.501c-1.217-2.09-3.662-3.166-6.05-2.66A5.59 5.59 0 0010.831 1C8.39.995 6.224 2.546 5.473 4.838A5.553 5.553 0 001.76 7.496a5.487 5.487 0 00.691 6.5 5.416 5.416 0 00.477 4.502c1.217 2.09 3.662 3.165 6.05 2.66A5.586 5.586 0 0013.168 23c2.443.006 4.61-1.546 5.361-3.84a5.553 5.553 0 003.715-2.66 5.488 5.488 0 00-.693-6.497v.001zm-8.381 11.558a4.199 4.199 0 01-2.675-.954c.034-.018.093-.05.132-.074l4.44-2.53a.71.71 0 00.364-.623v-6.176l1.877 1.069c.02.01.033.029.036.05v5.115c-.003 2.274-1.87 4.118-4.174 4.123zM4.192 17.78a4.059 4.059 0 01-.498-2.763c.032.02.09.055.131.078l4.44 2.53c.225.13.504.13.73 0l5.42-3.088v2.138a.068.068 0 01-.027.057L9.9 19.288c-1.999 1.136-4.552.46-5.707-1.51h-.001zM3.023 8.216A4.15 4.15 0 015.198 6.41l-.002.151v5.06a.711.711 0 00.364.624l5.42 3.087-1.876 1.07a.067.067 0 01-.063.005l-4.489-2.559c-1.995-1.14-2.679-3.658-1.53-5.63h.001zm15.417 3.54l-5.42-3.088L14.896 7.6a.067.067 0 01.063-.006l4.489 2.557c1.998 1.14 2.683 3.662 1.529 5.633a4.163 4.163 0 01-2.174 1.807V12.38a.71.71 0 00-.363-.623zm1.867-2.773a6.04 6.04 0 00-.132-.078l-4.44-2.53a.731.731 0 00-.729 0l-5.42 3.088V7.325a.068.068 0 01.027-.057L14.1 4.713c2-1.137 4.555-.46 5.707 1.513.487.833.664 1.809.499 2.757h.001zm-11.741 3.81l-1.877-1.068a.065.065 0 01-.036-.051V6.559c.001-2.277 1.873-4.122 4.181-4.12.976 0 1.92.338 2.671.954-.034.018-.092.05-.131.073l-4.44 2.53a.71.71 0 00-.365.623l-.003 6.173v.002zm1.02-2.168L12 9.25l2.414 1.375v2.75L12 14.75l-2.415-1.375v-2.75z"],
+  ["Grok", `https://grok.com/?q=${askPrompt}`, "currentColor", "M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"],
+];
+
 export function Landing({ signedIn }: { signedIn: boolean }) {
   const cta = signedIn ? { href: "/dashboard", label: "Dashboard" } : { href: "/sign-up", label: "Get started" };
   const links = signedIn ? [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"]] : [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"], ["Log in", "/sign-in"]];
   return (
     <div data-landing className="mx-auto flex w-full max-w-[75rem] flex-1 flex-col border-border sm:border-x">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       <header className="sticky top-0 z-10 flex h-14 items-stretch border-b border-border bg-background/80 backdrop-blur">
         <Link href="/" aria-label="Hire Excellence" className="flex w-14 items-center justify-center border-r border-border">
           <Logo size={24} faint={false} />
@@ -175,6 +207,14 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               </details>
             ))}
           </Reveal>
+          <Reveal i={3} as="p" className="mt-8 flex items-center justify-center gap-2 text-sm text-muted">
+            Having any doubts? <span className="font-medium text-foreground">Ask AI</span>
+            {assistants.map(([name, href, color, d]) => (
+              <a key={name} href={href} target="_blank" rel="noreferrer" aria-label={`Ask ${name}`} title={`Ask ${name}`} className="text-foreground transition-opacity hover:opacity-60">
+                <svg width={20} height={20} viewBox="0 0 24 24" fill={color} aria-hidden><path d={d} /></svg>
+              </a>
+            ))}
+          </Reveal>
         </section>
       </main>
 
@@ -184,12 +224,15 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             <Logo size={24} faint={false} />
             <span className="text-sm font-medium">Hire Excellence</span>
           </Link>
-          <div className="flex flex-wrap gap-x-12 gap-y-8 sm:gap-16">
+          <div className="grid grid-cols-2 gap-x-12 gap-y-8 sm:flex sm:gap-16">
             {footerCols(signedIn).map(([title, items]) => (
               <ul key={title} className="space-y-3 text-sm">
                 <li className="text-xs text-muted">{title}</li>
                 {items.map(([label, href]) => (
-                  <li key={label}><Link href={href} className="transition-colors hover:text-muted">{label}</Link></li>
+                  <li key={label}>
+                    {/* Static files (llms.txt, sitemap.xml) aren't routes, so they get a plain link */}
+                    {/\.\w+$/.test(href) ? <a href={href} className="transition-colors hover:text-muted">{label}</a> : <Link href={href} className="transition-colors hover:text-muted">{label}</Link>}
+                  </li>
                 ))}
               </ul>
             ))}
