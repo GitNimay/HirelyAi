@@ -1,4 +1,5 @@
 import { ServerOptions, cli, defineAgent, inference, voice } from '@livekit/agents';
+import { RoomEvent } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { type Meta, createInterviewer } from './agent.ts';
@@ -32,7 +33,8 @@ export default defineAgent({
     // English only and garbled accented speech; U3 Pro handles Indian and other English accents, is biased by the
     // interviewer's last question (the SDK sends it as agent_context) and by the names/terms of this call below.
     const { job, candidate: c } = meta;
-    const keyterms = [job.company, job.title, c.name, c.city, c.role].filter(Boolean).map((t) => t.slice(0, 50));
+    // Plus the candidate's skills and employers and the JD's jargon, picked by the app (AssemblyAI caps this at 100)
+    const keyterms = [...new Set([job.company, job.title, c.name, c.city, c.role, ...(meta.keyterms ?? [])].filter(Boolean).map((t) => t.slice(0, 50)))].slice(0, 100);
     const session = new voice.AgentSession({
       stt: new inference.STT({
         model: 'assemblyai/universal-3-6-pro',
@@ -52,7 +54,8 @@ export default defineAgent({
         endpointing: { minDelay: 600, maxDelay: 4000 },
         // Keeps talking through "mhm" / "right" instead of stopping at every backchannel
         interruption: { mode: 'adaptive' },
-        preemptiveGeneration: { enabled: true },
+        // Starts the reply, and its audio, while the turn detector is still deciding: ~0.1-0.2 s off every turn
+        preemptiveGeneration: { enabled: true, preemptiveTts: true },
       },
     });
 
@@ -89,18 +92,28 @@ export default defineAgent({
       return session.shutdown({ reason: 'candidate never joined' });
     }
 
-    const first = meta.candidate.name.split(' ')[0];
-    session.generateReply({
-      instructions: `Greet ${first} by name, say you're calling from ${meta.job.company} (no name for yourself), say this is a quick ${Math.round(meta.seconds / 60)} minute chat about the ${meta.job.title} role, then ask the first question.`,
+    // Scripted, not generated: the first words play as soon as TTS is ready instead of waiting on the LLM.
+    // It goes into the chat context, so the model knows question 1 has been asked.
+    const first = meta.candidate.name.split(' ')[0] || 'there';
+    const minutes = Math.round(meta.seconds / 60);
+    if (meta.questions[0]) {
+      session.say(`Hi ${first}, I'm calling from ${meta.job.company}. This is a quick ${minutes} minute chat about the ${meta.job.title} role. Let's start. ${meta.questions[0]}`);
+    } else {
+      session.generateReply({ instructions: `Greet ${first} and say you're calling from ${meta.job.company} about the ${meta.job.title} role.` });
+    }
+    // A dropped connection doesn't end the session (only hanging up does), so the agent is still here when they rejoin
+    ctx.room.on(RoomEvent.ParticipantConnected, () => {
+      session.generateReply({ instructions: 'The candidate just reconnected after their connection dropped. Welcome them back in a few words and repeat your last question.' });
     });
 
-    // Hard limit: a nudge 30 s before, then cut the call regardless of what's happening
+    // Time limit: a nudge 30 s before; at the limit let the current sentence finish, then cut regardless 10 s later
     const ms = Math.max(10, meta.seconds) * 1000;
     const nudge = setTimeout(() => {
       session.generateReply({ instructions: 'Time is almost up. Do not ask new questions. Briefly thank the candidate, then call end_interview.' });
     }, ms - 30_000);
-    const cut = setTimeout(() => session.shutdown({ drain: false, reason: 'time limit' }), ms);
-    ctx.addShutdownCallback(async () => (clearTimeout(nudge), clearTimeout(cut)));
+    const end = setTimeout(() => session.shutdown({ drain: true, reason: 'time limit' }), ms);
+    const cut = setTimeout(() => session.shutdown({ drain: false, reason: 'time limit' }), ms + 10_000);
+    ctx.addShutdownCallback(async () => (clearTimeout(nudge), clearTimeout(end), clearTimeout(cut)));
   },
 });
 

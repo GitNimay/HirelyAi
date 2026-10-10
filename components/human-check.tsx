@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Logo } from "./auth";
 import { btnLg, btnOutline } from "./ui";
 
@@ -20,6 +20,40 @@ function session(k: string, v?: string) {
     sessionStorage.setItem(k, v);
   } catch {}
   return null;
+}
+
+/**
+ * A bare Turnstile widget for a form (the interview sign-in): `onToken` gets a fresh token, or "" when it expires.
+ * The form sends the token with its own request and siteverify runs there. Tokens are single use: bump `reset` after a submit.
+ */
+export function TurnstileField({ sitekey, action, onToken, reset }: { sitekey: string; action: string; onToken: (t: string) => void; reset: number }) {
+  const box = useRef<HTMLDivElement>(null);
+  const id = useRef<string | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (reset && id.current) window.turnstile?.reset(id.current);
+  }, [reset]);
+
+  function render() {
+    if (!box.current || id.current || !window.turnstile) return;
+    id.current = window.turnstile.render(box.current, {
+      sitekey,
+      action,
+      theme: "auto",
+      callback: (t: string) => (setError(""), onToken(t)),
+      "expired-callback": () => onToken(""),
+      "error-callback": (code: string) => (onToken(""), setError(`Verification failed (error ${code}). Check your connection or try another browser.`)),
+    });
+  }
+
+  return (
+    <div>
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onReady={render} />
+      <div ref={box} className="min-h-[65px]" />
+      {error && <p role="alert" className="mt-1 text-sm text-danger">{error}</p>}
+    </div>
+  );
 }
 
 /** The Turnstile widget. Its token goes to /api/human (siteverify runs there), which sets the pass cookie. */

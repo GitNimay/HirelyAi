@@ -1,18 +1,18 @@
 import { env } from "cloudflare:workers";
 
 /**
- * "Verify you are human" gate in front of sign-in / sign-up, shared post / job links and the interview / MCQ test page
- * (worker/index.ts). Turnstile proves it once, server-side (siteverify), then a signed httpOnly cookie remembers the
+ * "Verify you are human" gate in front of sign-in / sign-up and shared post / job links (worker/index.ts). The interview /
+ * MCQ test page checks inside its sign-in form instead (app/interview/actions.ts verify), so candidates see it once, in context. Turnstile proves it once, server-side (siteverify), then a signed httpOnly cookie remembers the
  * pass so the visitor isn't challenged on every gated page. Clerk's own bot protection still runs on sign-up.
  */
 export const ACTION = "auth";
 const PASS_SECONDS = 12 * 3600;
 
 /** Only paths behind the gate, so `next` can never send someone off-site. */
-export const GATED = /^\/(sign-in|sign-up|post|job|interview)([/?]|$)/;
+export const GATED = /^\/(sign-in|sign-up|post|job)([/?]|$)/;
 
 // Link-preview crawlers can't solve Turnstile; let them read share pages (post / job) so links still unfurl.
-// ponytail: User-Agent is spoofable, so this only covers public share pages; the interview page stays gated for everyone.
+// ponytail: User-Agent is spoofable, so this only covers public share pages.
 const PREVIEW_BOT = /facebookexternalhit|LinkedInBot|Twitterbot|Slackbot|WhatsApp|Discordbot|TelegramBot|Googlebot|bingbot/i;
 export const needsCheck = (path: string, ua: string | null) => GATED.test(path) && !(/^\/(post|job)\//.test(path) && PREVIEW_BOT.test(ua ?? ""));
 export const safeNext = (next: string | null) => (next && GATED.test(next) && !next.includes("\\") ? next : "/sign-in");
