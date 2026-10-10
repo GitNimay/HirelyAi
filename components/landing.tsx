@@ -4,6 +4,7 @@ import { Logo } from "./auth";
 import { HeroDashboard } from "./hero-dashboard";
 import { HowItWorks } from "./landing-steps";
 import { Wordmark } from "./landing-wordmark";
+import { Reveal, RevealWords } from "./reveal";
 import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, VoiceVisual } from "./landing-features";
 import { Icon, btnLg, btnOutline, btnPrimary, icons } from "./ui";
 
@@ -91,54 +92,50 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
 
       <main id="main" className="flex-1">
         <section className="flex flex-col items-center px-4 pb-16 pt-14 text-center sm:px-8 sm:pb-24 sm:pt-28">
-          <span className={eyebrow}>AI-first hiring network</span>
-          <h1 className={`${display} mt-6 max-w-3xl`}>
-            Hire on signal,
-            <br />
-            not on resumes.
-          </h1>
-          <p className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-muted">
+          <Reveal as="span" className={eyebrow}>AI-first hiring network</Reveal>
+          <RevealWords text={"Hire on signal,\nnot on resumes."} i={1} className={`${display} mt-6 max-w-3xl`} />
+          <Reveal as="p" i={2} className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-muted">
             An AI runs the first interview for every applicant, so recruiters meet the right people and candidates hear back fast.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-2">
+          </Reveal>
+          <Reveal i={3} className="mt-8 flex flex-wrap justify-center gap-2">
             <Link href={cta.href} className={`${btnPrimary} ${btnLg}`}>
               {cta.label} <Icon d={chevron} size={14} />
             </Link>
             {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${btnLg}`}>Log in</Link>}
-          </div>
-          <HeroDashboard />
+          </Reveal>
+          <Reveal i={4} className="w-full"><HeroDashboard /></Reveal>
         </section>
 
         <section id="features" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
-            <span className={eyebrow}>Features</span>
-            <h2 className={`${display} mt-6 max-w-2xl`}>A consistent first round<br />for every applicant.</h2>
-            <p className="mt-5 max-w-md text-pretty text-sm text-muted">From application to shortlist, the entire screening stage is managed on a single platform.</p>
+            <Reveal as="span" className={eyebrow}>Features</Reveal>
+            <Reveal as="h2" i={1} className={`${display} mt-6 max-w-2xl`}>A consistent first round<br />for every applicant.</Reveal>
+            <Reveal as="p" i={2} className="mt-5 max-w-md text-pretty text-sm text-muted">From application to shortlist, the entire screening stage is managed on a single platform.</Reveal>
           </div>
           <div className="mt-12 grid gap-x-6 gap-y-12 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((f) => (
-              <article key={f.tag}>
+            {features.map((f, i) => (
+              <Reveal as="article" key={f.tag} i={i % 3}>
                 <f.Visual />
                 <h3 className="mt-5 text-sm font-medium">{f.title}</h3>
                 <p className="mt-1.5 text-pretty text-sm text-muted">{f.body}</p>
-              </article>
+              </Reveal>
             ))}
           </div>
         </section>
 
         <HowItWorks>
-          <span className={eyebrow}>How it works</span>
-          <h2 className={`${display} mt-6`}>From job posting<br />to shortlist.</h2>
+          <Reveal as="span" className={eyebrow}>How it works</Reveal>
+          <Reveal as="h2" i={1} className={`${display} mt-6`}>From job posting<br />to shortlist.</Reveal>
         </HowItWorks>
 
         <section id="both-sides" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
-            <span className={eyebrow}>Candidates and employers</span>
-            <h2 className={`${display} mt-6 max-w-2xl`}>One process, designed<br />for both parties.</h2>
+            <Reveal as="span" className={eyebrow}>Candidates and employers</Reveal>
+            <Reveal as="h2" i={1} className={`${display} mt-6 max-w-2xl`}>One process, designed<br />for both parties.</Reveal>
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-x-16 gap-y-12 sm:mt-16 sm:grid-cols-2 sm:gap-y-16">
             {sides(signedIn).map((s, i) => (
-              <article key={s.tag} className="flex flex-col">
+              <Reveal as="article" key={s.tag} i={i} className="flex flex-col">
                 <div className="flex items-center gap-2 text-muted">
                   <Icon d={s.icon} size={14} className="shrink-0" />
                   <span className="font-mono text-xs uppercase tracking-wider text-muted">{s.tag}</span>
@@ -156,17 +153,17 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
                 <Link href={s.cta.href} className={`${i ? btnPrimary : btnOutline} ${btnLg} mt-10 self-start`}>
                   {s.cta.label} <Icon d={chevron} size={14} />
                 </Link>
-              </article>
+              </Reveal>
             ))}
           </div>
         </section>
 
         <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
-            <span className={eyebrow}>FAQ</span>
-            <h2 className={`${display} mt-6`}>Frequently asked questions.</h2>
+            <Reveal as="span" className={eyebrow}>FAQ</Reveal>
+            <Reveal as="h2" i={1} className={`${display} mt-6`}>Frequently asked questions.</Reveal>
           </div>
-          <div className="mx-auto mt-12 max-w-2xl border-t border-border sm:mt-16">
+          <Reveal i={2} className="mx-auto mt-12 max-w-2xl border-t border-border sm:mt-16">
             {faqs.map(([q, a]) => (
               <details key={q} className="group border-b border-border">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-sm font-medium [&::-webkit-details-marker]:hidden">
@@ -176,7 +173,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
                 <p className="-mt-1 pb-5 text-pretty text-sm leading-relaxed text-muted">{a}</p>
               </details>
             ))}
-          </div>
+          </Reveal>
         </section>
       </main>
 

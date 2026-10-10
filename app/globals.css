@@ -289,3 +289,9 @@ html:has([data-landing]) {
 [data-landing] svg[width="14"] { width: 0.875rem; height: 0.875rem; }
 [data-landing] svg[width="16"] { width: 1rem; height: 1rem; }
 [data-landing] svg[width="24"] { width: 1.5rem; height: 1.5rem; }
+
+/* Scroll blur-in (components/reveal.tsx). Reduced motion pins the end state over Motion's inline styles. */
+.reveal { will-change: transform, opacity, filter; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; will-change: auto; }
+}
