@@ -17,6 +17,7 @@ const github =
 const footerCols = (signedIn: boolean): [string, [string, string][]][] => [
   ["Product", [["Features", "#features"], ["How it works", "#how-it-works"], ["FAQ", "#faq"]]],
   ["Account", signedIn ? [["Dashboard", "/dashboard"]] : [["Sign up", "/sign-up"], ["Log in", "/sign-in"]]],
+  ["Legal", [["Privacy", "/privacy"], ["Terms", "/terms"]]],
 ];
 
 const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-display font-normal tracking-[-0.01em] text-balance";
