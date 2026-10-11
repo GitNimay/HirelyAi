@@ -239,7 +239,12 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           </div>
         </div>
         <div className="-mx-4 mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:mt-16 sm:px-8">
-          <p>© {new Date().getFullYear()} Hire Excellence</p>
+          <p>
+            © {new Date().getFullYear()} Hire Excellence · An{" "}
+            <a href="https://www.snab.co.in/" target="_blank" rel="noreferrer" className="text-foreground transition-colors hover:text-muted">SNAB</a>{" "}
+            product · Built by{" "}
+            <a href="https://www.n1m35h.in/" target="_blank" rel="noreferrer" className="text-foreground transition-colors hover:text-muted">Nimesh</a>
+          </p>
           <Link href="/changelog" className="ml-auto transition-colors hover:text-foreground">Changelog</Link>
           <Link href="/status" className="transition-colors hover:text-foreground">Status</Link>
           <a href="https://github.com/GitNimay/hire-excellence" target="_blank" rel="noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
