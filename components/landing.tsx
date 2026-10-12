@@ -22,7 +22,6 @@ const footerCols = (signedIn: boolean): [string, [string, string][]][] => [
 ];
 
 const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-display font-normal tracking-[-0.01em] text-balance";
-const eyebrow = "inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted";
 
 const features: { tag: string; title: string; body: string; Visual: () => React.ReactNode }[] = [
   { tag: "Voice", Visual: VoiceVisual, title: "Structured voice interviews", body: "A five-minute spoken first round, conducted by an LLM and completed at the candidate's convenience before the closing date." },
@@ -125,25 +124,23 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
 
       <main id="main" className="flex-1">
         <section className="flex flex-col items-center px-4 pb-16 pt-14 text-center sm:px-8 sm:pb-24 sm:pt-28">
-          <Reveal as="span" className={eyebrow}>AI-first hiring network</Reveal>
-          <RevealWords text={"Hire on signal,\nnot on resumes."} i={1} className={`${display} mt-6 max-w-3xl`} />
-          <Reveal as="p" i={2} className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-muted">
+          <RevealWords text={"Hire on signal,\nnot on resumes."} className={`${display} max-w-3xl`} />
+          <Reveal as="p" i={1} className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-muted">
             An AI runs the first interview for every applicant, so recruiters meet the right people and candidates hear back fast.
           </Reveal>
-          <Reveal i={3} className="mt-8 flex flex-wrap justify-center gap-2">
+          <Reveal i={2} className="mt-8 flex flex-wrap justify-center gap-2">
             <Link href={cta.href} className={`${btnPrimary} ${btnLg}`}>
               {cta.label} <Icon d={chevron} size={14} />
             </Link>
             {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${btnLg}`}>Log in</Link>}
           </Reveal>
-          <Reveal i={4} className="w-full"><HeroDashboard /></Reveal>
+          <Reveal i={3} className="w-full"><HeroDashboard /></Reveal>
         </section>
 
         <section id="features" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
-            <Reveal as="span" className={eyebrow}>Features</Reveal>
-            <Reveal as="h2" i={1} className={`${display} mt-6 max-w-2xl`}>A consistent first round<br />for every applicant.</Reveal>
-            <Reveal as="p" i={2} className="mt-5 max-w-md text-pretty text-sm text-muted">From application to shortlist, the entire screening stage is managed on a single platform.</Reveal>
+            <Reveal as="h2" className={`${display} max-w-2xl`}>A consistent first round<br />for every applicant.</Reveal>
+            <Reveal as="p" i={1} className="mt-5 max-w-md text-pretty text-sm text-muted">From application to shortlist, the entire screening stage is managed on a single platform.</Reveal>
           </div>
           <div className="mt-12 grid gap-x-6 gap-y-12 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f, i) => (
@@ -157,14 +154,12 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         </section>
 
         <HowItWorks>
-          <Reveal as="span" className={eyebrow}>How it works</Reveal>
-          <Reveal as="h2" i={1} className={`${display} mt-6`}>From job posting<br />to shortlist.</Reveal>
+          <Reveal as="h2" className={display}>From job posting<br />to shortlist.</Reveal>
         </HowItWorks>
 
         <section id="both-sides" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
-            <Reveal as="span" className={eyebrow}>Candidates and employers</Reveal>
-            <Reveal as="h2" i={1} className={`${display} mt-6 max-w-2xl`}>One process, designed<br />for both parties.</Reveal>
+            <Reveal as="h2" className={`${display} max-w-2xl`}>One process, designed<br />for both parties.</Reveal>
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-x-16 gap-y-12 sm:mt-16 sm:grid-cols-2 sm:gap-y-16">
             {sides(signedIn).map((s, i) => (
@@ -193,10 +188,9 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
 
         <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-col items-center text-center">
-            <Reveal as="span" className={eyebrow}>FAQ</Reveal>
-            <Reveal as="h2" i={1} className={`${display} mt-6`}>Frequently asked questions.</Reveal>
+            <Reveal as="h2" className={display}>Frequently asked questions.</Reveal>
           </div>
-          <Reveal i={2} className="mx-auto mt-12 max-w-2xl border-t border-border sm:mt-16">
+          <Reveal i={1} className="mx-auto mt-12 max-w-2xl border-t border-border sm:mt-16">
             {faqs.map(([q, a]) => (
               <details key={q} className="group border-b border-border">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-sm font-medium [&::-webkit-details-marker]:hidden">
@@ -207,7 +201,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               </details>
             ))}
           </Reveal>
-          <Reveal i={3} as="p" className="mt-8 flex items-center justify-center gap-2 text-sm text-muted">
+          <Reveal i={2} as="p" className="mt-8 flex items-center justify-center gap-2 text-sm text-muted">
             Having any doubts? <span className="font-medium text-foreground">Ask AI</span>
             {assistants.map(([name, href, color, d]) => (
               <a key={name} href={href} target="_blank" rel="noreferrer" aria-label={`Ask ${name}`} title={`Ask ${name}`} className="text-foreground transition-opacity hover:opacity-60">
