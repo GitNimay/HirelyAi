@@ -2,6 +2,7 @@
 
 import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
 import type { OAuthStrategy, SetActiveNavigate } from "@clerk/nextjs/types";
+import { Dithering } from "@paper-design/shaders-react";
 import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { CodeField } from "./input-otp";
@@ -49,11 +50,29 @@ const homeLink = <Link href="/" className="mt-3 block text-xs text-muted hover:t
 export function Shell({ title, subtitle, children, footer, busy }: { title: string; subtitle: ReactNode; children?: ReactNode; footer?: ReactNode; busy?: string }) {
   const { isLoaded } = useAuth();
   return (
-    <main className="flex min-h-dvh flex-1 items-center justify-center px-4 py-8 sm:min-h-screen sm:py-12">
+    <main className="flex min-h-dvh flex-1 flex-col lg:flex-row">
+      {/* Art panel: top banner on phone/tablet, left half on desktop */}
+      <aside className="relative flex h-60 shrink-0 flex-col justify-between overflow-hidden bg-border px-6 pb-6 pt-8 md:h-[360px] md:p-8 lg:h-auto lg:w-1/2 lg:p-10 dark:lg:bg-surface">
+        <Dithering
+          speed={0.28}
+          shape="warp"
+          type="4x4"
+          size={4.2}
+          colorBack="#00000000"
+          colorFront="#DC776873"
+          className="absolute inset-0 size-full bg-background"
+        />
+        <div className="relative"><Logo faint={false} size={48} /></div>
+        <div className="relative">
+          <p className="font-display text-[28px] leading-8 tracking-tight text-foreground md:text-4xl md:leading-10 lg:text-[44px] lg:leading-12">Hire character. Train skill.</p>
+          <p className="mt-2 text-sm font-medium tracking-wide text-foreground md:mt-3">— Peter Schutz</p>
+        </div>
+      </aside>
+      <div className="flex flex-1 items-center justify-center px-6 py-10 md:p-10">
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Logo />
-          <h1 className="mt-6 font-display text-2xl font-normal text-balance">{title}</h1>
+          <span className="hidden lg:block"><Logo /></span>
+          <h1 className="mt-0 lg:mt-6 font-display text-2xl font-normal text-balance">{title}</h1>
           <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
         </div>
         {isLoaded && !busy ? (
@@ -71,6 +90,7 @@ export function Shell({ title, subtitle, children, footer, busy }: { title: stri
         )}
         {busy && children}
         {footer && <p className="mt-8 text-center text-sm text-muted">{footer}</p>}
+      </div>
       </div>
     </main>
   );
