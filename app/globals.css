@@ -295,3 +295,14 @@ html:has([data-landing]) {
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1 !important; filter: none !important; transform: none !important; will-change: auto; }
 }
+
+/* Auth art panel: the dither pattern drifts in on page load */
+.dither-in {
+  animation: dither-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
+}
+@keyframes dither-in {
+  from { opacity: 0; scale: 1.06; filter: blur(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dither-in { animation: none; }
+}

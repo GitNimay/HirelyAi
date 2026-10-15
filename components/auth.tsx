@@ -50,9 +50,9 @@ const homeLink = <Link href="/" className="mt-3 block text-xs text-muted hover:t
 export function Shell({ title, subtitle, children, footer, busy }: { title: string; subtitle: ReactNode; children?: ReactNode; footer?: ReactNode; busy?: string }) {
   const { isLoaded } = useAuth();
   return (
-    <main className="flex min-h-dvh flex-1 flex-col lg:flex-row">
+    <main className="flex min-h-dvh flex-1 flex-col lg:flex-row-reverse">
       {/* Art panel: top banner on phone/tablet, left half on desktop */}
-      <aside className="relative flex h-60 shrink-0 flex-col justify-between overflow-hidden bg-border px-6 pb-6 pt-8 md:h-[360px] md:p-8 lg:h-auto lg:w-1/2 lg:p-10 dark:lg:bg-surface">
+      <aside className="relative flex h-60 shrink-0 flex-col justify-between overflow-hidden bg-background px-6 pb-6 pt-8 md:h-[360px] md:p-8 lg:h-auto lg:w-1/2 lg:p-10">
         <Dithering
           speed={0.28}
           shape="warp"
@@ -60,7 +60,7 @@ export function Shell({ title, subtitle, children, footer, busy }: { title: stri
           size={4.2}
           colorBack="#00000000"
           colorFront="#DC776873"
-          className="absolute inset-0 size-full bg-background"
+          className="dither-in absolute inset-0 size-full"
         />
         <div className="relative"><Logo faint={false} size={48} /></div>
         <div className="relative">
