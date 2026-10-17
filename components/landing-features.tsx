@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, LayoutGroup, motion, useInView, useReducedMotion, useSpring, useTransform } from "motion/react";
+import { ThinkingOrb } from "thinking-orbs";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, icons } from "./ui";
 
@@ -49,9 +50,9 @@ function Frame({ label, tone, frameRef, children }: { label: string; tone: keyof
 }
 
 const VOICE = [
-  { thinking: false, label: "Listening", you: "I led the rewrite of our payments flow…" },
-  { thinking: true, label: "Thinking…", you: "" },
-  { thinking: false, label: "Speaking", agent: "What was the hardest trade-off?" },
+  { orb: "listening", label: "Listening", you: "I led the rewrite of our payments flow…" },
+  { orb: "solving", label: "Thinking…", you: "" },
+  { orb: "composing", label: "Speaking", agent: "What was the hardest trade-off?" },
 ] as const;
 
 export function VoiceVisual() {
@@ -65,7 +66,7 @@ export function VoiceVisual() {
         <span className="tabular-nums">{Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")} left</span>
       </div>
       <div className="flex justify-center py-3">
-        <img src={s.thinking ? "/interviewer/thinking.gif" : "/interviewer/idle.svg"} alt="" aria-hidden className="size-16" />
+        <ThinkingOrb state={s.orb} size={64} />
       </div>
       <div className="h-11 text-center">
         <AnimatePresence mode="wait">
