@@ -4,7 +4,6 @@ import type { RemoteParticipant, Room } from "livekit-client";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { ThinkingOrb } from "thinking-orbs";
 import { answer, beginTest, finishTest, onboard, start, verify, warm } from "@/app/interview/actions";
 import type { CandidateView } from "@/lib/interview";
 import { cleanProfile, INTERVIEW, KINDS, NOTICE, screeningFacts, type McqPublic, type Profile } from "@/lib/interview-fields";
@@ -19,8 +18,6 @@ type Step = "gate" | "details" | "mic" | "brief" | "live" | "ready" | "test" | "
 type AgentState = "connecting" | "initializing" | "listening" | "thinking" | "speaking";
 const STEPS = { voice: ["Sign in", "Your details", "Mic check", "Overview", "Interview"], mcq: ["Sign in", "Your details", "Instructions", "Test"] };
 const INDEX: Record<Step, number> = { gate: 0, details: 1, mic: 2, brief: 3, live: 4, ready: 2, test: 3, done: 5, closed: 0 };
-// The orb's tuned animation for each interviewer state
-const ORB = { connecting: "connecting", initializing: "connecting", listening: "listening", thinking: "solving", speaking: "composing" } as const;
 const STATE_LABEL: Record<AgentState, string> = {
   connecting: "Connecting…", initializing: "Your interviewer is joining…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking",
 };
@@ -479,10 +476,8 @@ function Live({ agent, caption, endsAt, muted, onUnmute, onEnd, onTimeUp }: {
         <span className="sr-only" aria-live="assertive">{secs <= 30 && secs > 0 ? "30 seconds left" : secs <= 60 && secs > 0 ? "One minute left" : ""}</span>
       </div>
 
-      {/* Tuned at 64px and drawn at up to 2x density, so 1.5x stays sharp. It follows data-theme on its own. */}
-      <div className="flex size-32 items-center justify-center" aria-hidden>
-        <ThinkingOrb state={ORB[agent]} size={64} className="scale-150" />
-      </div>
+      {/* Animated blob while the interviewer thinks, the attentive one otherwise */}
+      <img src={agent === "thinking" ? "/interviewer/thinking.gif" : "/interviewer/idle.svg"} alt="" aria-hidden className="size-32" />
 
       <div className="min-h-24 w-full space-y-3" aria-live="polite">
         <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
