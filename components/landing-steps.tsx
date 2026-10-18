@@ -295,8 +295,8 @@ export function HowItWorks({ children }: { children: ReactNode }) {
   }, [paths]);
 
   return (
-    <section id="how-it-works" className="scroll-mt-14 overflow-x-clip border-t border-border px-4 pb-20 pt-16 sm:px-8 sm:pb-32 sm:pt-24">
-      <div className="flex flex-col items-center text-center">{children}</div>
+    <section id="how-it-works" className="scroll-mt-14 overflow-x-clip border-t border-border px-4 py-16 sm:px-8 sm:py-24 lg:px-16">
+      {children}
       <div ref={track} className="relative mx-auto mt-12 max-w-4xl sm:mt-16">
         <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden style={isoVars}>
           {paths.map((d, i) => (
@@ -331,8 +331,9 @@ export function HowItWorks({ children }: { children: ReactNode }) {
                   </g>
                 </svg>
                 <div className="min-w-0 max-w-64">
-                  <h3 data-line className="text-sm font-medium">{n.title}</h3>
-                  <p data-line className="mt-1 text-pretty text-sm text-muted">{n.body}</p>
+                  <span data-line className="block font-mono text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
+                  <h3 data-line className="mt-2 text-[15px] font-medium">{n.title}</h3>
+                  <p data-line className="mt-1 text-pretty text-[13px] leading-relaxed text-muted">{n.body}</p>
                 </div>
               </li>
             );

@@ -6,7 +6,7 @@ import { HowItWorks } from "./landing-steps";
 import { Wordmark } from "./landing-wordmark";
 import { Reveal, RevealWords } from "./reveal";
 import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, VoiceVisual } from "./landing-features";
-import { Icon, btnLg, btnOutline, btnPrimary, icons } from "./ui";
+import { Icon, btnOutline, btnPrimary, icons } from "./ui";
 
 /* Landing page. Type scale is three sizes (display, text-sm, text-xs) in two weights (normal, medium). */
 
@@ -21,7 +21,16 @@ const footerCols = (signedIn: boolean): [string, [string, string][]][] => [
   ["Legal", [["Privacy", "/privacy"], ["Terms", "/terms"]]],
 ];
 
-const display = "text-[clamp(2rem,5vw,3.25rem)] leading-[1.1] font-display font-normal tracking-[-0.01em] text-balance";
+// One heading style for the whole page; the hero h1 is the same face one step larger.
+const display = "text-[clamp(1.5rem,3vw,2rem)] leading-[1.2] font-sans font-medium tracking-[-0.03em] text-balance";
+const lede = "text-pretty text-[15px] leading-relaxed text-muted";
+const pill = "!h-10 !rounded-full !px-5";
+const section = "scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24 lg:px-16";
+
+/** Section heading, left-aligned and two-tone: muted lead-in, then the point. */
+function Heading({ a, b }: { a: string; b: string }) {
+  return <Reveal as="h2" className={display}><span className="text-muted">{a}</span><br />{b}</Reveal>;
+}
 
 const features: { tag: string; title: string; body: string; Visual: () => React.ReactNode }[] = [
   { tag: "Voice", Visual: VoiceVisual, title: "Structured voice interviews", body: "A five-minute spoken first round, conducted by an LLM and completed at the candidate's convenience before the closing date." },
@@ -116,103 +125,111 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <ThemeToggle />
         </nav>
         <div className="ml-auto flex items-center px-2.5 sm:px-3">
-          <Link href={cta.href} className={`${btnPrimary} ${btnLg} max-sm:!h-9 max-sm:px-3 max-sm:text-[13px]`}>
-            {cta.label} <Icon d={chevron} size={14} />
-          </Link>
+          <Link href={cta.href} className={`${btnPrimary} !h-9 !rounded-full !px-4`}>{cta.label}</Link>
         </div>
       </header>
 
       <main id="main" className="flex-1">
-        <section className="flex flex-col items-center px-4 pb-16 pt-14 text-center sm:px-8 sm:pb-24 sm:pt-28">
-          <RevealWords text={"Hire on signal,\nnot on resumes."} className={`${display} max-w-3xl`} />
-          <Reveal as="p" i={1} className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-muted">
+        <section className={`${section} !border-t-0 !pt-14 sm:!pt-24`}>
+          <RevealWords text={"Hire on signal,\nnot on resumes."} className={`${display} max-w-3xl !text-[clamp(1.75rem,3.5vw,2.5rem)] !leading-[1.15]`} />
+          <Reveal as="p" i={1} className={`${lede} mt-4 max-w-[29rem]`}>
             An AI runs the first interview for every applicant, so recruiters meet the right people and candidates hear back fast.
           </Reveal>
-          <Reveal i={2} className="mt-8 flex flex-wrap justify-center gap-2">
-            <Link href={cta.href} className={`${btnPrimary} ${btnLg}`}>
-              {cta.label} <Icon d={chevron} size={14} />
-            </Link>
-            {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${btnLg}`}>Log in</Link>}
+          <Reveal i={2} className="mt-7 flex flex-wrap gap-2.5">
+            <Link href={cta.href} className={`${btnPrimary} ${pill}`}>{cta.label}</Link>
+            {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${pill}`}>Log in</Link>}
           </Reveal>
           <Reveal i={3} className="w-full"><HeroDashboard /></Reveal>
         </section>
 
-        <section id="features" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
-          <div className="flex flex-col items-center text-center">
-            <Reveal as="h2" className={`${display} max-w-2xl`}>A consistent first round<br />for every applicant.</Reveal>
-            <Reveal as="p" i={1} className="mt-5 max-w-md text-pretty text-sm text-muted">From application to shortlist, the entire screening stage is managed on a single platform.</Reveal>
-          </div>
-          <div className="mt-12 grid gap-x-6 gap-y-12 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
+        <section id="features" className={section}>
+          <Heading a="A consistent first round" b="for every applicant." />
+          <Reveal as="p" i={1} className={`${lede} mt-4 max-w-md`}>From application to shortlist, the entire screening stage is managed on a single platform.</Reveal>
+          {/* Zigzag: visual alternates sides; copy sits at the bottom beside it on even rows, centred on odd ones */}
+          <div className="mt-12 space-y-16 sm:mt-20 sm:space-y-28">
             {features.map((f, i) => (
-              <Reveal as="article" key={f.tag} i={i % 3}>
-                <f.Visual />
-                <h3 className="mt-5 text-sm font-medium">{f.title}</h3>
-                <p className="mt-1.5 text-pretty text-sm text-muted">{f.body}</p>
-              </Reveal>
+              <article key={f.tag} className="grid gap-6 sm:grid-cols-2 sm:gap-10 lg:gap-14">
+                <Reveal className={i % 2 ? "" : "sm:order-2"}><f.Visual /></Reveal>
+                <Reveal i={1} className={i % 2 ? "self-center" : "self-end sm:pb-2"}>
+                  <span className="text-2xl font-normal tabular-nums tracking-[-0.02em] text-muted">{String(i + 1).padStart(2, "0")}</span>
+                  <h3 className="mt-2 text-[clamp(1.375rem,2.5vw,1.75rem)] font-medium leading-tight tracking-[-0.03em]">{f.title}</h3>
+                  <p className={`${lede} mt-3 max-w-md`}>{f.body}</p>
+                </Reveal>
+              </article>
             ))}
           </div>
         </section>
 
         <HowItWorks>
-          <Reveal as="h2" className={display}>From job posting<br />to shortlist.</Reveal>
+          <Heading a="From job posting" b="to shortlist." />
         </HowItWorks>
 
-        <section id="both-sides" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
-          <div className="flex flex-col items-center text-center">
-            <Reveal as="h2" className={`${display} max-w-2xl`}>One process, designed<br />for both parties.</Reveal>
-          </div>
-          <div className="mx-auto mt-12 grid max-w-4xl gap-x-16 gap-y-12 sm:mt-16 sm:grid-cols-2 sm:gap-y-16">
-            {sides(signedIn).map((s, i) => (
-              <Reveal as="article" key={s.tag} i={i} className="flex flex-col">
-                <div className="flex items-center gap-2 text-muted">
-                  <Icon d={s.icon} size={14} className="shrink-0" />
-                  <span className="font-mono text-xs uppercase tracking-wider text-muted">{s.tag}</span>
-                </div>
-                <h3 className="mt-8 text-sm font-medium">{s.title}</h3>
-                <p className="mt-1.5 max-w-sm text-pretty text-sm leading-relaxed text-muted">{s.body}</p>
-                <ul className="mt-8 flex-1 space-y-3 text-sm">
-                  {s.points.map((p) => (
-                    <li key={p} className="flex items-center gap-3 font-medium">
-                      <Icon d={icons.check} size={14} className="shrink-0 text-muted" />
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-                <Link href={s.cta.href} className={`${i ? btnPrimary : btnOutline} ${btnLg} mt-10 self-start`}>
-                  {s.cta.label} <Icon d={chevron} size={14} />
-                </Link>
-              </Reveal>
-            ))}
+        <section id="both-sides" className={section}>
+          <div className="grid gap-10 lg:grid-cols-[22rem_1fr] lg:gap-16">
+            <Heading a="One process, designed" b="for both parties." />
+            <div className="grid gap-x-12 gap-y-12 sm:grid-cols-2">
+              {sides(signedIn).map((s, i) => (
+                <Reveal as="article" key={s.tag} i={i} className="flex flex-col">
+                  <div className="flex items-center gap-2 text-muted">
+                    <Icon d={s.icon} size={14} className="shrink-0" />
+                    <span className="text-xs">{s.tag}</span>
+                  </div>
+                  <h3 className="mt-5 text-[15px] font-medium">{s.title}</h3>
+                  <p className="mt-1.5 max-w-sm text-pretty text-[13px] leading-relaxed text-muted">{s.body}</p>
+                  <ul className="mt-6 flex-1 divide-y divide-border border-y border-border text-[13px]">
+                    {s.points.map((p) => (
+                      <li key={p} className="flex items-center gap-3 py-2.5 text-muted">
+                        <Icon d={icons.check} size={14} className="shrink-0" />
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link href={s.cta.href} className={`${i ? btnPrimary : btnOutline} ${pill} mt-8 self-start`}>
+                    {s.cta.label}
+                  </Link>
+                </Reveal>
+              ))}
+            </div>
           </div>
         </section>
 
-        <section id="faq" className="scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24">
-          <div className="flex flex-col items-center text-center">
-            <Reveal as="h2" className={display}>Frequently asked questions.</Reveal>
+        <section id="faq" className={section}>
+          <div className="grid gap-10 lg:grid-cols-[22rem_1fr] lg:gap-16">
+            <Heading a="Frequently asked" b="questions." />
+            <div>
+              <Reveal i={1} className="border-t border-border">
+                {faqs.map(([q, a]) => (
+                  <details key={q} className="group border-b border-border">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm [&::-webkit-details-marker]:hidden">
+                      {q}
+                      <span className="text-muted transition-colors group-hover:text-foreground motion-safe:transition-[color,rotate] group-open:rotate-90"><Icon d={chevron} size={14} /></span>
+                    </summary>
+                    <p className="-mt-1 pb-4 text-pretty text-[13px] leading-relaxed text-muted">{a}</p>
+                  </details>
+                ))}
+              </Reveal>
+              <Reveal i={2} as="p" className="mt-6 flex items-center gap-2 text-[13px] text-muted">
+                Having any doubts? <span className="font-medium text-foreground">Ask AI</span>
+                {assistants.map(([name, href, color, d]) => (
+                  <a key={name} href={href} target="_blank" rel="noreferrer" aria-label={`Ask ${name}`} title={`Ask ${name}`} className="text-foreground transition-opacity hover:opacity-60">
+                    <svg width={18} height={18} viewBox="0 0 24 24" fill={color} aria-hidden><path d={d} /></svg>
+                  </a>
+                ))}
+              </Reveal>
+            </div>
           </div>
-          <Reveal i={1} className="mx-auto mt-12 max-w-2xl border-t border-border sm:mt-16">
-            {faqs.map(([q, a]) => (
-              <details key={q} className="group border-b border-border">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-                  {q}
-                  <span className="text-muted transition-colors group-hover:text-foreground motion-safe:transition-[color,rotate] group-open:rotate-90"><Icon d={chevron} size={14} /></span>
-                </summary>
-                <p className="-mt-1 pb-5 text-pretty text-sm leading-relaxed text-muted">{a}</p>
-              </details>
-            ))}
-          </Reveal>
-          <Reveal i={2} as="p" className="mt-8 flex items-center justify-center gap-2 text-sm text-muted">
-            Having any doubts? <span className="font-medium text-foreground">Ask AI</span>
-            {assistants.map(([name, href, color, d]) => (
-              <a key={name} href={href} target="_blank" rel="noreferrer" aria-label={`Ask ${name}`} title={`Ask ${name}`} className="text-foreground transition-opacity hover:opacity-60">
-                <svg width={20} height={20} viewBox="0 0 24 24" fill={color} aria-hidden><path d={d} /></svg>
-              </a>
-            ))}
+        </section>
+
+        <section className={`${section} flex flex-col items-center text-center`}>
+          <Reveal as="h2" className={`${display} !text-[clamp(1.75rem,3.5vw,2.5rem)]`}><span className="text-muted">Hire on signal,</span><br />not on resumes.</Reveal>
+          <Reveal i={1} className="mt-7 flex flex-wrap justify-center gap-2.5">
+            <Link href={cta.href} className={`${btnPrimary} ${pill}`}>{cta.label}</Link>
+            {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${pill}`}>Log in</Link>}
           </Reveal>
         </section>
       </main>
 
-      <footer className="border-t border-border px-4 pt-12 sm:px-8">
+      <footer className="border-t border-border px-4 pt-12 sm:px-8 lg:px-16">
         <div className="flex flex-col gap-10 sm:flex-row sm:justify-between">
           <Link href="/" className="flex items-center gap-2 self-start">
             <Logo size={24} faint={false} />
@@ -232,7 +249,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             ))}
           </div>
         </div>
-        <div className="-mx-4 mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:mt-16 sm:px-8">
+        <div className="-mx-4 mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:mt-16 sm:px-8 lg:-mx-16 lg:px-16">
           <p>
             © {new Date().getFullYear()} Hire Excellence · An{" "}
             <a href="https://www.snab.co.in/" target="_blank" rel="noreferrer" className="text-foreground transition-colors hover:text-muted">SNAB</a>{" "}
