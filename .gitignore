@@ -12,7 +12,7 @@
 
 # testing
 /coverage
-/showreel
+
 # next.js
 /.next/
 /out/
@@ -39,14 +39,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-/dist/
-.vinext/
-.cloudflare/
 
 # cloudflare / vinext
 /dist/
 .vinext/
+.cloudflare/
 .wrangler/
 .dev.vars*
 
+# AI coding agents (personal, not for the public repo)
 .claude/
+.agents/
+AGENTS.md
+CLAUDE.md
+.cursor/
+.codex/
+.gemini/
+.mcp.json
+
+# local media work (showreel and video renders)
+/showreel
+/videos/
