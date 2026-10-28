@@ -5,7 +5,7 @@ import { HeroDashboard } from "./hero-dashboard";
 import { HowItWorks } from "./landing-steps";
 import { Wordmark } from "./landing-wordmark";
 import { Reveal, RevealWords } from "./reveal";
-import { CompanyVisual, McqVisual, PipelineVisual, ResumeVisual, ScoreVisual, VoiceVisual } from "./landing-features";
+import { FeatureShowcase } from "./landing-features";
 import { Icon, btnOutline, btnPrimary, icons } from "./ui";
 
 /* Landing page. Type scale is three sizes (display, text-sm, text-xs) in two weights (normal, medium). */
@@ -31,15 +31,6 @@ const section = "scroll-mt-14 border-t border-border px-4 py-16 sm:px-8 sm:py-24
 function Heading({ a, b }: { a: string; b: string }) {
   return <Reveal as="h2" className={display}><span className="text-muted">{a}</span><br />{b}</Reveal>;
 }
-
-const features: { tag: string; title: string; body: string; Visual: () => React.ReactNode }[] = [
-  { tag: "Voice", Visual: VoiceVisual, title: "Structured voice interviews", body: "A five-minute spoken first round, conducted by an LLM and completed at the candidate's convenience before the closing date." },
-  { tag: "Screening", Visual: McqVisual, title: "Timed assessments", body: "Recruiters may replace the spoken interview with a timed multiple-choice assessment." },
-  { tag: "Grading", Visual: ScoreVisual, title: "Evaluation against the role", body: "Each response is assessed against the job description, producing a score, a fit rating, and documented strengths and concerns." },
-  { tag: "Profile", Visual: ResumeVisual, title: "Profiles from resumes", body: "An uploaded resume populates the profile automatically, and the profile can be exported as an ATS-compatible PDF." },
-  { tag: "Pipeline", Visual: PipelineVisual, title: "Unified applicant pipeline", body: "Track each application from submission to shortlist, with interview results attached at every stage." },
-  { tag: "Trust", Visual: CompanyVisual, title: "Verified company pages", body: "Each company page is bound to a single domain and verified through a work email address." },
-];
 
 const sides = (signedIn: boolean) => [
   {
@@ -145,19 +136,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         <section id="features" className={section}>
           <Heading a="A consistent first round" b="for every applicant." />
           <Reveal as="p" i={1} className={`${lede} mt-4 max-w-md`}>From application to shortlist, the entire screening stage is managed on a single platform.</Reveal>
-          {/* Zigzag: visual alternates sides; copy sits at the bottom beside it on even rows, centred on odd ones */}
-          <div className="mt-12 space-y-16 sm:mt-20 sm:space-y-28">
-            {features.map((f, i) => (
-              <article key={f.tag} className="grid gap-6 sm:grid-cols-2 sm:gap-10 lg:gap-14">
-                <Reveal className={i % 2 ? "" : "sm:order-2"}><f.Visual /></Reveal>
-                <Reveal i={1} className={i % 2 ? "self-center" : "self-end sm:pb-2"}>
-                  <span className="text-2xl font-normal tabular-nums tracking-[-0.02em] text-muted">{String(i + 1).padStart(2, "0")}</span>
-                  <h3 className="mt-2 text-[clamp(1.375rem,2.5vw,1.75rem)] font-medium leading-tight tracking-[-0.03em]">{f.title}</h3>
-                  <p className={`${lede} mt-3 max-w-md`}>{f.body}</p>
-                </Reveal>
-              </article>
-            ))}
-          </div>
+          <Reveal i={2}><FeatureShowcase /></Reveal>
         </section>
 
         <HowItWorks>
