@@ -198,14 +198,6 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             </div>
           </div>
         </section>
-
-        <section className={`${section} flex flex-col items-center text-center`}>
-          <Reveal as="h2" className={`${display} !text-[clamp(1.75rem,3.5vw,2.5rem)]`}><span className="text-muted">Hire on signal,</span><br />not on resumes.</Reveal>
-          <Reveal i={1} className="mt-7 flex flex-wrap justify-center gap-2.5">
-            <Link href={cta.href} className={`${btnPrimary} ${pill}`}>{cta.label}</Link>
-            {!signedIn && <Link href="/sign-in" className={`${btnOutline} ${pill}`}>Log in</Link>}
-          </Reveal>
-        </section>
       </main>
 
       <footer className="border-t border-border px-4 pt-12 sm:px-8 lg:px-16">
