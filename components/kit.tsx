@@ -2,7 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { FluidHoverHighlight, spring, useFluidHover } from "@/lib/fluid-hover";
 import { cn } from "@/lib/utils";
 import { backBtn, btnDanger, btnGhost, btnLg, btnPrimary, Icon, icons } from "./ui";
@@ -10,7 +19,17 @@ import { backBtn, btnDanger, btnGhost, btnLg, btnPrimary, Icon, icons } from "./
 /** Shared client pieces: dialog, confirm, toasts, menu, tabs, back button, clamped text. */
 
 /** Native <dialog>: focus trap, Escape and inert background for free. Focuses `[data-autofocus]` when present. */
-export function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: ReactNode }) {
+export function Modal({
+  title,
+  onClose,
+  wide,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  wide?: boolean;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     ref.current?.showModal();
@@ -77,7 +96,11 @@ export function Feedback() {
   return (
     <>
       {/* Bottom-right (above the phone tab bar); newest at the bottom, springs in from the right, older ones glide up */}
-      <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-6 sm:right-6">
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-6 sm:right-6"
+      >
         <AnimatePresence initial={false}>
           {toasts.map((t) => (
             <motion.div
@@ -89,11 +112,18 @@ export function Feedback() {
               transition={reduce ? { duration: 0.12 } : spring.slow}
               className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-xl border border-border bg-surface py-2 pl-3 pr-1.5 text-sm text-foreground shadow-(--shadow-pop) sm:w-auto sm:min-w-72"
             >
-              <span className={`flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-hover ${t.tone ? "text-danger" : "text-success"}`}>
+              <span
+                className={`flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-hover ${t.tone ? "text-danger" : "text-success"}`}
+              >
                 <Icon d={t.tone ? icons.close : icons.check} size={14} />
               </span>
               <p className="flex-1 font-medium">{t.text}</p>
-              <button type="button" aria-label="Dismiss" onClick={() => dismiss(t.id)} className="flex size-7 shrink-0 items-center justify-center rounded-md max-sm:size-10 text-muted transition-colors hover:bg-surface-hover hover:text-foreground">
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => dismiss(t.id)}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md max-sm:size-10 text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+              >
                 <Icon d={icons.close} size={14} />
               </button>
             </motion.div>
@@ -105,8 +135,16 @@ export function Feedback() {
           <div className="space-y-4 p-5">
             {q.body && <p className="text-sm text-muted">{q.body}</p>}
             <div className="flex justify-end gap-2">
-              <button type="button" data-autofocus className={cn(btnGhost, btnLg)} onClick={() => answer(false)}>Cancel</button>
-              <button type="button" className={cn(q.danger ? btnDanger : btnPrimary, btnLg)} onClick={() => answer(true)}>{q.confirm}</button>
+              <button type="button" data-autofocus className={cn(btnGhost, btnLg)} onClick={() => answer(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={cn(q.danger ? btnDanger : btnPrimary, btnLg)}
+                onClick={() => answer(true)}
+              >
+                {q.confirm}
+              </button>
             </div>
           </div>
         </Modal>
@@ -119,7 +157,14 @@ export function Feedback() {
  * Menu button (WAI-ARIA APG): opening focuses the first item, arrows / Home / End move, Escape returns to the button.
  * Children are the items, each with role="menuitem" (closes on click) or "menuitemradio" (stays open).
  */
-export function Menu({ label, button, className, panelClassName, onOpen, children }: {
+export function Menu({
+  label,
+  button,
+  className,
+  panelClassName,
+  onOpen,
+  children,
+}: {
   label: string;
   button: ReactNode;
   className: string;
@@ -136,13 +181,15 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
 
   // Items fade up one after another: each gets its index before first paint, the stagger itself is CSS (.dd / .dd-item)
   useLayoutEffect(() => {
-    if (open) panel.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]').forEach((el, i) => el.style.setProperty("--i", String(i)));
+    if (open)
+      panel.current
+        ?.querySelectorAll<HTMLElement>('[role^="menuitem"]')
+        .forEach((el, i) => el.style.setProperty("--i", String(i)));
   }, [open]);
 
   useEffect(() => {
     if (open) items()[0]?.focus();
   }, [open]);
-
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!open) return;
@@ -186,7 +233,10 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
       <div
         data-open={open || undefined}
         inert={!open}
-        className={cn("dd absolute z-20 rounded-xl border border-border bg-surface text-sm shadow-(--shadow-pop) max-sm:max-w-[calc(100vw-2rem)]", panelClassName)}
+        className={cn(
+          "dd absolute z-20 rounded-xl border border-border bg-surface text-sm shadow-(--shadow-pop) max-sm:max-w-[calc(100vw-2rem)]",
+          panelClassName,
+        )}
       >
         <div>
           <div
@@ -212,7 +262,17 @@ export function Menu({ label, button, className, panelClassName, onOpen, childre
  * form value and fires a real change event, so FormData, validation and form-level onChange keep working.
  * Uncontrolled like a native select: no value/defaultValue means the first option.
  */
-export function Select({ options, value, defaultValue, onChange, name, required, className, panelClassName, "aria-label": ariaLabel }: {
+export function Select({
+  options,
+  value,
+  defaultValue,
+  onChange,
+  name,
+  required,
+  className,
+  panelClassName,
+  "aria-label": ariaLabel,
+}: {
   options: { value: string; label: string }[];
   value?: string;
   defaultValue?: string;
@@ -231,7 +291,10 @@ export function Select({ options, value, defaultValue, onChange, name, required,
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const id = useId();
-  const at = Math.max(0, options.findIndex((o) => o.value === current));
+  const at = Math.max(
+    0,
+    options.findIndex((o) => o.value === current),
+  );
 
   function show() {
     setActive(at);
@@ -253,7 +316,9 @@ export function Select({ options, value, defaultValue, onChange, name, required,
     close();
   }
   function onKeyDown(e: React.KeyboardEvent) {
-    const to = ({ ArrowDown: active + 1, ArrowUp: active - 1, Home: 0, End: options.length - 1 } as Record<string, number>)[e.key];
+    const to = (
+      { ArrowDown: active + 1, ArrowUp: active - 1, Home: 0, End: options.length - 1 } as Record<string, number>
+    )[e.key];
     if (to !== undefined) setActive(Math.min(options.length - 1, Math.max(0, to)));
     else if (e.key === "Enter" || e.key === " ") {
       if (options[active]) pick(options[active].value);
@@ -291,13 +356,29 @@ export function Select({ options, value, defaultValue, onChange, name, required,
         <Icon d="m6 9 6 6 6-6" size={16} className="menu-chevron shrink-0 text-muted" />
       </button>
       {/* after the button: a wrapping <label> names (and clicks) its first labelable child */}
-      <select ref={native} name={name} required={required} value={current} onChange={() => {}} tabIndex={-1} aria-hidden className="sr-only">
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      <select
+        ref={native}
+        name={name}
+        required={required}
+        value={current}
+        onChange={() => {}}
+        tabIndex={-1}
+        aria-hidden
+        className="sr-only"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
       </select>
       <div
         data-open={open || undefined}
         inert={!open}
-        className={cn("dd absolute left-0 top-full z-30 mt-1 w-full min-w-max max-sm:w-max max-sm:min-w-0 max-sm:max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-surface text-sm text-foreground shadow-(--shadow-pop)", panelClassName)}
+        className={cn(
+          "dd absolute left-0 top-full z-30 mt-1 w-full min-w-max max-sm:w-max max-sm:min-w-0 max-sm:max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-surface text-sm text-foreground shadow-(--shadow-pop)",
+          panelClassName,
+        )}
       >
         <div>
           <ul
@@ -318,7 +399,10 @@ export function Select({ options, value, defaultValue, onChange, name, required,
                 onMouseEnter={() => setActive(i)}
                 onClick={() => pick(o.value)}
                 style={{ "--i": Math.min(i, 8) } as CSSProperties}
-                className={cn("dd-item flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-2 max-sm:py-2.5", i === active && "bg-surface-hover")}
+                className={cn(
+                  "dd-item flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-2 max-sm:py-2.5",
+                  i === active && "bg-surface-hover",
+                )}
               >
                 {o.label}
                 {o.value === current && <Icon d={icons.check} size={14} className="shrink-0" />}
@@ -335,7 +419,13 @@ export function Select({ options, value, defaultValue, onChange, name, required,
  * Tab strip (WAI-ARIA tabs): ←/→/Home/End move between tabs, the selected one is underlined.
  * `fill` spreads tabs across the width (feed header); otherwise they sit left, compact.
  */
-export function Tabs<T extends string>({ label, tabs, value, onChange, fill }: {
+export function Tabs<T extends string>({
+  label,
+  tabs,
+  value,
+  onChange,
+  fill,
+}: {
   label: string;
   tabs: { id: T; label: string; count?: number }[];
   value: T;
@@ -344,7 +434,9 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, fill }: {
 }) {
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     const i = tabs.findIndex((t) => t.id === value);
-    const to = ({ ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 } as Record<string, number>)[e.key];
+    const to = ({ ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 } as Record<string, number>)[
+      e.key
+    ];
     if (to === undefined) return;
     e.preventDefault();
     const t = tabs[(to + tabs.length) % tabs.length];
@@ -358,29 +450,42 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, fill }: {
 
   return (
     <LayoutGroup id={group}>
-    <div ref={strip} role="tablist" aria-label={label} onKeyDown={onKeyDown} {...hover.handlers} className={fill ? "relative flex h-14 max-sm:overflow-x-auto" : "relative flex h-10 px-2 max-sm:overflow-x-auto"}>
-      <FluidHoverHighlight hover={hover} className={fill ? "bg-surface" : "rounded-md bg-surface"} />
-      {tabs.map((t) => {
-        const on = t.id === value;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            data-tab={t.id}
-            aria-selected={on}
-            tabIndex={on ? 0 : -1}
-            onClick={() => onChange(t.id)}
-            className={`relative flex items-center justify-center text-sm transition-colors outline-none hover:text-foreground focus-visible:bg-surface ${fill ? "flex-1" : "px-3"} ${on ? "font-medium text-foreground" : "text-muted"}`}
-          >
-            <TabLabel on={on}>
-              {t.label}
-              {t.count !== undefined && <span className="rounded-full bg-surface-hover px-1.5 text-xs tabular-nums text-muted">{t.count}</span>}
-            </TabLabel>
-          </button>
-        );
-      })}
-    </div>
+      <div
+        ref={strip}
+        role="tablist"
+        aria-label={label}
+        onKeyDown={onKeyDown}
+        {...hover.handlers}
+        className={
+          fill ? "relative flex h-14 max-sm:overflow-x-auto" : "relative flex h-10 px-2 max-sm:overflow-x-auto"
+        }
+      >
+        <FluidHoverHighlight hover={hover} className={fill ? "bg-surface" : "rounded-md bg-surface"} />
+        {tabs.map((t) => {
+          const on = t.id === value;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              data-tab={t.id}
+              aria-selected={on}
+              tabIndex={on ? 0 : -1}
+              onClick={() => onChange(t.id)}
+              className={`relative flex items-center justify-center text-sm transition-colors outline-none hover:text-foreground focus-visible:bg-surface ${fill ? "flex-1" : "px-3"} ${on ? "font-medium text-foreground" : "text-muted"}`}
+            >
+              <TabLabel on={on}>
+                {t.label}
+                {t.count !== undefined && (
+                  <span className="rounded-full bg-surface-hover px-1.5 text-xs tabular-nums text-muted">
+                    {t.count}
+                  </span>
+                )}
+              </TabLabel>
+            </button>
+          );
+        })}
+      </div>
     </LayoutGroup>
   );
 }
@@ -391,7 +496,13 @@ export function TabLabel({ on, children }: { on: boolean; children: ReactNode })
   return (
     <span className="relative flex h-full items-center gap-1.5">
       {children}
-      {on && <motion.span layoutId="tab-underline" transition={reduce ? { duration: 0 } : spring.moderate} className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-link" />}
+      {on && (
+        <motion.span
+          layoutId="tab-underline"
+          transition={reduce ? { duration: 0 } : spring.moderate}
+          className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-link"
+        />
+      )}
     </span>
   );
 }
@@ -405,7 +516,15 @@ export function setParam(key: string, value: string | null) {
 }
 
 /** Back through history when there is some, otherwise to `fallback` (a shared link opened in a new tab). */
-export function BackButton({ fallback = "/dashboard", label = "Back", beforeLeave }: { fallback?: string; label?: string; beforeLeave?: () => Promise<boolean> }) {
+export function BackButton({
+  fallback = "/dashboard",
+  label = "Back",
+  beforeLeave,
+}: {
+  fallback?: string;
+  label?: string;
+  beforeLeave?: () => Promise<boolean>;
+}) {
   const router = useRouter();
   return (
     <button
@@ -435,12 +554,20 @@ export function Clamp({ lines = 5, className, children }: { lines?: number; clas
     if (el && !open) setOver(el.scrollHeight - el.clientHeight > parseFloat(getComputedStyle(el).lineHeight) / 2);
   }, [children, open]);
 
-  const clamp: CSSProperties | undefined = open ? undefined : { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" };
+  const clamp: CSSProperties | undefined = open
+    ? undefined
+    : { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" };
   return (
     <>
-      <div ref={ref} className={className} style={clamp}>{children}</div>
+      <div ref={ref} className={className} style={clamp}>
+        {children}
+      </div>
       {over && !open && (
-        <button type="button" onClick={() => setOpen(true)} className="mt-0.5 text-sm font-medium text-muted hover:text-foreground hover:underline">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-0.5 text-sm font-medium text-muted hover:text-foreground hover:underline"
+        >
           …more
         </button>
       )}
@@ -459,7 +586,10 @@ export function useUnsavedGuard(dirty: boolean) {
 }
 
 /** Ask before leaving a dirty form through an in-app link or button. */
-export const leaveIfClean = (dirty: boolean) => (dirty ? ask({ title: "Discard changes?", body: "Your edits haven't been saved.", confirm: "Discard", danger: true }) : Promise.resolve(true));
+export const leaveIfClean = (dirty: boolean) =>
+  dirty
+    ? ask({ title: "Discard changes?", body: "Your edits haven't been saved.", confirm: "Discard", danger: true })
+    : Promise.resolve(true);
 
 const noSubscribe = () => () => {};
 /** A value only the browser knows (time zone, storage): `server` during SSR and hydration, then `get()`. */

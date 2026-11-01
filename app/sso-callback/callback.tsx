@@ -14,7 +14,12 @@ export function SSOCallback() {
     started.current = true;
     clerk
       .handleRedirectCallback(
-        { signInUrl: "/sign-in", signUpUrl: "/sign-up", signInFallbackRedirectUrl: "/dashboard", signUpFallbackRedirectUrl: "/dashboard" },
+        {
+          signInUrl: "/sign-in",
+          signUpUrl: "/sign-up",
+          signInFallbackRedirectUrl: "/dashboard",
+          signUpFallbackRedirectUrl: "/dashboard",
+        },
         async (to) => window.location.assign(to),
       )
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full load on purpose, see above

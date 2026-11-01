@@ -14,7 +14,10 @@ async function report(sessionId: string, transcript: Line[]) {
   for (let attempt = 1; attempt <= 4; attempt++) {
     const res = await fetch(`${process.env.APP_URL}/api/interview/complete`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.INTERVIEW_AGENT_SECRET}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${process.env.INTERVIEW_AGENT_SECRET}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ sessionId, transcript }),
     }).catch((e) => (console.error('report failed', e), null));
     if (res && res.status < 500) return; // 204 stored, 409 already stored
@@ -34,7 +37,13 @@ export default defineAgent({
     // interviewer's last question (the SDK sends it as agent_context) and by the names/terms of this call below.
     const { job, candidate: c } = meta;
     // Plus the candidate's skills and employers and the JD's jargon, picked by the app (AssemblyAI caps this at 100)
-    const keyterms = [...new Set([job.company, job.title, c.name, c.city, c.role, ...(meta.keyterms ?? [])].filter(Boolean).map((t) => t.slice(0, 50)))].slice(0, 100);
+    const keyterms = [
+      ...new Set(
+        [job.company, job.title, c.name, c.city, c.role, ...(meta.keyterms ?? [])]
+          .filter(Boolean)
+          .map((t) => t.slice(0, 50)),
+      ),
+    ].slice(0, 100);
     const session = new voice.AgentSession({
       stt: new inference.STT({
         model: 'assemblyai/universal-3-6-pro',
@@ -61,15 +70,27 @@ export default defineAgent({
 
     const transcript: Line[] = [];
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
-      if (item.type !== 'message' || (item.role !== 'user' && item.role !== 'assistant') || !item.textContent) return;
-      transcript.push({ role: item.role === 'user' ? 'candidate' : 'agent', text: item.textContent });
+      if (
+        item.type !== 'message' ||
+        (item.role !== 'user' && item.role !== 'assistant') ||
+        !item.textContent
+      )
+        return;
+      transcript.push({
+        role: item.role === 'user' ? 'candidate' : 'agent',
+        text: item.textContent,
+      });
     });
     // Ends on end_interview, the time limit, or the candidate leaving. Closing deletes the room, which hangs up their page.
     // Report on close rather than only at job shutdown, which runs after a teardown that can stall for a minute.
     let reported: Promise<void> | undefined;
     let noShow = false; // pre-warmed during the mic check, but the candidate never pressed Start: nothing to report
-    const reportOnce = () => (reported ??= noShow ? Promise.resolve() : report(meta.sessionId, transcript));
-    session.on(voice.AgentSessionEventTypes.Close, () => void reportOnce().finally(() => ctx.shutdown('interview over')));
+    const reportOnce = () =>
+      (reported ??= noShow ? Promise.resolve() : report(meta.sessionId, transcript));
+    session.on(
+      voice.AgentSessionEventTypes.Close,
+      () => void reportOnce().finally(() => ctx.shutdown('interview over')),
+    );
     ctx.addShutdownCallback(reportOnce);
 
     const hangUp = async () => session.shutdown({ reason: 'interview over' });
@@ -97,23 +118,38 @@ export default defineAgent({
     const first = meta.candidate.name.split(' ')[0] || 'there';
     const minutes = Math.round(meta.seconds / 60);
     if (meta.questions[0]) {
-      session.say(`Hi ${first}, I'm calling from ${meta.job.company}. This is a quick ${minutes} minute chat about the ${meta.job.title} role. Let's start. ${meta.questions[0]}`);
+      session.say(
+        `Hi ${first}, I'm calling from ${meta.job.company}. This is a quick ${minutes} minute chat about the ${meta.job.title} role. Let's start. ${meta.questions[0]}`,
+      );
     } else {
-      session.generateReply({ instructions: `Greet ${first} and say you're calling from ${meta.job.company} about the ${meta.job.title} role.` });
+      session.generateReply({
+        instructions: `Greet ${first} and say you're calling from ${meta.job.company} about the ${meta.job.title} role.`,
+      });
     }
     // A dropped connection doesn't end the session (only hanging up does), so the agent is still here when they rejoin
     ctx.room.on(RoomEvent.ParticipantConnected, () => {
-      session.generateReply({ instructions: 'The candidate just reconnected after their connection dropped. Welcome them back in a few words and repeat your last question.' });
+      session.generateReply({
+        instructions:
+          'The candidate just reconnected after their connection dropped. Welcome them back in a few words and repeat your last question.',
+      });
     });
 
     // Time limit: a nudge 30 s before; at the limit let the current sentence finish, then cut regardless 10 s later
     const ms = Math.max(10, meta.seconds) * 1000;
     const nudge = setTimeout(() => {
-      session.generateReply({ instructions: 'Time is almost up. Do not ask new questions. Briefly thank the candidate, then call end_interview.' });
+      session.generateReply({
+        instructions:
+          'Time is almost up. Do not ask new questions. Briefly thank the candidate, then call end_interview.',
+      });
     }, ms - 30_000);
     const end = setTimeout(() => session.shutdown({ drain: true, reason: 'time limit' }), ms);
-    const cut = setTimeout(() => session.shutdown({ drain: false, reason: 'time limit' }), ms + 10_000);
-    ctx.addShutdownCallback(async () => (clearTimeout(nudge), clearTimeout(end), clearTimeout(cut)));
+    const cut = setTimeout(
+      () => session.shutdown({ drain: false, reason: 'time limit' }),
+      ms + 10_000,
+    );
+    ctx.addShutdownCallback(
+      async () => (clearTimeout(nudge), clearTimeout(end), clearTimeout(cut)),
+    );
   },
 });
 

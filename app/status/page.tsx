@@ -7,14 +7,19 @@ export const metadata = { title: "Status | Hire Excellence", description: "Live 
 
 const BAR = { up: "bg-success", degraded: "bg-amber-500", down: "bg-danger", none: "bg-foreground/[0.07]" } as const;
 const LABEL = { up: "No issues", degraded: "Partial outage", down: "Outage", none: "No data" } as const;
-const fmt = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const fmt = (day: string) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 function Bars({ days }: { days: Day[] }) {
   return (
     <div className="mt-2.5 flex h-7 gap-px sm:gap-[2px]">
       {days.map((d, i) => (
         // Phones show the last 30 days, wider screens all 90
-        <span key={d.day} title={`${fmt(d.day)} · ${LABEL[tone(d)]}`} className={`${BAR[tone(d)]} flex-1 rounded-[2px] ${i < days.length - 30 ? "max-sm:hidden" : ""}`} />
+        <span
+          key={d.day}
+          title={`${fmt(d.day)} · ${LABEL[tone(d)]}`}
+          className={`${BAR[tone(d)]} flex-1 rounded-[2px] ${i < days.length - 30 ? "max-sm:hidden" : ""}`}
+        />
       ))}
     </div>
   );
@@ -44,7 +49,10 @@ export default async function StatusPage() {
         <section className="mt-14">
           <div className="flex items-baseline justify-between text-xs text-muted">
             <h2>Components</h2>
-            <span><span className="sm:hidden">Last 30 days</span><span className="max-sm:hidden">Last 90 days</span></span>
+            <span>
+              <span className="sm:hidden">Last 30 days</span>
+              <span className="max-sm:hidden">Last 90 days</span>
+            </span>
           </div>
           <ul className="mt-6 space-y-8">
             {COMPONENTS.map(({ id, name }) => (

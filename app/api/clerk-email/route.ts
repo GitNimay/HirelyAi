@@ -7,14 +7,17 @@ import { layout, MONO, p } from "@/lib/email";
  */
 export async function POST(req: Request) {
   // Public endpoint: drop unsigned or oversized requests before buffering the body
-  if (!req.headers.get("svix-signature") || Number(req.headers.get("Content-Length") ?? 0) > 256_000) return new Response("Bad request", { status: 400 });
+  if (!req.headers.get("svix-signature") || Number(req.headers.get("Content-Length") ?? 0) > 256_000)
+    return new Response("Bad request", { status: 400 });
   const body = await req.text();
   if (!(await verified(req.headers, body))) return new Response("Bad signature", { status: 400 });
   const { type, data } = JSON.parse(body);
   if (type !== "email.created" || data.delivered_by_clerk) return new Response(null, { status: 204 });
 
   const code: string | undefined = data.data?.otp_code;
-  const mail = code ? codeEmail(data.slug, code, data.to_email_address) : { subject: data.subject, html: data.body, text: data.body_plain };
+  const mail = code
+    ? codeEmail(data.slug, code, data.to_email_address)
+    : { subject: data.subject, html: data.body, text: data.body_plain };
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -31,13 +34,18 @@ function codeEmail(slug: string, code: string, to: string) {
   const reset = slug === "reset_password_code";
   const subject = `${code} is your Hire Excellence ${reset ? "password reset" : "verification"} code`;
   const heading = reset ? "Reset your password" : "Confirm your email";
-  const intro = reset ? "Enter this code to reset your password." : "Enter this code in the window where you're signing up.";
+  const intro = reset
+    ? "Enter this code to reset your password."
+    : "Enter this code in the window where you're signing up.";
   const note = "It expires in 10 minutes. If you didn't ask for it, you can safely ignore this email.";
   const digits = code.replace(/\D/g, "");
   const html = layout({
     art: reset ? "reset" : "verify",
     heading,
-    body: p(intro) + p(digits, 28, `font-family:${MONO};font-size:40px;line-height:48px;font-weight:500;letter-spacing:0.28em`) + p(note),
+    body:
+      p(intro) +
+      p(digits, 28, `font-family:${MONO};font-size:40px;line-height:48px;font-weight:500;letter-spacing:0.28em`) +
+      p(note),
     to,
     reason: "You're receiving it because someone used this address on Hire Excellence.",
   });
@@ -50,10 +58,24 @@ async function verified(h: Headers, body: string) {
   if (!id || !ts || !sigs || !(Math.abs(Date.now() / 1000 - Number(ts)) <= 300)) return false; // NaN fails too
   const secret = Uint8Array.from(atob(env.CLERK_WEBHOOK_SECRET.replace(/^whsec_/, "")), (c) => c.charCodeAt(0));
   const key = await crypto.subtle.importKey("raw", secret, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
-  return (await Promise.all(
-    sigs.split(" ").map((s) => s.split(",")[1]).filter(Boolean).map((s) => {
-      try { return crypto.subtle.verify("HMAC", key, Uint8Array.from(atob(s), (c) => c.charCodeAt(0)), new TextEncoder().encode(`${id}.${ts}.${body}`)); }
-      catch { return false; }
-    }),
-  )).some(Boolean);
+  return (
+    await Promise.all(
+      sigs
+        .split(" ")
+        .map((s) => s.split(",")[1])
+        .filter(Boolean)
+        .map((s) => {
+          try {
+            return crypto.subtle.verify(
+              "HMAC",
+              key,
+              Uint8Array.from(atob(s), (c) => c.charCodeAt(0)),
+              new TextEncoder().encode(`${id}.${ts}.${body}`),
+            );
+          } catch {
+            return false;
+          }
+        }),
+    )
+  ).some(Boolean);
 }

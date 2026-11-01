@@ -22,9 +22,20 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const ICON: Record<NotificationType, IconDef> = {
-  like: icons.like, repost: icons.repost, comment: icons.comment, thread: icons.comment, post: icons.article,
-  follow: icons.connect, invite: icons.connect, accept: icons.check,
-  applicant: icons.file, app_viewed: icons.jobs, app_shortlisted: icons.check, app_rejected: icons.close, job: icons.jobs, job_closed: icons.jobs,
+  like: icons.like,
+  repost: icons.repost,
+  comment: icons.comment,
+  thread: icons.comment,
+  post: icons.article,
+  follow: icons.connect,
+  invite: icons.connect,
+  accept: icons.check,
+  applicant: icons.file,
+  app_viewed: icons.jobs,
+  app_shortlisted: icons.check,
+  app_rejected: icons.close,
+  job: icons.jobs,
+  job_closed: icons.jobs,
 };
 
 const newestFirst = (a: Notification, b: Notification) => b.at - a.at;
@@ -59,7 +70,12 @@ function groups(items: Notification[], midnight: number | null): [string, Notifi
   if (midnight === null) return [["Notifications", items]];
   const today = items.filter((n) => n.at >= midnight);
   const earlier = items.filter((n) => n.at < midnight);
-  return ([["Today", today], ["Earlier", earlier]] as [string, Notification[]][]).filter(([, l]) => l.length > 0);
+  return (
+    [
+      ["Today", today],
+      ["Earlier", earlier],
+    ] as [string, Notification[]][]
+  ).filter(([, l]) => l.length > 0);
 }
 
 /** Notifications: everything that happens to you, grouped LinkedIn/X style, live via /api/realtime. */
@@ -95,7 +111,10 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
     setLoading(true);
     try {
       const next = await actions.loadNotifications(page.next);
-      setPage((p) => ({ items: [...p.items, ...next.items.filter((n) => !p.items.some((x) => x.id === n.id))], next: next.next }));
+      setPage((p) => ({
+        items: [...p.items, ...next.items.filter((n) => !p.items.some((x) => x.id === n.id))],
+        next: next.next,
+      }));
     } finally {
       setLoading(false);
     }
@@ -152,13 +171,17 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
           <Icon d={icons.notifications} size={28} className="text-muted" />
           <p className="mt-4 text-sm font-medium">{tab === "all" ? "No notifications yet" : "Nothing here"}</p>
           <p className="mt-1 max-w-sm text-pretty text-sm text-muted">
-            {tab === "all" ? "Likes, comments, invitations and job updates show up here the moment they happen." : "Nothing in this category yet."}
+            {tab === "all"
+              ? "Likes, comments, invitations and job updates show up here the moment they happen."
+              : "Nothing in this category yet."}
           </p>
         </div>
       ) : (
         groups(items, midnight).map(([label, list]) => (
           <section key={label} aria-label={label}>
-            {midnight !== null && <h2 className="border-b border-border px-4 py-2 text-xs font-medium text-muted">{label}</h2>}
+            {midnight !== null && (
+              <h2 className="border-b border-border px-4 py-2 text-xs font-medium text-muted">{label}</h2>
+            )}
             <ul>
               {list.map((n) => (
                 <Row key={n.id} n={n} onOpen={open} onRemove={remove} />
@@ -172,7 +195,11 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
         <NotificationRowsSkeleton n={3} />
       ) : (
         page.next && (
-          <button type="button" onClick={more} className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+          <button
+            type="button"
+            onClick={more}
+            className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"
+          >
             Show earlier notifications
           </button>
         )
@@ -181,7 +208,15 @@ export function Notifications({ initial, initialTab = "all" }: { initial: Page; 
   );
 }
 
-function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notification) => void; onRemove: (n: Notification) => void }) {
+function Row({
+  n,
+  onOpen,
+  onRemove,
+}: {
+  n: Notification;
+  onOpen: (n: Notification) => void;
+  onRemove: (n: Notification) => void;
+}) {
   const first = n.actors[0];
   return (
     <li className="group relative border-b border-border">
@@ -198,9 +233,12 @@ function Row({ n, onOpen, onRemove }: { n: Notification; onOpen: (n: Notificatio
         </span>
         <span className="min-w-0 flex-1">
           <span className="block break-words text-sm">
-            <span className="font-medium">{who(n.actors, n.count)}</span> <span className="text-muted">{verb(n.type, n.body)}</span>
+            <span className="font-medium">{who(n.actors, n.count)}</span>{" "}
+            <span className="text-muted">{verb(n.type, n.body)}</span>
           </span>
-          {hasPreview(n.type) && n.body && <span className="mt-0.5 line-clamp-2 block break-words text-xs text-muted">{n.body}</span>}
+          {hasPreview(n.type) && n.body && (
+            <span className="mt-0.5 line-clamp-2 block break-words text-xs text-muted">{n.body}</span>
+          )}
           <span className="mt-1 flex items-center gap-2 text-xs tabular-nums text-muted">
             <span className="shrink-0 whitespace-nowrap">{ago(n.at)}</span>
             {!n.read && (
@@ -244,8 +282,12 @@ export function QuickNotifications({ initial }: { initial: Notification[] }) {
   return (
     <section aria-labelledby="quick-notifs" className="border border-border bg-background">
       <div className="flex h-11 items-center justify-between border-b border-border px-4">
-        <h2 id="quick-notifs" className="text-sm font-medium">Notifications</h2>
-        <Link href="/dashboard/notifications" className="text-xs text-link hover:underline">See all</Link>
+        <h2 id="quick-notifs" className="text-sm font-medium">
+          Notifications
+        </h2>
+        <Link href="/dashboard/notifications" className="text-xs text-link hover:underline">
+          See all
+        </Link>
       </div>
       {items.length === 0 ? (
         <p className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-muted">
@@ -269,7 +311,8 @@ export function QuickNotifications({ initial }: { initial: Notification[] }) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-2 text-xs leading-snug">
-                    <span className="font-medium">{who(n.actors, n.count)}</span> <span className="text-muted">{verb(n.type, n.body)}</span>
+                    <span className="font-medium">{who(n.actors, n.count)}</span>{" "}
+                    <span className="text-muted">{verb(n.type, n.body)}</span>
                   </span>
                   <span className="mt-1 flex items-center gap-1.5 text-xs tabular-nums text-muted">
                     {ago(n.at)}

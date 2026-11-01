@@ -11,3 +11,9 @@ New: React to posts with more than a like.
 Fixed: Voice interviews play through the loudspeaker on iPhone.
 ```
 -->
+
+## Checklist
+
+- [ ] Tests added or updated for changed logic
+- [ ] D1 migrations are additive (no drops/renames in the same release)
+- [ ] No secrets, keys or `.env` values in the diff

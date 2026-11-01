@@ -14,7 +14,15 @@ function audio() {
 export const unlockSfx = () => void audio();
 
 // One sine "voice": quick attack, exponential decay, optional pitch glide.
-function tone(a: AudioContext, at: number, from: number, to: number, dur: number, vol: number, type: OscillatorType = "sine") {
+function tone(
+  a: AudioContext,
+  at: number,
+  from: number,
+  to: number,
+  dur: number,
+  vol: number,
+  type: OscillatorType = "sine",
+) {
   const osc = a.createOscillator();
   const gain = a.createGain();
   osc.type = type;

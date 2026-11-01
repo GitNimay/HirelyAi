@@ -13,9 +13,18 @@ const NODES = [
   { title: "Identify the role", body: "Begin with a position your organization needs to fill." },
   { title: "Verify your organization", body: "Confirm ownership of your company domain with a work email address." },
   { title: "Publish the position", body: "Select the screening format: a voice interview or a timed assessment." },
-  { title: "Receive applications", body: "Candidates apply with a resume, which is converted into a complete profile." },
-  { title: "Interviews are conducted", body: "Each applicant completes a five-minute LLM-led interview before the closing date." },
-  { title: "Review the shortlist", body: "Applicants are ranked by score, each with a fit rating and a written assessment." },
+  {
+    title: "Receive applications",
+    body: "Candidates apply with a resume, which is converted into a complete profile.",
+  },
+  {
+    title: "Interviews are conducted",
+    body: "Each applicant completes a five-minute LLM-led interview before the closing date.",
+  },
+  {
+    title: "Review the shortlist",
+    body: "Applicants are ranked by score, each with a fit rating and a written assessment.",
+  },
 ];
 const SIDE = ["L", "L", "R", "R", "L", "L"] as const;
 
@@ -38,8 +47,26 @@ const TIP_TOP = (-40 - H - VB.y) / VB.h; // back tip (-40,-40,H)
 const TIP_BOTTOM = (40 - VB.y) / VB.h; // front tip (40,40,0)
 
 /** An axis-aligned iso box: the two faces toward the viewer, then the top. */
-function Box({ x, y, z, w, d, h, top = "var(--iso-top)" }: { x: number; y: number; z: number; w: number; d: number; h: number; top?: string }) {
-  const X = x + w, Y = y + d, Z = z + h;
+function Box({
+  x,
+  y,
+  z,
+  w,
+  d,
+  h,
+  top = "var(--iso-top)",
+}: {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  d: number;
+  h: number;
+  top?: string;
+}) {
+  const X = x + w,
+    Y = y + d,
+    Z = z + h;
   return (
     <g>
       <polygon points={poly([X, y, z], [X, Y, z], [X, Y, Z], [X, y, Z])} fill="var(--iso-right)" />
@@ -51,7 +78,11 @@ function Box({ x, y, z, w, d, h, top = "var(--iso-top)" }: { x: number; y: numbe
 
 /** Pops in at `at` (0–1 along its row's timeline), dropping from `from` px. */
 function Pop({ at, from = -24, children }: { at: number; from?: number; children: ReactNode }) {
-  return <g data-pop={at} data-from={from}>{children}</g>;
+  return (
+    <g data-pop={at} data-from={from}>
+      {children}
+    </g>
+  );
 }
 
 // Affine maps from a face's flat frame (u right, v down, iso units) onto the screen:
@@ -67,13 +98,20 @@ function Face({ on, at, children }: { on: keyof typeof PLANE; at: [number, numbe
 /** A screen-facing ink disc floating at a 3D point, for status marks. */
 function Badge({ at, children }: { at: [number, number, number]; children: ReactNode }) {
   const [X, Y] = P(...at);
-  return <g transform={`translate(${X} ${Y})`}><circle r={8} fill={ink} />{children}</g>;
+  return (
+    <g transform={`translate(${X} ${Y})`}>
+      <circle r={8} fill={ink} />
+      {children}
+    </g>
+  );
 }
 
 /** A candidate: a cylinder body and a round head, standing at (x, y, z). */
 function Person({ x, y, z }: { x: number; y: number; z: number }) {
-  const rx = 8.6, ry = 5; // a radius-7 circle in iso
-  const [cx, by] = P(x, y, z), ty = by - 17;
+  const rx = 8.6,
+    ry = 5; // a radius-7 circle in iso
+  const [cx, by] = P(x, y, z),
+    ty = by - 17;
   return (
     <g>
       <path d={`M${cx - rx} ${ty}V${by}A${rx} ${ry} 0 0 0 ${cx + rx} ${by}V${ty}Z`} fill="var(--iso-left)" />
@@ -88,7 +126,9 @@ const muted = { strokeOpacity: 0.45 };
 const heading = { strokeWidth: 2.5 };
 const windows = (
   <>
-    {[5, 13, 21].flatMap((v) => [4, 11, 18].map((u) => <rect key={`${u}-${v}`} x={u} y={v} width={4} height={5} {...muted} />))}
+    {[5, 13, 21].flatMap((v) =>
+      [4, 11, 18].map((u) => <rect key={`${u}-${v}`} x={u} y={v} width={4} height={5} {...muted} />),
+    )}
     <path d="M10 36v-7h6v7" />
   </>
 );
@@ -112,10 +152,19 @@ const FIGURES: ReactNode[] = [
       </Face>
     </Pop>,
     <Pop key="plus" at={0.4} from={-12}>
-      <Badge at={[12, -25, H + 40]}><path d="M0-3.5v7M-3.5 0h7" stroke="var(--iso-top)" strokeWidth={2} /></Badge>
+      <Badge at={[12, -25, H + 40]}>
+        <path d="M0-3.5v7M-3.5 0h7" stroke="var(--iso-top)" strokeWidth={2} />
+      </Badge>
     </Pop>,
     <Pop key="chair" at={0.28}>
-      {[[-25, 8], [-25, 23], [-8, 8], [-8, 23]].map(([x, y]) => <Box key={x * y} x={x} y={y} z={H} w={3} d={3} h={10} />)}
+      {[
+        [-25, 8],
+        [-25, 23],
+        [-8, 8],
+        [-8, 23],
+      ].map(([x, y]) => (
+        <Box key={x * y} x={x} y={y} z={H} w={3} d={3} h={10} />
+      ))}
       <Box x={-26} y={8} z={H + 10} w={3} d={18} h={18} />
       <Box x={-23} y={8} z={H + 10} w={18} d={18} h={3} top={ink} />
     </Pop>,
@@ -124,12 +173,18 @@ const FIGURES: ReactNode[] = [
   [
     <Pop key="bldg" at={0.15}>
       <Box x={-30} y={-30} z={H} w={26} d={26} h={36} />
-      <Face on="L" at={[-30, -4, H + 36]}>{windows}</Face>
-      <Face on="R" at={[-4, -4, H + 36]}>{windows}</Face>
+      <Face on="L" at={[-30, -4, H + 36]}>
+        {windows}
+      </Face>
+      <Face on="R" at={[-4, -4, H + 36]}>
+        {windows}
+      </Face>
     </Pop>,
     <Pop key="mail" at={0.28}>
       <Box x={6} y={4} z={H} w={28} d={20} h={2} />
-      <Face on="T" at={[6, 4, H + 2]}><path d="M0 0l14 10 14-10" /></Face>
+      <Face on="T" at={[6, 4, H + 2]}>
+        <path d="M0 0l14 10 14-10" />
+      </Face>
     </Pop>,
     <Pop key="ok" at={0.42} from={-12}>
       <Badge at={[-1, -33, H + 44]}>{check}</Badge>
@@ -148,13 +203,19 @@ const FIGURES: ReactNode[] = [
     <Pop key="voice" at={0.28}>
       <Box x={-20} y={6} z={H} w={18} d={18} h={14} top={ink} />
       <Face on="L" at={[-20, 24, H + 14]}>
-        <g transform="translate(9 7.5)"><rect x={-2.25} y={-5} width={4.5} height={7} rx={2.25} /><path d="M-4.25 0a4.25 4.25 0 0 0 8.5 0M0 4.25v1.75" /></g>
+        <g transform="translate(9 7.5)">
+          <rect x={-2.25} y={-5} width={4.5} height={7} rx={2.25} />
+          <path d="M-4.25 0a4.25 4.25 0 0 0 8.5 0M0 4.25v1.75" />
+        </g>
       </Face>
     </Pop>,
     <Pop key="timed" at={0.36}>
       <Box x={4} y={6} z={H} w={18} d={18} h={14} />
       <Face on="L" at={[4, 24, H + 14]}>
-        <g transform="translate(9 7)"><circle r={4.75} /><path d="M0-2.75V0l2 1.4" /></g>
+        <g transform="translate(9 7)">
+          <circle r={4.75} />
+          <path d="M0-2.75V0l2 1.4" />
+        </g>
       </Face>
     </Pop>,
   ],
@@ -163,11 +224,17 @@ const FIGURES: ReactNode[] = [
     ...[0, 1, 2].map((k) => (
       <Pop key={k} at={0.12 + k * 0.07}>
         <Box x={-34 + k} y={6 - k * 2} z={H + k * 2.5} w={22} d={28} h={1.5} />
-        {k === 2 && <Face on="T" at={[-32, 2, H + 6.5]}>{sheetLines}</Face>}
+        {k === 2 && (
+          <Face on="T" at={[-32, 2, H + 6.5]}>
+            {sheetLines}
+          </Face>
+        )}
       </Pop>
     )),
     <Pop key="arrow" at={0.32} from={0}>
-      <Face on="T" at={[-4, -6, H]}><path d="M-6 6 6-6M0-6h6v6" strokeWidth={1.75} /></Face>
+      <Face on="T" at={[-4, -6, H]}>
+        <path d="M-6 6 6-6M0-6h6v6" strokeWidth={1.75} />
+      </Face>
     </Pop>,
     <Pop key="profile" at={0.38}>
       <Box x={-6} y={-28} z={H} w={34} d={3} h={36} />
@@ -194,7 +261,19 @@ const FIGURES: ReactNode[] = [
     </Pop>,
     <Pop key="wave" at={0.3} from={0}>
       <Face on="L" at={[-30, -20, H + 38]}>
-        <path d={[[9, 4], [12.5, 8], [16, 5], [30, 6], [33.5, 9], [37, 4]].map(([u, h]) => `M${u} ${13 - h / 2}v${h}`).join("")} strokeWidth={2} />
+        <path
+          d={[
+            [9, 4],
+            [12.5, 8],
+            [16, 5],
+            [30, 6],
+            [33.5, 9],
+            [37, 4],
+          ]
+            .map(([u, h]) => `M${u} ${13 - h / 2}v${h}`)
+            .join("")}
+          strokeWidth={2}
+        />
       </Face>
     </Pop>,
     <Pop key="person" at={0.22}>
@@ -204,7 +283,18 @@ const FIGURES: ReactNode[] = [
       <g transform={`translate(${P(18, -22, H + 44).join(" ")})`}>
         <rect x={-15} y={-5.5} width={30} height={11} rx={5.5} fill="var(--iso-top)" />
         <circle cx={-8.5} r={1.75} fill={ink} stroke="none" />
-        <text x={3} y={2.4} textAnchor="middle" fontSize={7} fontWeight={600} fill={ink} stroke="none" className="tabular-nums">5:00</text>
+        <text
+          x={3}
+          y={2.4}
+          textAnchor="middle"
+          fontSize={7}
+          fontWeight={600}
+          fill={ink}
+          stroke="none"
+          className="tabular-nums"
+        >
+          5:00
+        </text>
       </g>
     </Pop>,
   ],
@@ -212,7 +302,9 @@ const FIGURES: ReactNode[] = [
   [
     <Pop key="sheet" at={0.12}>
       <Box x={-28} y={4} z={H} w={22} d={28} h={1.5} />
-      <Face on="T" at={[-28, 4, H + 1.5]}>{sheetLines}</Face>
+      <Face on="T" at={[-28, 4, H + 1.5]}>
+        {sheetLines}
+      </Face>
     </Pop>,
     <Pop key="board" at={0.15}>
       <Box x={-30} y={-26} z={H} w={50} d={3} h={40} />
@@ -223,13 +315,29 @@ const FIGURES: ReactNode[] = [
           {k === 0 && <rect x={3} y={-1} width={44} height={10} rx={2} fill={ink} fillOpacity={0.12} stroke="none" />}
           <circle cx={9} cy={4} r={3} fill={k === 0 ? ink : "none"} strokeOpacity={k === 0 ? 1 : 0.6} />
           <path d="M15 4h15" {...(k === 0 ? heading : muted)} />
-          <text x={44} y={6.4} textAnchor="end" fontSize={6.5} fontWeight={600} fill={ink} fillOpacity={k === 0 ? 1 : 0.5} stroke="none" className="tabular-nums">{score}</text>
+          <text
+            x={44}
+            y={6.4}
+            textAnchor="end"
+            fontSize={6.5}
+            fontWeight={600}
+            fill={ink}
+            fillOpacity={k === 0 ? 1 : 0.5}
+            stroke="none"
+            className="tabular-nums"
+          >
+            {score}
+          </text>
         </Face>
       </Pop>
     )),
     <Pop key="star" at={0.44} from={-12}>
       <Badge at={[22, -24, H + 46]}>
-        <polygon points="0,-4.5 1.3,-1.6 4.3,-1.4 2,0.7 2.7,3.7 0,2 -2.7,3.7 -2,0.7 -4.3,-1.4 -1.3,-1.6" fill="var(--iso-top)" stroke="none" />
+        <polygon
+          points="0,-4.5 1.3,-1.6 4.3,-1.4 2,0.7 2.7,3.7 0,2 -2.7,3.7 -2,0.7 -4.3,-1.4 -1.3,-1.6"
+          fill="var(--iso-top)"
+          stroke="none"
+        />
       </Badge>
     </Pop>,
   ],
@@ -237,11 +345,14 @@ const FIGURES: ReactNode[] = [
 
 /** Bottom tip of figure a to back tip of figure b: straight when they line up, else a rounded S. */
 function route(a: DOMRect, b: DOMRect, r = 28) {
-  const sx = a.left + a.width / 2, sy = a.top + a.height * TIP_BOTTOM;
-  const tx = b.left + b.width / 2, ty = b.top + b.height * TIP_TOP;
+  const sx = a.left + a.width / 2,
+    sy = a.top + a.height * TIP_BOTTOM;
+  const tx = b.left + b.width / 2,
+    ty = b.top + b.height * TIP_TOP;
   const dx = tx - sx;
   if (Math.abs(dx) < 1) return `M${sx} ${sy} V${ty}`;
-  const my = (sy + ty) / 2, dir = Math.sign(dx);
+  const my = (sy + ty) / 2,
+    dir = Math.sign(dx);
   const q = Math.min(r, Math.abs(dx) / 2, (ty - sy) / 4);
   return `M${sx} ${sy} V${my - q} A${q} ${q} 0 0 ${dir > 0 ? 0 : 1} ${sx + dir * q} ${my} H${tx - dir * q} A${q} ${q} 0 0 ${dir > 0 ? 1 : 0} ${tx} ${my + q} V${ty}`;
 }
@@ -273,20 +384,33 @@ export function HowItWorks({ children }: { children: ReactNode }) {
     const simple = matchMedia("(prefers-reduced-motion: reduce), (max-width: 1023px)").matches;
     const ctx = gsap.context(() => {
       track.current!.querySelectorAll<SVGPathElement>("[data-seg]").forEach((el) => {
-        gsap.fromTo(el, { attr: { "stroke-dashoffset": 1 } }, {
-          attr: { "stroke-dashoffset": 0 }, ease: "none",
-          scrollTrigger: { trigger: el, start: "top 75%", end: "bottom 75%", scrub: 0.5 },
-        });
+        gsap.fromTo(
+          el,
+          { attr: { "stroke-dashoffset": 1 } },
+          {
+            attr: { "stroke-dashoffset": 0 },
+            ease: "none",
+            scrollTrigger: { trigger: el, start: "top 75%", end: "bottom 75%", scrub: 0.5 },
+          },
+        );
       });
       track.current!.querySelectorAll<HTMLElement>("[data-row]").forEach((row) => {
-        const tl = gsap.timeline({ defaults: { ease: "none" }, scrollTrigger: { trigger: row, start: "top 85%", end: "top 45%", scrub: 0.5 } });
+        const tl = gsap.timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: { trigger: row, start: "top 85%", end: "top 45%", scrub: 0.5 },
+        });
         row.querySelectorAll<SVGGElement>("[data-pop]").forEach((g) => {
           const at = +g.dataset.pop!;
           tl.fromTo(g, { opacity: 0 }, { opacity: 1, duration: 0.15 }, at);
           if (!simple) tl.fromTo(g, { y: +g.dataset.from! }, { y: 0, duration: 0.25, ease: "power3.out" }, at);
         });
         row.querySelectorAll("[data-line]").forEach((t, k) => {
-          tl.fromTo(t, { opacity: 0, y: simple ? 0 : 10 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 0.45 + k * 0.15);
+          tl.fromTo(
+            t,
+            { opacity: 0, y: simple ? 0 : 10 },
+            { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" },
+            0.45 + k * 0.15,
+          );
         });
         tl.set({}, {}, 1); // pad to 1 so `at` values are fractions of the row's scroll
       });
@@ -295,14 +419,25 @@ export function HowItWorks({ children }: { children: ReactNode }) {
   }, [paths]);
 
   return (
-    <section id="how-it-works" className="scroll-mt-14 overflow-x-clip border-t border-border px-4 py-16 sm:px-8 sm:py-24 lg:px-16">
+    <section
+      id="how-it-works"
+      className="scroll-mt-14 overflow-x-clip border-t border-border px-4 py-16 sm:px-8 sm:py-24 lg:px-16"
+    >
       {children}
       <div ref={track} className="relative mx-auto mt-12 max-w-4xl sm:mt-16">
         <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden style={isoVars}>
           {paths.map((d, i) => (
             <g key={i} fill="none">
               <path d={d} stroke="var(--muted)" strokeOpacity={0.45} strokeDasharray="3 5" />
-              <path data-seg d={d} pathLength={1} strokeDasharray="1 1" strokeDashoffset={1} stroke={ink} strokeWidth={1.5} />
+              <path
+                data-seg
+                d={d}
+                pathLength={1}
+                strokeDasharray="1 1"
+                strokeDashoffset={1}
+                stroke={ink}
+                strokeWidth={1.5}
+              />
             </g>
           ))}
         </svg>
@@ -331,9 +466,15 @@ export function HowItWorks({ children }: { children: ReactNode }) {
                   </g>
                 </svg>
                 <div className="min-w-0 max-w-64">
-                  <span data-line className="block font-mono text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
-                  <h3 data-line className="mt-2 text-[15px] font-medium">{n.title}</h3>
-                  <p data-line className="mt-1 text-pretty text-[13px] leading-relaxed text-muted">{n.body}</p>
+                  <span data-line className="block font-mono text-xs text-muted">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 data-line className="mt-2 text-[15px] font-medium">
+                    {n.title}
+                  </h3>
+                  <p data-line className="mt-1 text-pretty text-[13px] leading-relaxed text-muted">
+                    {n.body}
+                  </p>
                 </div>
               </li>
             );

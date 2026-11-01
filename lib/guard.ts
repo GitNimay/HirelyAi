@@ -27,7 +27,8 @@ export async function writer() {
 /** Bedrock calls cost money and take seconds, so they get a much tighter per-user cap than other writes. */
 export async function aiWriter() {
   const userId = await writer();
-  if (!(await env.AI_LIMIT.limit({ key: userId })).success) throw new Fail("Too many AI requests. Try again in a minute.");
+  if (!(await env.AI_LIMIT.limit({ key: userId })).success)
+    throw new Fail("Too many AI requests. Try again in a minute.");
   return userId;
 }
 
@@ -37,6 +38,7 @@ export const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim
 export async function ownImage(me: string, key: unknown, folder: Folder) {
   const k = typeof key === "string" ? key : "";
   const obj = inFolder(k, folder, me) ? await env.MEDIA.head(k) : null;
-  if (!obj || obj.customMetadata?.owner !== me || !PROFILE_IMAGE_TYPES.includes(obj.httpMetadata?.contentType ?? "")) throw new Fail("Image upload failed. Try again.");
+  if (!obj || obj.customMetadata?.owner !== me || !PROFILE_IMAGE_TYPES.includes(obj.httpMetadata?.contentType ?? ""))
+    throw new Fail("Image upload failed. Try again.");
   return k;
 }

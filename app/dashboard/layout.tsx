@@ -14,7 +14,13 @@ import { latestNotifications, unseenCount } from "@/lib/notifications";
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const { userId } = await auth.protect();
   // Name and photo come from D1 (editable on the profile), not Clerk
-  const [session, unseen, summary, latest, toured] = await Promise.all([signedIn(), unseenCount(userId), getSummary(userId), latestNotifications(userId), seenTour(userId, "welcome")]);
+  const [session, unseen, summary, latest, toured] = await Promise.all([
+    signedIn(),
+    unseenCount(userId),
+    getSummary(userId),
+    latestNotifications(userId),
+    seenTour(userId, "welcome"),
+  ]);
   const me = session?.me;
   // New members set up their profile first
   if (me && !me.onboarded) redirect("/onboarding");
@@ -25,7 +31,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
     <>
       {/* Phone top bar: the sidebar (logo, Post, account) is hidden below sm, so these live here */}
       <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur sm:hidden">
-        <Link href="/dashboard" aria-label="Hire Excellence home" className="-ml-2 flex size-10 items-center justify-center">
+        <Link
+          href="/dashboard"
+          aria-label="Hire Excellence home"
+          className="-ml-2 flex size-10 items-center justify-center"
+        >
           <Logo size={24} faint={false} />
         </Link>
         <div className="-mr-2 flex items-center gap-2">
@@ -34,7 +44,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
         </div>
       </header>
       <div className="mx-auto flex w-full max-w-[1200px] flex-1 justify-center">
-        <a href="#main" className="sr-only rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50">
+        <a
+          href="#main"
+          className="sr-only rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
+        >
           Skip to content
         </a>
         {/* Vertical navbar */}
@@ -50,7 +63,9 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           </div>
         </aside>
         {/* Phone: bottom tab bar (the aside is hidden) */}
-        <div className="sm:hidden"><Nav unseen={unseen} me={me?.handle ?? ""} /></div>
+        <div className="sm:hidden">
+          <Nav unseen={unseen} me={me?.handle ?? ""} />
+        </div>
 
         {children}
 

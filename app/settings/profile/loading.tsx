@@ -4,7 +4,12 @@ import { FieldSkeleton, Loading, PageHeader, Skeleton } from "@/components/skele
 export default function EditProfileLoading() {
   return (
     <div className="space-y-4 pb-8">
-      <PageHeader title="Edit profile" back className="gap-4 px-4" action={<Skeleton className="h-8 w-14 rounded-lg" />} />
+      <PageHeader
+        title="Edit profile"
+        back
+        className="gap-4 px-4"
+        action={<Skeleton className="h-8 w-14 rounded-lg" />}
+      />
       <Loading label="Loading your profile…" className="space-y-4">
         <Skeleton className="aspect-[3/1] rounded-none" />
         <div className="px-4 sm:px-5">
@@ -16,7 +21,10 @@ export default function EditProfileLoading() {
           <FieldSkeleton w="10%" />
           <FieldSkeleton w="45%" />
           <FieldSkeleton w="12%" h="h-[98px]" />
-          <div className="grid gap-4 sm:grid-cols-2"><FieldSkeleton w="45%" /><FieldSkeleton w="45%" /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FieldSkeleton w="45%" />
+            <FieldSkeleton w="45%" />
+          </div>
           <FieldSkeleton w="40%" />
         </div>
       </Loading>

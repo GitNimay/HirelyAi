@@ -1,0 +1,40 @@
+# Applied to every PR by .github/workflows/labeler.yml. Labels must exist (created once with `gh label create`).
+
+# Type, from the branch prefix (feat/…, fix/…)
+enhancement:
+  - head-branch: ["^feat/", "^feature/"]
+bug:
+  - head-branch: ["^fix/", "^hotfix/"]
+performance:
+  - head-branch: ["^perf/"]
+documentation:
+  - head-branch: ["^docs/"]
+  - changed-files:
+      # all-globs: one file must match every glob, so the ! negation excludes instead of matching everything else
+      - all-globs-to-any-file: ["**/*.md", "!.github/**"]
+
+# Area, from the changed paths
+"area: ui":
+  - changed-files:
+      - all-globs-to-any-file: ["{app,components,public}/**", "!app/api/**"]
+"area: api":
+  - changed-files:
+      - any-glob-to-any-file: ["app/api/**", "lib/**", "worker/**", "proxy.ts"]
+"area: database":
+  - changed-files:
+      - any-glob-to-any-file: ["migrations/**"]
+"area: interview-agent":
+  - changed-files:
+      - any-glob-to-any-file: ["interview-agent/**"]
+"area: ci":
+  - head-branch: ["^ci/"]
+  - changed-files:
+      - any-glob-to-any-file: [".github/**"]
+"area: config":
+  - changed-files:
+      - any-glob-to-any-file:
+          ["wrangler.jsonc", "vite.config.ts", "next.config.ts", "tsconfig.json", "eslint.config.mjs", ".prettier*"]
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          ["package.json", "package-lock.json", "interview-agent/package.json", "interview-agent/pnpm-lock.yaml"]

@@ -13,10 +13,37 @@ export default function EditJobLoading() {
     <>
       <PageHeader title="Edit job" back className="gap-2 px-3" />
       <Loading label="Loading form…">
-        {section("12%", <><FieldSkeleton w="15%" /><FieldSkeleton w="18%" /></>)}
-        {section("18%", <div className="grid gap-4 sm:grid-cols-2"><FieldSkeleton w="45%" /><FieldSkeleton w="30%" /></div>)}
-        {section("14%", <><div className="grid gap-4 sm:grid-cols-2"><FieldSkeleton w="30%" /><FieldSkeleton w="45%" /></div><FieldSkeleton w="20%" /></>)}
-        {section("22%", <><Skeleton className="h-[258px] rounded-md" /><Line className="justify-end text-xs" w="30%" /></>)}
+        {section(
+          "12%",
+          <>
+            <FieldSkeleton w="15%" />
+            <FieldSkeleton w="18%" />
+          </>,
+        )}
+        {section(
+          "18%",
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FieldSkeleton w="45%" />
+            <FieldSkeleton w="30%" />
+          </div>,
+        )}
+        {section(
+          "14%",
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FieldSkeleton w="30%" />
+              <FieldSkeleton w="45%" />
+            </div>
+            <FieldSkeleton w="20%" />
+          </>,
+        )}
+        {section(
+          "22%",
+          <>
+            <Skeleton className="h-[258px] rounded-md" />
+            <Line className="justify-end text-xs" w="30%" />
+          </>,
+        )}
       </Loading>
     </>
   );

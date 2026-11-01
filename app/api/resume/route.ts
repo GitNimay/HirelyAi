@@ -10,6 +10,10 @@ export async function GET() {
   if (!r) return new Response("Not found", { status: 404 });
   const file = `${r.name.replace(/[^\w -]/g, "").trim() || "Resume"} - Resume.pdf`;
   return new Response((await resumePdf(r)) as Uint8Array<ArrayBuffer>, {
-    headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${file}"`, "Cache-Control": "private, no-store" },
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${file}"`,
+      "Cache-Control": "private, no-store",
+    },
   });
 }

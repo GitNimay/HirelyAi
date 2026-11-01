@@ -10,7 +10,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { title: c ? `${c.name} | Hire Excellence` : "Hire Excellence" };
 }
 
-export default async function CompanyLayout({ children, params }: { children: ReactNode; params: Promise<{ slug: string }> }) {
+export default async function CompanyLayout({
+  children,
+  params,
+}: {
+  children: ReactNode;
+  params: Promise<{ slug: string }>;
+}) {
   const { userId } = await auth.protect();
   const ref = await slugOf(params);
   const company = await companyFor(userId, ref);

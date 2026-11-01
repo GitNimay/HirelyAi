@@ -21,10 +21,25 @@ const BURST = 4;
 const EASE = [0.4, 0.3, 0.5, 1] as const;
 
 type Placement = { side: "top" | "bottom"; shift: number };
-type Particle = { id: number; kind: Reaction; x: number; y: number; drift: number; tilt: number; travel: number; scale: number; delay: number; duration: number };
+type Particle = {
+  id: number;
+  kind: Reaction;
+  x: number;
+  y: number;
+  drift: number;
+  tilt: number;
+  travel: number;
+  scale: number;
+  delay: number;
+  duration: number;
+};
 
 /** The picker opens on your current reaction (roving focus starts there). */
-const startIndex = (k: Reaction | null) => Math.max(0, REACTIONS.findIndex((r) => r.kind === k));
+const startIndex = (k: Reaction | null) =>
+  Math.max(
+    0,
+    REACTIONS.findIndex((r) => r.kind === k),
+  );
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
 /** Left-anchored on the trigger, shifted to stay on screen; flips below when there's no room above. */
@@ -144,9 +159,16 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
     const fresh = Array.from({ length: BURST }, (_, i): Particle => {
       const lane = rand(-1, 1);
       return {
-        id: seed.current + i, kind, x, y,
-        drift: lane * 28, tilt: rand(2, 6) * Math.sign(lane || 1), travel: rand(70, 100),
-        scale: rand(0.8, 1.05), delay: i * 0.09, duration: rand(0.9, 1.15),
+        id: seed.current + i,
+        kind,
+        x,
+        y,
+        drift: lane * 28,
+        tilt: rand(2, 6) * Math.sign(lane || 1),
+        travel: rand(70, 100),
+        scale: rand(0.8, 1.05),
+        delay: i * 0.09,
+        duration: rand(0.9, 1.15),
       };
     });
     setParticles((prev) => [...prev, ...fresh].slice(-16));
@@ -169,7 +191,9 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
       navigator.vibrate?.(8);
       const up = (ev: PointerEvent) => {
         document.removeEventListener("pointerup", up);
-        const hit = (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest<HTMLElement>("[data-reaction]");
+        const hit = (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest<HTMLElement>(
+          "[data-reaction]",
+        );
         if (hit) pick(hit.dataset.reaction as Reaction, hit.getBoundingClientRect());
       };
       document.addEventListener("pointerup", up);
@@ -179,12 +203,17 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
   function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     const n = REACTIONS.length;
     const next =
-      e.key === "ArrowRight" ? (active + 1) % n
-      : e.key === "ArrowLeft" ? (active - 1 + n) % n
-      : e.key === "Home" ? 0
-      : e.key === "End" ? n - 1
-      : e.key === "Tab" ? -1
-      : null;
+      e.key === "ArrowRight"
+        ? (active + 1) % n
+        : e.key === "ArrowLeft"
+          ? (active - 1 + n) % n
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? n - 1
+              : e.key === "Tab"
+                ? -1
+                : null;
     if (next === null) return;
     if (next === -1) return close(); // Tab moves on; the picker shouldn't linger behind focus
     e.preventDefault();
@@ -249,7 +278,14 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
                   whileHover={reduced ? undefined : { scale: 1.3, y: -6 }}
                   whileTap={{ scale: 0.9 }}
                 >
-                  <img src={reactionSrc(r.kind)} alt="" width={EMOJI} height={EMOJI} draggable={false} className="max-w-none select-none" />
+                  <img
+                    src={reactionSrc(r.kind)}
+                    alt=""
+                    width={EMOJI}
+                    height={EMOJI}
+                    draggable={false}
+                    className="max-w-none select-none"
+                  />
                   <span className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-full bg-foreground px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-background opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                     {r.label}
                   </span>
@@ -260,7 +296,9 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
         )}
       </AnimatePresence>
 
-      {particles.map((p) => <BurstEmoji key={p.id} p={p} onDone={settle} />)}
+      {particles.map((p) => (
+        <BurstEmoji key={p.id} p={p} onDone={settle} />
+      ))}
 
       <button
         ref={triggerRef}
@@ -304,7 +342,12 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
                 transition={{ type: "spring", stiffness: 600, damping: 18 }}
               />
             ) : (
-              <motion.span key="none" initial={reduced ? false : { scale: 0.6 }} animate={{ scale: 1 }} exit={{ scale: 0.6, opacity: 0 }}>
+              <motion.span
+                key="none"
+                initial={reduced ? false : { scale: 0.6 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.6, opacity: 0 }}
+              >
                 <ThumbsUp size={16} strokeWidth={2} aria-hidden />
               </motion.span>
             )}
@@ -320,16 +363,28 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
 export function ReactionSummary({ counts, total }: { counts: ReactionCounts; total: number }) {
   if (total <= 0) return null;
   const kinds = topReactions(counts);
-  const breakdown = REACTIONS.filter((r) => counts[r.kind]).map((r) => `${counts[r.kind]} ${r.label}`).join(", ");
+  const breakdown = REACTIONS.filter((r) => counts[r.kind])
+    .map((r) => `${counts[r.kind]} ${r.label}`)
+    .join(", ");
   return (
     <p className="mt-3 flex items-center gap-1.5 text-xs text-muted" title={breakdown}>
       <span className="flex" aria-hidden>
         {kinds.map((k, i) => (
-          <img key={k} src={reactionSrc(k)} alt="" width={18} height={18} className={cn("rounded-full bg-background ring-2 ring-background", i > 0 && "-ml-1.5")} style={{ zIndex: 3 - i }} />
+          <img
+            key={k}
+            src={reactionSrc(k)}
+            alt=""
+            width={18}
+            height={18}
+            className={cn("rounded-full bg-background ring-2 ring-background", i > 0 && "-ml-1.5")}
+            style={{ zIndex: 3 - i }}
+          />
         ))}
       </span>
       <span className="tabular-nums">
-        <span className="sr-only">{total === 1 ? "1 reaction" : `${total} reactions`}: {breakdown}</span>
+        <span className="sr-only">
+          {total === 1 ? "1 reaction" : `${total} reactions`}: {breakdown}
+        </span>
         <span aria-hidden>{total}</span>
       </span>
     </p>

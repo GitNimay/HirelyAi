@@ -17,7 +17,12 @@ export type Candidate = {
 
 const HOUR = 3_600_000;
 
-export function rank<T extends Candidate>(items: T[], viewerId: string, affinity: Map<string, number>, now = Date.now()): T[] {
+export function rank<T extends Candidate>(
+  items: T[],
+  viewerId: string,
+  affinity: Map<string, number>,
+  now = Date.now(),
+): T[] {
   const aff = (id: string) => Math.log1p(affinity.get(id) ?? 0); // diminishing returns on interaction count
 
   const scored = items.map((c) => {

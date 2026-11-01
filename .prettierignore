@@ -1,0 +1,14 @@
+dist/
+.next/
+.vinext/
+.wrangler/
+node_modules/
+migrations/
+interview-agent/
+showreel/
+videos/
+public/
+worker-configuration.d.ts
+next-env.d.ts
+package-lock.json
+*.tsbuildinfo

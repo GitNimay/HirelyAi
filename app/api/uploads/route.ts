@@ -12,20 +12,28 @@ import { MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES } from "@/lib/profile-fiel
 export async function PUT(request: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await env.WRITE_LIMIT.limit({ key: userId })).success) return Response.json({ error: "Too many uploads" }, { status: 429 });
+  if (!(await env.WRITE_LIMIT.limit({ key: userId })).success)
+    return Response.json({ error: "Too many uploads" }, { status: 429 });
 
   const type = request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() ?? "";
   const size = Number(request.headers.get("Content-Length"));
   const ext = type === RESUME_TYPE ? "pdf" : MEDIA_TYPES[type];
-  if (!ext) return Response.json({ error: "Only JPEG, PNG, WebP, GIF, MP4, WebM and PDF are supported" }, { status: 415 });
+  if (!ext)
+    return Response.json({ error: "Only JPEG, PNG, WebP, GIF, MP4, WebM and PDF are supported" }, { status: 415 });
   const target = new URL(request.url).searchParams.get("for");
   const profile = target === "profile" || target === "company"; // company logos and covers follow the profile image rules
-  if (profile && !PROFILE_IMAGE_TYPES.includes(type)) return Response.json({ error: "Profile images must be JPEG, PNG or WebP" }, { status: 415 });
+  if (profile && !PROFILE_IMAGE_TYPES.includes(type))
+    return Response.json({ error: "Profile images must be JPEG, PNG or WebP" }, { status: 415 });
   const max = profile ? MAX_PROFILE_IMAGE_BYTES : type === RESUME_TYPE ? MAX_RESUME_BYTES : maxBytes(type);
-  if (!size || size > max) return Response.json({ error: `File too large (max ${max / 1024 / 1024} MB)` }, { status: 413 });
+  if (!size || size > max)
+    return Response.json({ error: `File too large (max ${max / 1024 / 1024} MB)` }, { status: 413 });
   if (!request.body) return Response.json({ error: "Empty body" }, { status: 400 });
 
-  const key = newKey(target === "company" ? "companies" : profile ? "profiles" : type === RESUME_TYPE ? "resumes" : "posts", userId, ext);
+  const key = newKey(
+    target === "company" ? "companies" : profile ? "profiles" : type === RESUME_TYPE ? "resumes" : "posts",
+    userId,
+    ext,
+  );
   // Stream straight into R2. The runtime rejects bodies longer than the declared Content-Length.
   await env.MEDIA.put(key, request.body, { httpMetadata: { contentType: type }, customMetadata: { owner: userId } });
   return Response.json({ key, type });

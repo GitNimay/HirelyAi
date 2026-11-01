@@ -29,12 +29,12 @@ export async function saveMyResume(input: unknown) {
   }
 }
 
-
 /** Onboarding's last step: only after the member verified the email code Clerk sent (a fresh first factor). */
 export async function createMyProfile(input: unknown) {
   try {
     const { has } = await auth();
-    if (!has({ reverification: { level: "first_factor", afterMinutes: 10 } })) throw new Fail("Verify your email to finish.");
+    if (!has({ reverification: { level: "first_factor", afterMinutes: 10 } }))
+      throw new Fail("Verify your email to finish.");
     const me = await writer();
     await saveResume(me, input);
     await track(me, "profile created");

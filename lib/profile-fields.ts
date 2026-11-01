@@ -13,12 +13,20 @@ export const profileHref = (u: { id: string; handle: string | null }) => `/in/${
 
 /** "Ada Lovelace" → "ada-lovelace". Accents fold to ASCII; a name with no Latin letters becomes "member". */
 export function slugify(name: string) {
-  const s = name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 25).replace(/-+$/, "");
+  const s = name
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 25)
+    .replace(/-+$/, "");
   return s.length >= 3 ? s : s ? `${s}-member` : "member";
 }
 
 export const cleanHandle = (v: string) => v.trim().toLowerCase().replace(/^@/, "");
-export const validHandle = (h: string) => h.length >= HANDLE_MIN && h.length <= HANDLE_MAX && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(h);
+export const validHandle = (h: string) =>
+  h.length >= HANDLE_MIN && h.length <= HANDLE_MAX && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(h);
 
 /** "example.com" → "https://example.com/". null when empty, undefined when it isn't a web address. */
 export function normalizeWebsite(v: string): string | null | undefined {
