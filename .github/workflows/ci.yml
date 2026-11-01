@@ -199,7 +199,8 @@ jobs:
   # Merge to main = production deploy. Runs only after every check passes on the merge commit.
   deploy:
     needs: ci-ok
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # !cancelled() + explicit result: without a status function, the skipped dependency-review (PR-only) upstream of ci-ok skips this job too
+    if: ${{ !cancelled() && needs.ci-ok.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
