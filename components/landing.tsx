@@ -119,6 +119,10 @@ const faqs: [string, string][] = [
     "How are companies verified?",
     "Each company page is associated with a single domain and verified through a work email address on that domain.",
   ],
+  [
+    "Do I have to fill in my profile by hand?",
+    "No. Upload your resume and your profile is filled in automatically. You can also export your profile as an ATS-friendly PDF resume.",
+  ],
 ];
 
 // Schema.org facts for search engines and AI assistants (ChatGPT search, Perplexity, Google). Keep in step with public/llms.txt
