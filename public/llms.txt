@@ -38,6 +38,7 @@ Source code: https://github.com/GitNimay/hire-excellence
 - **Who can see my interview?** Only the recruiters responsible for the position you applied to.
 - **Is the voice interview mandatory?** No. Where the recruiter allows it, you can take a timed multiple-choice assessment instead.
 - **How are companies verified?** Each company page is bound to one domain and verified through a work email address on that domain.
+- **Do I have to fill in my profile by hand?** No. Uploading a resume fills in the profile automatically, and the profile can be exported as an ATS-friendly PDF resume.
 
 ## Pages
 
