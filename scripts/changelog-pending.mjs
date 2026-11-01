@@ -7,4 +7,6 @@ const version = process.env.TAG.replace(/^v/, "");
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`bad tag ${process.env.TAG}`);
 const source = `Title: ${pr.title ?? ""}\n\n${pr.body ?? ""}`.slice(0, 3000);
 const q = (s) => `'${s.replaceAll("'", "''")}'`;
-console.log(`INSERT OR IGNORE INTO releases (version, released_at, source) VALUES (${q(version)}, ${q(new Date().toISOString())}, ${q(source)});`);
+console.log(
+  `INSERT OR IGNORE INTO releases (version, released_at, source) VALUES (${q(version)}, ${q(new Date().toISOString())}, ${q(source)});`,
+);

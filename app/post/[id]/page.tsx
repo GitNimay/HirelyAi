@@ -15,7 +15,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!p) return { title: "Post not found | Hire Excellence" };
   const text = p.body.replace(/\s+/g, " ").slice(0, 160);
   const title = `${p.author.name} on Hire Excellence`;
-  return { title: `${title}${text ? `: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"` : ""}`, description: text, openGraph: { title, description: text, type: "article", images: "/og.jpg" } };
+  return {
+    title: `${title}${text ? `: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"` : ""}`,
+    description: text,
+    openGraph: { title, description: text, type: "article", images: "/og.jpg" },
+  };
 }
 
 /** The shared-link view of a post for people without an account. Members go straight to it in the app. */
@@ -25,12 +29,21 @@ export default async function PublicPostPage({ params }: Props) {
   const p = await load(id);
   if (!p) notFound();
 
-  const media = p.media.length === 0 ? null : isVideo(p.media[0].type) ? "a video" : p.media.length === 1 ? "a photo" : `${p.media.length} photos`;
+  const media =
+    p.media.length === 0
+      ? null
+      : isVideo(p.media[0].type)
+        ? "a video"
+        : p.media.length === 1
+          ? "a photo"
+          : `${p.media.length} photos`;
   const stats = [
     [p.likes, "reaction"],
     [p.comments, "comment"],
     [p.reposts, "repost"],
-  ].filter(([n]) => Number(n) > 0).map(([n, w]) => `${n} ${w}${n === 1 ? "" : "s"}`);
+  ]
+    .filter(([n]) => Number(n) > 0)
+    .map(([n, w]) => `${n} ${w}${n === 1 ? "" : "s"}`);
 
   return (
     <PublicShell cta="Join to like, comment and follow">
@@ -53,7 +66,9 @@ export default async function PublicPostPage({ params }: Props) {
             This post includes {media}. Log in to see it.
           </p>
         )}
-        {stats.length > 0 && <p className="mt-3 border-t border-border pt-3 text-xs tabular-nums text-muted">{stats.join(" · ")}</p>}
+        {stats.length > 0 && (
+          <p className="mt-3 border-t border-border pt-3 text-xs tabular-nums text-muted">{stats.join(" · ")}</p>
+        )}
       </article>
     </PublicShell>
   );

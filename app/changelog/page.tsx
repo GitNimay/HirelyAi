@@ -14,15 +14,21 @@ const TYPES: [ChangeType, string, string][] = [
   ["improved", "Improved", "text-link"],
   ["fixed", "Fixed", "text-amber-600"],
 ];
-const META = Object.fromEntries(TYPES.map(([t, label, color]) => [t, { label, color }])) as Record<ChangeType, { label: string; color: string }>;
-const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const META = Object.fromEntries(TYPES.map(([t, label, color]) => [t, { label, color }])) as Record<
+  ChangeType,
+  { label: string; color: string }
+>;
+const fmt = (d: string) =>
+  new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const anchor = (v: string) => `v${v.replaceAll(".", "-")}`;
 
 export default async function ChangelogPage({ searchParams }: PageProps<"/changelog">) {
   const q = (await searchParams).type;
   const type = TYPES.find(([t]) => t === q)?.[0];
   // A filter keeps only that kind of change, and drops releases left with none
-  const releases = (await publishedReleases()).map((r) => ({ ...r, changes: type ? r.changes.filter(([t]) => t === type) : r.changes })).filter((r) => r.changes.length);
+  const releases = (await publishedReleases())
+    .map((r) => ({ ...r, changes: type ? r.changes.filter(([t]) => t === type) : r.changes }))
+    .filter((r) => r.changes.length);
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col">
@@ -54,15 +60,24 @@ export default async function ChangelogPage({ searchParams }: PageProps<"/change
                   <span className="font-mono text-xs leading-5">v{r.version}</span>
                 </div>
                 {/* Rail and dot are decoration: the date and heading carry the meaning */}
-                <div className={`relative pt-2 pb-14 sm:border-l sm:border-border sm:pt-0 sm:pl-8 ${i === releases.length - 1 ? "sm:border-transparent" : ""}`}>
-                  <span aria-hidden className={`absolute top-2 -left-[4.5px] hidden size-2 rounded-full ring-4 ring-background sm:block ${i === 0 ? "bg-foreground" : "bg-muted/50"}`} />
+                <div
+                  className={`relative pt-2 pb-14 sm:border-l sm:border-border sm:pt-0 sm:pl-8 ${i === releases.length - 1 ? "sm:border-transparent" : ""}`}
+                >
+                  <span
+                    aria-hidden
+                    className={`absolute top-2 -left-[4.5px] hidden size-2 rounded-full ring-4 ring-background sm:block ${i === 0 ? "bg-foreground" : "bg-muted/50"}`}
+                  />
                   <h2 className="font-display text-xl font-normal text-balance">
-                    <a href={`#${anchor(r.version)}`} className="hover:underline underline-offset-4">{r.title}</a>
+                    <a href={`#${anchor(r.version)}`} className="hover:underline underline-offset-4">
+                      {r.title}
+                    </a>
                   </h2>
                   <ul className="mt-4 space-y-2.5 text-sm">
                     {r.changes.map(([t, text]) => (
                       <li key={text} className="flex gap-3">
-                        <span className={`w-16 shrink-0 text-xs leading-5 font-medium ${META[t].color}`}>{META[t].label}</span>
+                        <span className={`w-16 shrink-0 text-xs leading-5 font-medium ${META[t].color}`}>
+                          {META[t].label}
+                        </span>
                         <span className="text-pretty">{text}</span>
                       </li>
                     ))}

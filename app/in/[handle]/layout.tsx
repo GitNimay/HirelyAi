@@ -10,7 +10,13 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
   return { title: p ? `${p.name} | Hire Excellence` : "Hire Excellence" };
 }
 
-export default async function ProfileLayout({ children, params }: { children: ReactNode; params: Promise<{ handle: string }> }) {
+export default async function ProfileLayout({
+  children,
+  params,
+}: {
+  children: ReactNode;
+  params: Promise<{ handle: string }>;
+}) {
   const { userId } = await auth.protect();
   const ref = await refOf(params);
   const profile = await profileFor(userId, ref);

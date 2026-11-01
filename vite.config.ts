@@ -7,7 +7,9 @@ export default defineConfig({
   resolve: {
     alias: {
       // Clerk's "node" variant require()s node:fs for keyless mode; workerd has no filesystem, so use its no-fs build
-      "#safe-node-apis": fileURLToPath(new URL("./node_modules/@clerk/nextjs/dist/esm/runtime/browser/safe-node-apis.js", import.meta.url)),
+      "#safe-node-apis": fileURLToPath(
+        new URL("./node_modules/@clerk/nextjs/dist/esm/runtime/browser/safe-node-apis.js", import.meta.url),
+      ),
     },
   },
   environments: {
@@ -22,7 +24,8 @@ export default defineConfig({
       name: "clerk-server-only-marker",
       enforce: "pre",
       transform(code, id) {
-        if (id.includes("@clerk/nextjs") && code.includes('require("server-only")')) return code.replaceAll('require("server-only");', "");
+        if (id.includes("@clerk/nextjs") && code.includes('require("server-only")'))
+          return code.replaceAll('require("server-only");', "");
       },
     },
     vinext(),

@@ -5,14 +5,28 @@ import { rank, type Candidate } from "./rank.ts";
 const now = Date.UTC(2026, 0, 1);
 const H = 3_600_000;
 const post = (id: string, author: string, ageH: number, likes = 0, extra: Partial<Candidate> = {}): Candidate => ({
-  entryId: id, targetId: id, entryAuthor: author, targetAuthor: author, entryAt: now - ageH * H, likes, comments: 0, reposts: 0, ...extra,
+  entryId: id,
+  targetId: id,
+  entryAuthor: author,
+  targetAuthor: author,
+  entryAt: now - ageH * H,
+  likes,
+  comments: 0,
+  reposts: 0,
+  ...extra,
 });
 
 // Newer beats older at equal engagement
-assert.deepEqual(rank([post("old", "a", 10), post("new", "b", 1)], "me", new Map(), now).map((p) => p.entryId), ["new", "old"]);
+assert.deepEqual(
+  rank([post("old", "a", 10), post("new", "b", 1)], "me", new Map(), now).map((p) => p.entryId),
+  ["new", "old"],
+);
 
 // Affinity: an author I interact with outranks a stranger's slightly newer post
-assert.equal(rank([post("stranger", "b", 1), post("friend", "a", 2)], "me", new Map([["a", 20]]), now)[0].entryId, "friend");
+assert.equal(
+  rank([post("stranger", "b", 1), post("friend", "a", 2)], "me", new Map([["a", 20]]), now)[0].entryId,
+  "friend",
+);
 
 // Engagement: a popular post beats a quiet one of the same age
 assert.equal(rank([post("quiet", "a", 3), post("viral", "b", 3, 500)], "me", new Map(), now)[0].entryId, "viral");

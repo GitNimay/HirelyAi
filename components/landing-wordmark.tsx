@@ -25,13 +25,32 @@ function leave(e: React.MouseEvent<SVGTSpanElement>) {
 }
 
 export function Wordmark() {
-  const text = { x: 0, y: 96, textLength: 1000, lengthAdjust: "spacingAndGlyphs", fontSize: 120, fill: "none", strokeWidth: 1.5 } as const;
+  const text = {
+    x: 0,
+    y: 96,
+    textLength: 1000,
+    lengthAdjust: "spacingAndGlyphs",
+    fontSize: 120,
+    fill: "none",
+    strokeWidth: 1.5,
+  } as const;
   return (
     <svg viewBox="0 0 1000 120" className={`${pixel.className} w-full text-border`}>
-      <text {...text} stroke="currentColor">Hire Excellence</text>
-      <text {...text} className="text-link" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeDasharray={`${PATCH} ${LOOP - PATCH}`}>
+      <text {...text} stroke="currentColor">
+        Hire Excellence
+      </text>
+      <text
+        {...text}
+        className="text-link"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeDasharray={`${PATCH} ${LOOP - PATCH}`}
+      >
         {["Hire ", "Excellence"].map((w) => (
-          <tspan key={w} opacity={0} onMouseEnter={enter} onMouseLeave={leave}>{w}</tspan>
+          <tspan key={w} opacity={0} onMouseEnter={enter} onMouseLeave={leave}>
+            {w}
+          </tspan>
         ))}
       </text>
     </svg>

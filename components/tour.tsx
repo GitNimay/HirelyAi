@@ -8,9 +8,17 @@ import { finishTour } from "@/app/dashboard/actions";
 
 /** `target` matches a `data-tour` attribute. Steps whose target isn't on screen (phone layouts) are left out. */
 const STEPS = [
-  { target: "composer", title: "Share what you're up to", body: "Post updates, wins or openings. People who follow you see them in their feed." },
+  {
+    target: "composer",
+    title: "Share what you're up to",
+    body: "Post updates, wins or openings. People who follow you see them in their feed.",
+  },
   { target: "network", title: "Grow your network", body: "Find people you know, follow them and connect." },
-  { target: "jobs", title: "Find your next role", body: "Search jobs and apply with your resume. Hiring? Post a job from here too." },
+  {
+    target: "jobs",
+    title: "Find your next role",
+    body: "Search jobs and apply with your resume. Hiring? Post a job from here too.",
+  },
   { target: "companies", title: "Company pages", body: "Follow companies you like, or create a page for yours." },
   { target: "me", title: "This is you", body: "Your profile and resume. Edit them any time." },
 ];
@@ -28,7 +36,8 @@ const find = (id: string) =>
 
 /** Where the note sits: on the side of the target with the most room, like a hand-written annotation beside it. */
 function place(t: Box, note: { w: number; h: number }) {
-  const W = innerWidth, H = innerHeight;
+  const W = innerWidth,
+    H = innerHeight;
   const room = { right: W - t.x - t.w, below: H - t.y - t.h, above: t.y };
   let x: number, y: number;
   if (room.right > note.w + 120) [x, y] = [t.x + t.w + 90, t.y - note.h / 2 - 30];
@@ -39,7 +48,10 @@ function place(t: Box, note: { w: number; h: number }) {
 
 /** Midpoint of the edge of `r` that faces point `p`. */
 function edge(r: Box, p: { x: number; y: number }) {
-  const cx = r.x + r.w / 2, cy = r.y + r.h / 2, dx = p.x - cx, dy = p.y - cy;
+  const cx = r.x + r.w / 2,
+    cy = r.y + r.h / 2,
+    dx = p.x - cx,
+    dy = p.y - cy;
   if (Math.abs(dx) / r.w > Math.abs(dy) / r.h) return { x: dx > 0 ? r.x + r.w : r.x, y: cy };
   return { x: cx, y: dy > 0 ? r.y + r.h : r.y };
 }
@@ -52,8 +64,11 @@ function arrow(note: Box, target: Box) {
   // stop just short of the spotlight so the head doesn't touch it
   const len = Math.hypot(b0.x - a.x, b0.y - a.y) || 1;
   const b = { x: b0.x - ((b0.x - a.x) / len) * 8, y: b0.y - ((b0.y - a.y) / len) * 8 };
-  const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy) || 1;
-  let nx = -dy / dist, ny = dx / dist;
+  const dx = b.x - a.x,
+    dy = b.y - a.y,
+    dist = Math.hypot(dx, dy) || 1;
+  let nx = -dy / dist,
+    ny = dx / dist;
   if (ny > 0) [nx, ny] = [-nx, -ny]; // bulge upward
   const bend = Math.min(90, dist * 0.3);
   const c1 = { x: a.x + dx * 0.3 + nx * bend, y: a.y + dy * 0.3 + ny * bend };
@@ -137,7 +152,9 @@ export function Tour({ auto }: { auto: boolean }) {
       else if (e.key === "ArrowLeft" && step > 1) go(-1);
     };
     addEventListener("keydown", onKey);
-    const others = [...document.body.children].filter((el) => el !== root.current && !(el as HTMLElement).inert) as HTMLElement[];
+    const others = [...document.body.children].filter(
+      (el) => el !== root.current && !(el as HTMLElement).inert,
+    ) as HTMLElement[];
     others.forEach((el) => (el.inert = true));
     return () => {
       removeEventListener("keydown", onKey);
@@ -154,22 +171,70 @@ export function Tour({ auto }: { auto: boolean }) {
   const spring = reduce ? { duration: 0 } : { type: "spring" as const, stiffness: 260, damping: 30 };
 
   return createPortal(
-    <div ref={root} role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-body" className="fixed inset-0 z-[60] select-none">
-      <motion.svg initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: reduce ? 0 : 0.3 }} className="absolute inset-0 size-full" aria-hidden>
+    <div
+      ref={root}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tour-title"
+      aria-describedby="tour-body"
+      className="fixed inset-0 z-[60] select-none"
+    >
+      <motion.svg
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reduce ? 0 : 0.3 }}
+        className="absolute inset-0 size-full"
+        aria-hidden
+      >
         <defs>
           <mask id="tour-hole">
             <rect width="100%" height="100%" fill="white" />
-            <motion.rect initial={false} animate={{ x: hole.x, y: hole.y, width: hole.w, height: hole.h }} transition={spring} rx={12} fill="black" />
+            <motion.rect
+              initial={false}
+              animate={{ x: hole.x, y: hole.y, width: hole.w, height: hole.h }}
+              transition={spring}
+              rx={12}
+              fill="black"
+            />
           </mask>
         </defs>
         {/* clicks anywhere are swallowed: the tour shows things, it doesn't navigate */}
         <rect width="100%" height="100%" fill="rgb(0 0 0 / 0.72)" mask="url(#tour-hole)" />
-        <motion.rect initial={false} animate={{ x: hole.x, y: hole.y, width: hole.w, height: hole.h, opacity: target ? 1 : 0 }} transition={spring} rx={12} fill="none" stroke="white" strokeOpacity={0.5} strokeWidth={1.5} strokeDasharray="6 5" />
+        <motion.rect
+          initial={false}
+          animate={{ x: hole.x, y: hole.y, width: hole.w, height: hole.h, opacity: target ? 1 : 0 }}
+          transition={spring}
+          rx={12}
+          fill="none"
+          stroke="white"
+          strokeOpacity={0.5}
+          strokeWidth={1.5}
+          strokeDasharray="6 5"
+        />
         {path && (
           <g key={step} fill="none" stroke="white" strokeLinecap="round" strokeLinejoin="round">
-            <motion.path d={path.main} strokeWidth={2.4} initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, ease: "easeInOut", delay: 0.15 }} />
-            <motion.path d={path.echo} strokeWidth={1} strokeOpacity={0.55} initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, ease: "easeInOut", delay: 0.2 }} />
-            <motion.path d={path.head} strokeWidth={2.4} initial={reduce ? false : { pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.2, delay: 0.72 }} />
+            <motion.path
+              d={path.main}
+              strokeWidth={2.4}
+              initial={reduce ? false : { pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.6, ease: "easeInOut", delay: 0.15 }}
+            />
+            <motion.path
+              d={path.echo}
+              strokeWidth={1}
+              strokeOpacity={0.55}
+              initial={reduce ? false : { pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.6, ease: "easeInOut", delay: 0.2 }}
+            />
+            <motion.path
+              d={path.head}
+              strokeWidth={2.4}
+              initial={reduce ? false : { pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ duration: 0.2, delay: 0.72 }}
+            />
           </g>
         )}
       </motion.svg>
@@ -184,28 +249,76 @@ export function Tour({ auto }: { auto: boolean }) {
           transition={{ duration: 0.3 }}
           // no target (it unmounted since the tour opened): the note just sits centered, without an arrow
           style={current && target ? { left: pos?.x ?? -9999, top: pos?.y ?? 0 } : undefined}
-          className={current && target ? "absolute w-[min(300px,calc(100vw-32px))] text-white" : "absolute inset-x-4 top-1/2 mx-auto max-w-sm -translate-y-1/2 text-center text-white"}
+          className={
+            current && target
+              ? "absolute w-[min(300px,calc(100vw-32px))] text-white"
+              : "absolute inset-x-4 top-1/2 mx-auto max-w-sm -translate-y-1/2 text-center text-white"
+          }
         >
           {current ? (
             <>
-              <h2 id="tour-title" className="font-hand text-[28px] leading-tight">{current.title}</h2>
-              <p id="tour-body" className="mt-1 text-sm leading-relaxed text-white/80">{current.body}</p>
+              <h2 id="tour-title" className="font-hand text-[28px] leading-tight">
+                {current.title}
+              </h2>
+              <p id="tour-body" className="mt-1 text-sm leading-relaxed text-white/80">
+                {current.body}
+              </p>
               <div className="mt-4 flex items-center gap-2 text-sm">
-                <span className="mr-auto tabular-nums text-white/60" aria-label={`Step ${step} of ${steps.length}`}>{step} / {steps.length}</span>
-                {!last && <button type="button" onClick={() => close(true)} className="h-8 rounded-full px-3 text-white/70 transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white/60 outline-none">Skip</button>}
-                {step > 1 && <button type="button" onClick={() => go(-1)} className="h-8 rounded-full border border-white/30 px-3 transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60 outline-none">Back</button>}
-                <button ref={nextRef} type="button" onClick={() => go(1)} className="h-8 rounded-full bg-white px-4 font-medium text-black transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black outline-none">
+                <span className="mr-auto tabular-nums text-white/60" aria-label={`Step ${step} of ${steps.length}`}>
+                  {step} / {steps.length}
+                </span>
+                {!last && (
+                  <button
+                    type="button"
+                    onClick={() => close(true)}
+                    className="h-8 rounded-full px-3 text-white/70 transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white/60 outline-none"
+                  >
+                    Skip
+                  </button>
+                )}
+                {step > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => go(-1)}
+                    className="h-8 rounded-full border border-white/30 px-3 transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60 outline-none"
+                  >
+                    Back
+                  </button>
+                )}
+                <button
+                  ref={nextRef}
+                  type="button"
+                  onClick={() => go(1)}
+                  className="h-8 rounded-full bg-white px-4 font-medium text-black transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black outline-none"
+                >
                   {last ? "Got it" : "Next"}
                 </button>
               </div>
             </>
           ) : (
             <>
-              <h2 id="tour-title" className="font-hand text-[40px] leading-tight">Welcome aboard!</h2>
-              <p id="tour-body" className="mt-2 text-sm leading-relaxed text-white/80">Want a quick look around? It takes about 30 seconds.</p>
+              <h2 id="tour-title" className="font-hand text-[40px] leading-tight">
+                Welcome aboard!
+              </h2>
+              <p id="tour-body" className="mt-2 text-sm leading-relaxed text-white/80">
+                Want a quick look around? It takes about 30 seconds.
+              </p>
               <div className="mt-6 flex justify-center gap-2 text-sm">
-                <button type="button" onClick={() => close(true)} className="h-10 rounded-full border border-white/30 px-5 transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60 outline-none">Maybe later</button>
-                <button ref={nextRef} type="button" onClick={() => setStep(1)} className="h-10 rounded-full bg-white px-5 font-medium text-black transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black outline-none">Show me around</button>
+                <button
+                  type="button"
+                  onClick={() => close(true)}
+                  className="h-10 rounded-full border border-white/30 px-5 transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60 outline-none"
+                >
+                  Maybe later
+                </button>
+                <button
+                  ref={nextRef}
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="h-10 rounded-full bg-white px-5 font-medium text-black transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black outline-none"
+                >
+                  Show me around
+                </button>
               </div>
             </>
           )}

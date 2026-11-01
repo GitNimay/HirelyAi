@@ -16,8 +16,12 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
           </Link>
           <div className="flex shrink-0 gap-2">
             {/* 40px tap targets on phones; the 32px desktop buttons are unchanged from sm up */}
-            <Link href="/sign-in" className={`${btnGhost} min-h-10 sm:min-h-0`}>Log in</Link>
-            <Link href="/sign-up" className={`${btnPrimary} min-h-10 sm:min-h-0`}>Join</Link>
+            <Link href="/sign-in" className={`${btnGhost} min-h-10 sm:min-h-0`}>
+              Log in
+            </Link>
+            <Link href="/sign-up" className={`${btnPrimary} min-h-10 sm:min-h-0`}>
+              Join
+            </Link>
           </div>
         </div>
       </header>
@@ -27,8 +31,12 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
           <p className="text-balance text-sm font-medium">{cta}</p>
           <p className="mt-1 text-pretty text-sm text-muted">Hire Excellence is where people connect, hire and grow.</p>
           <div className="mt-4 flex justify-center gap-2">
-            <Link href="/sign-up" className={`${btnPrimary} ${btnLg}`}>Create an account</Link>
-            <Link href="/sign-in" className={`${btnGhost} ${btnLg}`}>Log in</Link>
+            <Link href="/sign-up" className={`${btnPrimary} ${btnLg}`}>
+              Create an account
+            </Link>
+            <Link href="/sign-in" className={`${btnGhost} ${btnLg}`}>
+              Log in
+            </Link>
           </div>
         </section>
       </main>
@@ -39,7 +47,8 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
 /** Uploaded avatars are served to members only; show initials instead of a broken image on public pages. */
 export const publicAvatar = (src: string | null) => (src && !src.startsWith("/api/") ? src : undefined);
 
-export const publicDate = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+export const publicDate = (ms: number) =>
+  new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 /** Brand, the Changelog / Status pair and the theme toggle: the header of the open info pages. */
 export function InfoHeader({ width = "max-w-[720px]" }: { width?: string }) {
@@ -50,8 +59,12 @@ export function InfoHeader({ width = "max-w-[720px]" }: { width?: string }) {
         <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
       </Link>
       <nav className="flex items-center gap-5 text-sm text-muted">
-        <Link href="/changelog" className="transition-colors hover:text-foreground">Changelog</Link>
-        <Link href="/status" className="transition-colors hover:text-foreground">Status</Link>
+        <Link href="/changelog" className="transition-colors hover:text-foreground">
+          Changelog
+        </Link>
+        <Link href="/status" className="transition-colors hover:text-foreground">
+          Status
+        </Link>
       </nav>
       {/* The toggle carries its own px-4: pulled out so the icon lines up with the content's right edge */}
       <div className="-mr-4 flex h-10">
@@ -64,25 +77,52 @@ export function InfoHeader({ width = "max-w-[720px]" }: { width?: string }) {
 /** Where privacy and legal requests go. */
 export const LEGAL_EMAIL = "hello@n1m35h.in";
 
-const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "");
+const slug = (t: string) =>
+  t
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-$/, "");
 
 /**
  * Privacy / Terms: title, date, a lead, then the Clauses. Bold reads in the foreground colour.
  * `toc` adds a sticky contents list beside the text from lg up.
  */
-export function LegalPage({ title, updated, lead, other, toc, children }: { title: string; updated: string; lead: ReactNode; other: [string, string]; toc?: boolean; children: ReactElement<{ title: string }>[] }) {
+export function LegalPage({
+  title,
+  updated,
+  lead,
+  other,
+  toc,
+  children,
+}: {
+  title: string;
+  updated: string;
+  lead: ReactNode;
+  other: [string, string];
+  toc?: boolean;
+  children: ReactElement<{ title: string }>[];
+}) {
   const width = toc ? "max-w-[1040px]" : "max-w-[720px]";
   return (
     <div className="flex min-h-dvh flex-1 flex-col">
       <InfoHeader width={width} />
-      <div className={`mx-auto w-full ${width} flex-1 gap-16 px-4 pt-10 pb-24 sm:pt-16 ${toc ? "lg:grid lg:grid-cols-[200px_1fr]" : ""}`}>
+      <div
+        className={`mx-auto w-full ${width} flex-1 gap-16 px-4 pt-10 pb-24 sm:pt-16 ${toc ? "lg:grid lg:grid-cols-[200px_1fr]" : ""}`}
+      >
         {toc && (
           <nav aria-label="Contents" className="hidden lg:block">
             <div className="sticky top-8">
               <p className="text-sm font-medium">Contents</p>
               <ul className="mt-4 space-y-2.5 border-l border-border text-sm">
                 {children.map(({ props: { title } }) => (
-                  <li key={title}><a href={`#${slug(title)}`} className="-ml-px block border-l border-transparent pl-4 text-muted transition-colors hover:border-foreground hover:text-foreground">{title}</a></li>
+                  <li key={title}>
+                    <a
+                      href={`#${slug(title)}`}
+                      className="-ml-px block border-l border-transparent pl-4 text-muted transition-colors hover:border-foreground hover:text-foreground"
+                    >
+                      {title}
+                    </a>
+                  </li>
                 ))}
               </ul>
             </div>
@@ -91,10 +131,16 @@ export function LegalPage({ title, updated, lead, other, toc, children }: { titl
         <main id="main" className="max-w-[688px]">
           <p className="text-sm text-muted">Last updated {updated}</p>
           <h1 className="mt-3 font-display text-4xl font-normal">{title}</h1>
-          <div className="mt-5 text-[15px] leading-7 text-pretty text-muted [&_strong]:font-medium [&_strong]:text-foreground">{lead}</div>
+          <div className="mt-5 text-[15px] leading-7 text-pretty text-muted [&_strong]:font-medium [&_strong]:text-foreground">
+            {lead}
+          </div>
           <div className="mt-12 space-y-10 border-t border-border pt-12">{children}</div>
           <p className="mt-16 border-t border-border pt-6 text-sm text-muted">
-            See also our <Link href={other[1]} className="text-foreground hover:underline underline-offset-4">{other[0]}</Link>.
+            See also our{" "}
+            <Link href={other[1]} className="text-foreground hover:underline underline-offset-4">
+              {other[0]}
+            </Link>
+            .
           </p>
         </main>
       </div>

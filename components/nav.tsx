@@ -52,13 +52,19 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
       aria-label="Main"
       {...hover.handlers}
       // the section's sub-nav (its own <nav>) has its own hook rail, so the fluid highlight steps aside there
-      onMouseMove={(e) => ((e.target as Element).closest("nav") === e.currentTarget ? hover.handlers.onMouseMove(e) : hover.clear())}
+      onMouseMove={(e) =>
+        (e.target as Element).closest("nav") === e.currentTarget ? hover.handlers.onMouseMove(e) : hover.clear()
+      }
       className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-border bg-background pb-[env(safe-area-inset-bottom)] sm:relative sm:flex-col sm:justify-start sm:gap-1 sm:border-0 sm:pb-0"
     >
       <FluidHoverHighlight hover={hover} className="hidden rounded-md bg-surface light:bg-surface-hover sm:block" />
       {navItems.map(({ slug, label, icon }) => {
         const href = slug === "me" ? `/in/${me}` : slug ? `/dashboard/${slug}` : "/dashboard";
-        const active = pathname === href || (!!slug && pathname.startsWith(`${href}/`)) || (slug === "me" && pathname.startsWith("/settings/")) || (slug === "companies" && pathname.startsWith("/company/"));
+        const active =
+          pathname === href ||
+          (!!slug && pathname.startsWith(`${href}/`)) ||
+          (slug === "me" && pathname.startsWith("/settings/")) ||
+          (slug === "companies" && pathname.startsWith("/company/"));
         const badge = slug === "notifications" && !active ? count : 0;
         return (
           <Fragment key={slug}>
@@ -70,7 +76,9 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
               data-tour={slug || "home"}
               className={`relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-md text-[11px] transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:flex-none sm:flex-row sm:items-center sm:gap-3 sm:px-3 sm:text-sm xl:justify-start ${
                 // light: a soft tinted fill, since white barely shows on the off-white page
-                active ? "font-medium text-foreground sm:bg-surface sm:light:bg-surface-hover" : "text-muted hover:text-foreground"
+                active
+                  ? "font-medium text-foreground sm:bg-surface sm:light:bg-surface-hover"
+                  : "text-muted hover:text-foreground"
               }`}
             >
               <span className="relative flex shrink-0">
@@ -84,7 +92,14 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
               </span>
               <span className="hidden truncate xl:inline">{label}</span>
             </Link>
-            {active && subNav[slug] && <HookSidebar items={subNav[slug]} aria-label={label} color="var(--link)" className="ml-5 hidden xl:flex" />}
+            {active && subNav[slug] && (
+              <HookSidebar
+                items={subNav[slug]}
+                aria-label={label}
+                color="var(--link)"
+                className="ml-5 hidden xl:flex"
+              />
+            )}
           </Fragment>
         );
       })}

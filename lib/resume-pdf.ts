@@ -2,15 +2,23 @@ import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf
 import { fmtRange, STATUSES, type Resume } from "./resume-fields.ts";
 
 // A4 in points
-const W = 595.28, H = 841.89, M = 48;
-const INK = rgb(0.1, 0.1, 0.1), SOFT = rgb(0.38, 0.38, 0.38), RULE = rgb(0.82, 0.82, 0.82);
+const W = 595.28,
+  H = 841.89,
+  M = 48;
+const INK = rgb(0.1, 0.1, 0.1),
+  SOFT = rgb(0.38, 0.38, 0.38),
+  RULE = rgb(0.82, 0.82, 0.82);
 
 /**
  * The standard fonts only encode WinAnsi (Latin-1 plus a few typographic marks).
  * ponytail: other scripts become "?"; embed a Unicode TTF (pdf-lib + fontkit) if members write in them.
  */
 const winAnsi = (s: string) =>
-  s.normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/\t/g, " ").replace(/[^\x20-\x7e\xa0-\xff•–—‘’“”…€™]/g, "?");
+  s
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\t/g, " ")
+    .replace(/[^\x20-\x7e\xa0-\xff•–—‘’“”…€™]/g, "?");
 
 /** A clean one-column resume, the layout ATS parsers read best. */
 export async function resumePdf(r: Resume): Promise<Uint8Array> {
@@ -77,7 +85,11 @@ export async function pdfWriter(title: string, author: string) {
     y -= 8;
   };
   const bullets = (text: string) => {
-    for (const l of text.split("\n").map((s) => s.replace(/^[\s•*·-]+/, "").trim()).filter(Boolean)) write(`•  ${l}`, { size: 9.5, x: M + 6, width: W - 2 * M - 6, color: SOFT });
+    for (const l of text
+      .split("\n")
+      .map((s) => s.replace(/^[\s•*·-]+/, "").trim())
+      .filter(Boolean))
+      write(`•  ${l}`, { size: 9.5, x: M + 6, width: W - 2 * M - 6, color: SOFT });
   };
 
   const newPage = () => {
@@ -119,7 +131,10 @@ export function drawResume({ bold, write, row, section, bullets, SOFT }: PdfWrit
     r.education.forEach((e, i) => {
       if (i) write("", { size: 3 });
       row(e.school, fmtRange(e.start, e.end));
-      write([[e.degree, e.field].filter(Boolean).join(", "), e.grade].filter(Boolean).join("   ·   "), { size: 9.5, color: SOFT });
+      write([[e.degree, e.field].filter(Boolean).join(", "), e.grade].filter(Boolean).join("   ·   "), {
+        size: 9.5,
+        color: SOFT,
+      });
     });
   }
   if (r.skills.length) {
@@ -127,5 +142,10 @@ export function drawResume({ bold, write, row, section, bullets, SOFT }: PdfWrit
     write(r.skills.join(", "), { size: 10, color: SOFT });
   }
   section("Preferences");
-  write([STATUSES[r.status], r.preferredLocations.length ? `Preferred locations: ${r.preferredLocations.join(", ")}` : ""].filter(Boolean).join("   ·   "), { size: 10, color: SOFT });
+  write(
+    [STATUSES[r.status], r.preferredLocations.length ? `Preferred locations: ${r.preferredLocations.join(", ")}` : ""]
+      .filter(Boolean)
+      .join("   ·   "),
+    { size: 10, color: SOFT },
+  );
 }

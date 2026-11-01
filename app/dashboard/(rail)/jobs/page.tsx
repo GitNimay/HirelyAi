@@ -35,10 +35,20 @@ export default async function JobsPage({ searchParams }: PageProps<"/dashboard/j
         email: last?.email || resume?.email || session?.account.email || "",
         phone: last?.phone || resume?.phone || session?.account.phone || "",
       }}
-      profile={resume && {
-        name: resume.name, headline: resume.headline, imageUrl: session?.me.imageUrl ?? null, handle: session?.me.handle ?? userId,
-        counts: { experience: resume.experience.length, education: resume.education.length, projects: resume.projects.length, skills: resume.skills.length },
-      }}
+      profile={
+        resume && {
+          name: resume.name,
+          headline: resume.headline,
+          imageUrl: session?.me.imageUrl ?? null,
+          handle: session?.me.handle ?? userId,
+          counts: {
+            experience: resume.experience.length,
+            education: resume.education.length,
+            projects: resume.projects.length,
+            skills: resume.skills.length,
+          },
+        }
+      }
     />
   );
 }

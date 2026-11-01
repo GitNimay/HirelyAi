@@ -22,20 +22,44 @@ export async function TimelineTab({ params, tab }: Props & { tab: ProfileTab }) 
 
   if (tab === "media") return <MediaGrid userId={profile.id} initial={initial} own={own} />;
   const first = profile.name.split(" ")[0];
-  const empty = tab === "likes" ? "Posts you like will show up here. Only you can see them." : own ? "You haven't posted yet." : `${first} hasn't posted yet.`;
+  const empty =
+    tab === "likes"
+      ? "Posts you like will show up here. Only you can see them."
+      : own
+        ? "You haven't posted yet."
+        : `${first} hasn't posted yet.`;
   return <Feed viewer={{ id: userId, name: "" }} initial={initial} list={{ userId: profile.id, tab, empty }} />;
 }
 
 export async function RepliesTab({ params }: Props) {
   const { profile, own } = await context(params, "replies");
-  return <ReplyList author={{ id: profile.id, name: profile.name, handle: profile.handle, imageUrl: profile.imageUrl }} initial={await getReplies(profile.id)} own={own} />;
+  return (
+    <ReplyList
+      author={{ id: profile.id, name: profile.name, handle: profile.handle, imageUrl: profile.imageUrl }}
+      initial={await getReplies(profile.id)}
+      own={own}
+    />
+  );
 }
 
 export async function FollowsTab({ params, dir }: Props & { dir: FollowDir }) {
   const { userId, profile, own } = await context(params, "posts");
   const first = profile.name.split(" ")[0];
   const empty =
-    dir === "followers" ? (own ? "No one follows you yet." : `No one follows ${first} yet.`)
-    : own ? "You don't follow anyone yet." : `${first} doesn't follow anyone yet.`;
-  return <FollowList userId={profile.id} viewerId={userId} dir={dir} initial={await listFollows(userId, profile.id, dir)} empty={empty} />;
+    dir === "followers"
+      ? own
+        ? "No one follows you yet."
+        : `No one follows ${first} yet.`
+      : own
+        ? "You don't follow anyone yet."
+        : `${first} doesn't follow anyone yet.`;
+  return (
+    <FollowList
+      userId={profile.id}
+      viewerId={userId}
+      dir={dir}
+      initial={await listFollows(userId, profile.id, dir)}
+      empty={empty}
+    />
+  );
 }

@@ -17,7 +17,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!j) return { title: "Job not found | Hire Excellence" };
   const title = `${j.title} at ${j.company}`;
   const description = [j.location, WORKPLACES[j.workplace], JOB_TYPES[j.type], j.salary].filter(Boolean).join(" · ");
-  return { title: `${title} | Hire Excellence`, description, openGraph: { title, description, type: "website", images: "/og.jpg" } };
+  return {
+    title: `${title} | Hire Excellence`,
+    description,
+    openGraph: { title, description, type: "website", images: "/og.jpg" },
+  };
 }
 
 /** The shared-link view of a job for people without an account. Members go straight to it in the app. */
@@ -35,12 +39,16 @@ export default async function PublicJobPage({ params }: Props) {
           <p className="text-sm font-medium break-words">{j.company}</p>
           <div>
             <h1 className="font-display text-xl font-normal text-balance break-words">{j.title}</h1>
-            <p className="mt-1 text-sm text-muted">{where} · Posted {publicDate(j.createdAt)}</p>
+            <p className="mt-1 text-sm text-muted">
+              {where} · Posted {publicDate(j.createdAt)}
+            </p>
           </div>
           {j.closedAt ? (
             <p className="text-sm text-muted">No longer accepting applications</p>
           ) : (
-            <Link href="/sign-up" className={`${btnPrimary} ${btnLg} w-full sm:w-auto`}>Sign up to apply</Link>
+            <Link href="/sign-up" className={`${btnPrimary} ${btnLg} w-full sm:w-auto`}>
+              Sign up to apply
+            </Link>
           )}
         </div>
         <JobFacts job={j} h="h2" />

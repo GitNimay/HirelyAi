@@ -20,7 +20,8 @@ export const maxBytes = (type: string) => (isVideo(type) ? MAX_VIDEO_BYTES : MAX
 
 /** R2 layout: `<folder>/<userId>/<uuid>.<ext>`, one top-level folder per kind of file. */
 export type Folder = "posts" | "profiles" | "resumes" | "companies";
-export const newKey = (folder: Folder, userId: string, ext: string) => `${folder}/${userId}/${crypto.randomUUID()}.${ext}`;
+export const newKey = (folder: Folder, userId: string, ext: string) =>
+  `${folder}/${userId}/${crypto.randomUUID()}.${ext}`;
 
 // ponytail: keys uploaded before folders are `<userId>/<uuid>.<ext>` (profile images `<userId>/pf-…`). They are still
 // accepted as post media / resumes so older posts stay editable; drop the legacy branch after moving those objects.

@@ -7,8 +7,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 
 const CORNER = 6;
-const DASH =
-  "repeating-linear-gradient(to top, transparent 0 2px, currentColor 2px 4px)";
+const DASH = "repeating-linear-gradient(to top, transparent 0 2px, currentColor 2px 4px)";
 
 export type HookSidebarItem = string | { label: string; href?: string };
 
@@ -22,11 +21,9 @@ export type HookSidebarProps = Omit<ComponentProps<"nav">, "onChange"> & {
   dashed?: boolean;
 };
 
-const hrefOf = (item: HookSidebarItem) =>
-  typeof item === "string" ? undefined : item.href;
+const hrefOf = (item: HookSidebarItem) => (typeof item === "string" ? undefined : item.href);
 
-const labelOf = (item: HookSidebarItem) =>
-  typeof item === "string" ? item : item.label;
+const labelOf = (item: HookSidebarItem) => (typeof item === "string" ? item : item.label);
 
 const Rail = ({
   from = 0,
@@ -44,9 +41,7 @@ const Rail = ({
   className?: string;
 }) => {
   const reduced = useReducedMotion();
-  const travel = reduced
-    ? { duration: 0 }
-    : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.7 };
+  const travel = reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.7 };
 
   return (
     <motion.span
@@ -61,11 +56,7 @@ const Rail = ({
         initial={false}
         animate={{ top: from, height: Math.max(0, (y ?? 0) - CORNER - from) }}
         transition={travel}
-        style={
-          dashed
-            ? { backgroundImage: DASH }
-            : { backgroundColor: "currentColor" }
-        }
+        style={dashed ? { backgroundImage: DASH } : { backgroundColor: "currentColor" }}
         className="absolute left-0.5 w-px"
       />
       <motion.svg
@@ -78,11 +69,7 @@ const Rail = ({
         fill="none"
         className="absolute left-0.5"
       >
-        <path
-          d="M0.5 0a6 6 0 0 0 6 6H12"
-          stroke="currentColor"
-          strokeDasharray={dashed ? "2 2" : undefined}
-        />
+        <path d="M0.5 0a6 6 0 0 0 6 6H12" stroke="currentColor" strokeDasharray={dashed ? "2 2" : undefined} />
       </motion.svg>
     </motion.span>
   );
@@ -116,12 +103,7 @@ export function HookSidebar({
     const list = listRef.current;
     if (!list) return;
 
-    const measure = () =>
-      setCenters(
-        itemRefs.current.map((el) =>
-          el ? el.offsetTop + el.offsetHeight / 2 : 0,
-        ),
-      );
+    const measure = () => setCenters(itemRefs.current.map((el) => (el ? el.offsetTop + el.offsetHeight / 2 : 0)));
 
     const observer = new ResizeObserver(measure);
     observer.observe(list);
@@ -133,9 +115,7 @@ export function HookSidebar({
 
   // above the active row the accent line already covers the span, so draw only the corner
   const hoverFrom =
-    activeY !== null && hoverY !== null && hoverY <= activeY
-      ? Math.max(0, hoverY - CORNER)
-      : (activeY ?? 0);
+    activeY !== null && hoverY !== null && hoverY <= activeY ? Math.max(0, hoverY - CORNER) : (activeY ?? 0);
 
   const select = (index: number) => {
     if (value === undefined) setInternalValue(index);
@@ -143,12 +123,7 @@ export function HookSidebar({
   };
 
   return (
-    <nav
-      data-slot="hook-sidebar"
-      aria-label={label}
-      className={cn("flex flex-col", className)}
-      {...props}
-    >
+    <nav data-slot="hook-sidebar" aria-label={label} className={cn("flex flex-col", className)} {...props}>
       {label && (
         <span
           data-slot="hook-sidebar-label"
@@ -158,11 +133,7 @@ export function HookSidebar({
         </span>
       )}
 
-      <div
-        ref={listRef}
-        onMouseLeave={() => setPointerInside(false)}
-        className="relative flex flex-col gap-0.5"
-      >
+      <div ref={listRef} onMouseLeave={() => setPointerInside(false)} className="relative flex flex-col gap-0.5">
         <Rail
           from={hoverFrom}
           y={hoverY}
@@ -170,12 +141,7 @@ export function HookSidebar({
           dashed={dashed}
           className="text-foreground/30"
         />
-        <Rail
-          y={activeY}
-          visible={activeY !== null}
-          color={color}
-          dashed={dashed}
-        />
+        <Rail y={activeY} visible={activeY !== null} color={color} dashed={dashed} />
 
         {items.map((item, index) => {
           const text = labelOf(item);
@@ -199,9 +165,7 @@ export function HookSidebar({
             onClick: () => select(index),
             className: cn(
               "rounded-lg py-1.5 pl-5 pr-2 text-left text-sm transition-colors duration-150 motion-reduce:transition-none",
-              isActive
-                ? "font-medium text-foreground"
-                : "text-muted hover:text-foreground",
+              isActive ? "font-medium text-foreground" : "text-muted hover:text-foreground",
             ),
           };
 

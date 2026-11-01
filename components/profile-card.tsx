@@ -7,7 +7,10 @@ export function ProfileCard({ me, summary: s }: { me: Viewer; summary: Summary }
   const href = `/in/${me.handle}`;
   return (
     <section aria-label="Your profile" className="overflow-hidden border border-border bg-background">
-      <Link href={href} className="block outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+      <Link
+        href={href}
+        className="block outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
         <div className={`aspect-[4/1] border-b border-border ${s.coverUrl ? "" : "cover-hatch"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
           {s.coverUrl && <img src={s.coverUrl} alt="" className="size-full object-cover" />}
@@ -25,12 +28,17 @@ export function ProfileCard({ me, summary: s }: { me: Viewer; summary: Summary }
       {s.company && <CompanyRow company={s.company} />}
 
       <ul className="border-t border-border py-2 text-sm">
-        {([
-          ["Connections", s.connections, "/dashboard/network?tab=connections"],
-          ["Followers", s.followers, `${href}/followers`],
-        ] as const).map(([label, n, to]) => (
+        {(
+          [
+            ["Connections", s.connections, "/dashboard/network?tab=connections"],
+            ["Followers", s.followers, `${href}/followers`],
+          ] as const
+        ).map(([label, n, to]) => (
           <li key={label}>
-            <Link href={to} className="flex items-center justify-between px-4 py-1.5 outline-none transition-colors hover:bg-surface focus-visible:bg-surface">
+            <Link
+              href={to}
+              className="flex items-center justify-between px-4 py-1.5 outline-none transition-colors hover:bg-surface focus-visible:bg-surface"
+            >
               <span className="text-muted">{label}</span>
               <span className="font-medium tabular-nums text-link">{n}</span>
             </Link>
@@ -50,7 +58,12 @@ function CompanyRow({ company: c }: { company: NonNullable<Summary["company"]> }
   );
   const cls = "flex items-center gap-3 border-t border-border px-4 py-3 text-sm font-medium";
   return c.slug ? (
-    <Link href={`/company/${c.slug}`} className={`${cls} outline-none transition-colors hover:bg-surface focus-visible:bg-surface`}>{body}</Link>
+    <Link
+      href={`/company/${c.slug}`}
+      className={`${cls} outline-none transition-colors hover:bg-surface focus-visible:bg-surface`}
+    >
+      {body}
+    </Link>
   ) : (
     <p className={cls}>{body}</p>
   );

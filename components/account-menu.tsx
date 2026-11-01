@@ -26,11 +26,18 @@ export function applyTheme(t: Theme) {
 /** One-click light/dark flip for public pages. Icons swap via CSS, so no state and no hydration mismatch. */
 export function ThemeToggle() {
   const flip = () => {
-    const cur = document.documentElement.dataset.theme ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    const cur =
+      document.documentElement.dataset.theme ??
+      (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
     applyTheme(cur === "light" ? "dark" : "light");
   };
   return (
-    <button type="button" onClick={flip} aria-label="Toggle light and dark mode" className="flex items-center px-4 text-muted transition-colors hover:text-foreground">
+    <button
+      type="button"
+      onClick={flip}
+      aria-label="Toggle light and dark mode"
+      className="flex items-center px-4 text-muted transition-colors hover:text-foreground"
+    >
       <Icon d={icons.sun} size={16} className="light:hidden" />
       <Icon d={icons.moon} size={16} className="hidden light:block" />
     </button>
@@ -41,7 +48,17 @@ export function ThemeToggle() {
  * Account settings, theme and log out. In the sidebar it's a drop-up under your name; `compact` is a gear
  * button that drops down, for phones (where the sidebar is hidden) in the top bar or a profile's header.
  */
-export function AccountMenu({ name, email, imageUrl, compact }: { name: string; email?: string; imageUrl?: string; compact?: boolean }) {
+export function AccountMenu({
+  name,
+  email,
+  imageUrl,
+  compact,
+}: {
+  name: string;
+  email?: string;
+  imageUrl?: string;
+  compact?: boolean;
+}) {
   const [theme, setTheme] = useState<Theme>("system");
   const pickTheme = (t: Theme) => (applyTheme(t), setTheme(t));
 
@@ -77,7 +94,14 @@ export function AccountMenu({ name, email, imageUrl, compact }: { name: string; 
         </Link>
         <div className="my-1 h-px bg-border" />
         {themes.map(({ value, label, icon }) => (
-          <button key={value} type="button" role="menuitemradio" aria-checked={theme === value} onClick={() => pickTheme(value)} className={menuItem}>
+          <button
+            key={value}
+            type="button"
+            role="menuitemradio"
+            aria-checked={theme === value}
+            onClick={() => pickTheme(value)}
+            className={menuItem}
+          >
             <Icon d={icon} size={16} className="text-muted" />
             {label}
             {theme === value && <Icon d={icons.check} size={14} className="ml-auto" />}

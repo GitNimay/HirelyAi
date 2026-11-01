@@ -24,19 +24,32 @@ export async function loadReplies(userId: string, cursor?: string) {
 
 export async function loadFollows(userId: string, dir: FollowDir, cursor?: string) {
   const me = await viewer();
-  return listFollows(me, String(userId), dir === "following" ? "following" : "followers", cursor ? String(cursor) : undefined);
+  return listFollows(
+    me,
+    String(userId),
+    dir === "following" ? "following" : "followers",
+    cursor ? String(cursor) : undefined,
+  );
 }
 
 /** Who can see what on your own profile: the resume sections, and the "Open to work" badge. */
 export async function setProfileVisibility(input: { resumePublic: boolean; openToWork: boolean }) {
   const me = await writer();
   await env.DB.prepare("UPDATE users SET resume_public = ?2, open_to_work = ?3, updated_at = ?4 WHERE id = ?1")
-    .bind(me, input?.resumePublic === true ? 1 : 0, input?.openToWork === true ? 1 : 0, Date.now()).run();
+    .bind(me, input?.resumePublic === true ? 1 : 0, input?.openToWork === true ? 1 : 0, Date.now())
+    .run();
 }
 
 export type ProfileInput = {
-  name: string; handle: string; headline: string; bio: string; location: string; website: string;
-  avatarKey?: string; coverKey?: string; removeCover?: boolean;
+  name: string;
+  handle: string;
+  headline: string;
+  bio: string;
+  location: string;
+  website: string;
+  avatarKey?: string;
+  coverKey?: string;
+  removeCover?: boolean;
 };
 
 /** Save the caller's own profile. `avatarKey` / `coverKey` are keys just uploaded via /api/uploads?for=profile. */
@@ -56,7 +69,9 @@ async function save(input: ProfileInput) {
   if (!validHandle(handle)) throw new Fail("Handle must be 3-30 letters, numbers or hyphens");
   if (website === undefined) throw new Fail("Enter a valid website, like example.com");
 
-  const old = await env.DB.prepare("SELECT image_url, cover_key FROM users WHERE id = ?").bind(me).first<{ image_url: string | null; cover_key: string | null }>();
+  const old = await env.DB.prepare("SELECT image_url, cover_key FROM users WHERE id = ?")
+    .bind(me)
+    .first<{ image_url: string | null; cover_key: string | null }>();
   if (!old) throw new Fail("Profile not found");
   const avatar = input.avatarKey ? await ownImage(me, input.avatarKey, "profiles") : null;
   const cover = input.coverKey ? await ownImage(me, input.coverKey, "profiles") : null;
@@ -67,7 +82,9 @@ async function save(input: ProfileInput) {
     await env.DB.prepare(
       `UPDATE users SET name = ?2, handle = ?3, headline = ?4, bio = ?5, location = ?6, website = ?7, image_url = ?8, cover_key = ?9, custom = 1, updated_at = ?10
        WHERE id = ?1`,
-    ).bind(me, name, handle, headline, bio, location, website, imageUrl, coverKey, Date.now()).run();
+    )
+      .bind(me, name, handle, headline, bio, location, website, imageUrl, coverKey, Date.now())
+      .run();
   } catch (e) {
     if (String(e).includes("UNIQUE")) throw new Fail("That handle is taken");
     throw e;
@@ -75,7 +92,9 @@ async function save(input: ProfileInput) {
 
   // Replaced images are referenced nowhere else (profiles/ folder), so free them
   const stale = [
-    avatar && old.image_url?.startsWith(`/api/media/profiles/${me}/`) ? old.image_url.slice("/api/media/".length) : null,
+    avatar && old.image_url?.startsWith(`/api/media/profiles/${me}/`)
+      ? old.image_url.slice("/api/media/".length)
+      : null,
     coverKey !== old.cover_key && old.cover_key && inFolder(old.cover_key, "profiles", me) ? old.cover_key : null,
   ].filter((k): k is string => !!k);
   if (stale.length) await env.MEDIA.delete(stale);

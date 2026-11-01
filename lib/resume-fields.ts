@@ -4,7 +4,16 @@ export const STATUSES = { student: "Student", fresher: "Fresher", working: "Work
 export type Status = keyof typeof STATUSES;
 
 /** `companyId`: the company page this links to (shows its logo); without one, `company` is just text. */
-export type Experience = { title: string; company: string; companyId?: string; location: string; start: string; end: string; current: boolean; description: string };
+export type Experience = {
+  title: string;
+  company: string;
+  companyId?: string;
+  location: string;
+  start: string;
+  end: string;
+  current: boolean;
+  description: string;
+};
 export type Education = { school: string; degree: string; field: string; start: string; end: string; grade: string };
 export type Project = { name: string; link: string; description: string };
 
@@ -24,18 +33,46 @@ export type Resume = {
   preferredLocations: string[];
 };
 
-export const LIMITS = { short: 100, headline: 120, summary: 1500, description: 2000, link: 200, list: 15, skills: 50, locations: 10 };
+export const LIMITS = {
+  short: 100,
+  headline: 120,
+  summary: 1500,
+  description: 2000,
+  link: 200,
+  list: 15,
+  skills: 50,
+  locations: 10,
+};
 export const MAX_RESUME_PDF_BYTES = 5 * 1024 * 1024;
 
-export const emptyExperience = (): Experience => ({ title: "", company: "", location: "", start: "", end: "", current: false, description: "" });
+export const emptyExperience = (): Experience => ({
+  title: "",
+  company: "",
+  location: "",
+  start: "",
+  end: "",
+  current: false,
+  description: "",
+});
 export const emptyEducation = (): Education => ({ school: "", degree: "", field: "", start: "", end: "", grade: "" });
 export const emptyProject = (): Project => ({ name: "", link: "", description: "" });
 export const emptyResume = (): Resume => ({
-  name: "", headline: "", city: "", email: "", phone: "", status: "fresher", summary: "",
-  experience: [], education: [], projects: [], skills: [], preferredLocations: [],
+  name: "",
+  headline: "",
+  city: "",
+  email: "",
+  phone: "",
+  status: "fresher",
+  summary: "",
+  experience: [],
+  education: [],
+  projects: [],
+  skills: [],
+  preferredLocations: [],
 });
 
-const str = (v: unknown, max: number) => (typeof v === "string" || typeof v === "number" ? String(v).trim().replace(/\s+\n/g, "\n").slice(0, max) : "");
+const str = (v: unknown, max: number) =>
+  typeof v === "string" || typeof v === "number" ? String(v).trim().replace(/\s+\n/g, "\n").slice(0, max) : "";
 const line = (v: unknown, max = LIMITS.short) => str(v, max).replace(/\s+/g, " ");
 const month = (v: unknown) => {
   const m = line(v).match(/^(\d{4})(?:-(\d{1,2}))?/);
@@ -61,24 +98,55 @@ const filled = (o: object) => Object.values(o).some((x) => typeof x === "string"
 export function cleanResume(input: unknown): Resume {
   const o = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const status = typeof o.status === "string" && Object.hasOwn(STATUSES, o.status) ? (o.status as Status) : "fresher";
-  const experience = arr(o.experience).slice(0, LIMITS.list).map((e): Experience => {
-    const current = e?.current === true || /present|current|now/i.test(String(e?.end ?? ""));
-    const companyId = line(e?.companyId, 40);
-    return {
-      title: line(e?.title), company: line(e?.company), ...(companyId && { companyId }), location: line(e?.location),
-      start: month(e?.start), end: current ? "" : month(e?.end), current, description: str(e?.description, LIMITS.description),
-    };
-  }).filter(filled);
-  const education = arr(o.education).slice(0, LIMITS.list).map((e): Education => ({
-    school: line(e?.school), degree: line(e?.degree), field: line(e?.field), start: month(e?.start), end: month(e?.end), grade: line(e?.grade, 30),
-  })).filter(filled);
-  const projects = arr(o.projects).slice(0, LIMITS.list).map((p): Project => ({
-    name: line(p?.name), link: line(p?.link, LIMITS.link), description: str(p?.description, LIMITS.description),
-  })).filter(filled);
+  const experience = arr(o.experience)
+    .slice(0, LIMITS.list)
+    .map((e): Experience => {
+      const current = e?.current === true || /present|current|now/i.test(String(e?.end ?? ""));
+      const companyId = line(e?.companyId, 40);
+      return {
+        title: line(e?.title),
+        company: line(e?.company),
+        ...(companyId && { companyId }),
+        location: line(e?.location),
+        start: month(e?.start),
+        end: current ? "" : month(e?.end),
+        current,
+        description: str(e?.description, LIMITS.description),
+      };
+    })
+    .filter(filled);
+  const education = arr(o.education)
+    .slice(0, LIMITS.list)
+    .map((e): Education => ({
+      school: line(e?.school),
+      degree: line(e?.degree),
+      field: line(e?.field),
+      start: month(e?.start),
+      end: month(e?.end),
+      grade: line(e?.grade, 30),
+    }))
+    .filter(filled);
+  const projects = arr(o.projects)
+    .slice(0, LIMITS.list)
+    .map((p): Project => ({
+      name: line(p?.name),
+      link: line(p?.link, LIMITS.link),
+      description: str(p?.description, LIMITS.description),
+    }))
+    .filter(filled);
   return {
-    name: line(o.name, 50), headline: line(o.headline, LIMITS.headline), city: line(o.city, 60), email: line(o.email, 254), phone: line(o.phone, 30),
-    status, summary: str(o.summary, LIMITS.summary), experience, education, projects,
-    skills: tags(o.skills, LIMITS.skills), preferredLocations: tags(o.preferredLocations, LIMITS.locations),
+    name: line(o.name, 50),
+    headline: line(o.headline, LIMITS.headline),
+    city: line(o.city, 60),
+    email: line(o.email, 254),
+    phone: line(o.phone, 30),
+    status,
+    summary: str(o.summary, LIMITS.summary),
+    experience,
+    education,
+    projects,
+    skills: tags(o.skills, LIMITS.skills),
+    preferredLocations: tags(o.preferredLocations, LIMITS.locations),
   };
 }
 
@@ -87,12 +155,14 @@ export function mergeResume(base: Resume, extra: Resume): Resume {
   const out = { ...base };
   for (const k of Object.keys(out) as (keyof Resume)[]) {
     const cur = out[k];
-    if (k !== "status" && (Array.isArray(cur) ? cur.length === 0 : !cur)) (out as Record<string, unknown>)[k] = extra[k];
+    if (k !== "status" && (Array.isArray(cur) ? cur.length === 0 : !cur))
+      (out as Record<string, unknown>)[k] = extra[k];
   }
   return out;
 }
 
-export const validPhone = (p: string) => /^\+?[\d\s().-]+$/.test(p) && (p.match(/\d/g)?.length ?? 0) >= 7 && (p.match(/\d/g)?.length ?? 0) <= 15;
+export const validPhone = (p: string) =>
+  /^\+?[\d\s().-]+$/.test(p) && (p.match(/\d/g)?.length ?? 0) >= 7 && (p.match(/\d/g)?.length ?? 0) <= 15;
 export const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
 /**

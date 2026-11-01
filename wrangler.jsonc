@@ -13,7 +13,7 @@
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": true },
-    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 },
   },
   // Cloudflare creates the DNS record and certificate for this on deploy
   "routes": [{ "pattern": "hire-excellence.n1m35h.in", "custom_domain": true }],
@@ -25,15 +25,15 @@
     "TURNSTILE_HOSTNAMES": "hire-excellence.n1m35h.in",
     // PostHog project key: public by design (the browser bundle carries it too), it can only send events
     "POSTHOG_KEY": "phc_rTtErsBvXcrQRyKTx4KWsFNZjoZX74twxaqLNMbUK8Rv",
-    "POSTHOG_HOST": "https://us.i.posthog.com"
+    "POSTHOG_HOST": "https://us.i.posthog.com",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "hire-excellence-db",
       "database_id": "80ba1497-4549-4f52-9171-ba69fb4ca2bc",
-      "migrations_dir": "migrations"
-    }
+      "migrations_dir": "migrations",
+    },
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "hire-excellence-media" }],
   // Read-mostly cache (lib/profile.ts: the signed-in member's Clerk fields). Free tier allows ~1k writes/day: never write per request.
@@ -50,19 +50,19 @@
         "max_batch_timeout": 1,
         "max_retries": 5,
         "retry_delay": 30,
-        "dead_letter_queue": "hire-excellence-tasks-dlq"
+        "dead_letter_queue": "hire-excellence-tasks-dlq",
       },
       // Logs what landed in the DLQ (worker/index.ts queue), so failures are visible instead of expiring unseen
-      { "queue": "hire-excellence-tasks-dlq", "max_batch_size": 10, "max_batch_timeout": 5 }
-    ]
+      { "queue": "hire-excellence-tasks-dlq", "max_batch_size": 10, "max_batch_timeout": 5 },
+    ],
   },
   // Per-user write throttle (posts, uploads, likes, comments...)
   // AI_LIMIT: Bedrock calls (resume reading, MCQ drafting) cost money per call, so a much tighter cap on top of WRITE_LIMIT
   "ratelimits": [
     { "name": "WRITE_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
-    { "name": "AI_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+    { "name": "AI_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } },
   ],
   // Every 15 minutes (worker/index.ts scheduled): close expired interviews, fail stuck gradings, sync the Clerk directory
-  "triggers": { "crons": ["*/15 * * * *"] }
+  "triggers": { "crons": ["*/15 * * * *"] },
   // Secrets (not in this file): CLERK_SECRET_KEY, BEDROCK_*, RESEND_API_KEY, MAIL_FROM, CLERK_WEBHOOK_SECRET, LIVEKIT_*, INTERVIEW_AGENT_SECRET, TURNSTILE_SECRET via `wrangler secret`, .env.local locally
 }

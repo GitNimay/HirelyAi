@@ -65,8 +65,17 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
     else if (e.t === "net") setNet((n) => ({ ...apply(n, e), counts: e.counts }));
     // Someone edited their profile: same person, new name / photo / headline / bio, wherever they're listed
     else if (e.t === "profile") {
-      const edit = (p: Person) => (p.id === e.id ? { ...p, name: e.name, handle: e.handle, headline: e.headline, bio: e.bio, imageUrl: e.imageUrl } : p);
-      setNet((n) => ({ ...n, received: n.received.map(edit), sent: n.sent.map(edit), connections: n.connections.map(edit), suggestions: n.suggestions.map(edit) }));
+      const edit = (p: Person) =>
+        p.id === e.id
+          ? { ...p, name: e.name, handle: e.handle, headline: e.headline, bio: e.bio, imageUrl: e.imageUrl }
+          : p;
+      setNet((n) => ({
+        ...n,
+        received: n.received.map(edit),
+        sent: n.sent.map(edit),
+        connections: n.connections.map(edit),
+        suggestions: n.suggestions.map(edit),
+      }));
       setFound((f) => f && f.map(edit));
     }
   });
@@ -75,10 +84,17 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
   useEffect(() => {
     const q = find.trim();
     let live = true;
-    const t = setTimeout(() => {
-      if (q) actions.findPeople(q).then((r) => live && setFound(r), () => live && setFound([]));
-      else setFound(null);
-    }, q ? 250 : 0);
+    const t = setTimeout(
+      () => {
+        if (q)
+          actions.findPeople(q).then(
+            (r) => live && setFound(r),
+            () => live && setFound([]),
+          );
+        else setFound(null);
+      },
+      q ? 250 : 0,
+    );
     return () => {
       live = false;
       clearTimeout(t);
@@ -113,8 +129,12 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
     actions.dismissSuggestion(p.id).catch(() => (toast("Couldn't update. Try again.", "error"), refresh()));
   };
   const remove = async (p: Person) =>
-    (await ask({ title: `Remove ${p.name}?`, body: "They won't be notified. You can send a new invitation later.", confirm: "Remove connection", danger: true })) &&
-    act(p, "disconnect", "out", actions.removeConnection);
+    (await ask({
+      title: `Remove ${p.name}?`,
+      body: "They won't be notified. You can send a new invitation later.",
+      confirm: "Remove connection",
+      danger: true,
+    })) && act(p, "disconnect", "out", actions.removeConnection);
 
   /** The one button that fits where you stand with this person. */
   function personAction(p: Person) {
@@ -128,7 +148,11 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
       );
     if (net.sent.some((c) => c.id === p.id)) return <PendingButton disabled={off} onClick={() => withdraw(p)} />;
     if (net.received.some((c) => c.id === p.id))
-      return <button type="button" className={btnPrimary} disabled={off} onClick={() => accept(p)}>Accept</button>;
+      return (
+        <button type="button" className={btnPrimary} disabled={off} onClick={() => accept(p)}>
+          Accept
+        </button>
+      );
     return (
       <button type="button" className={btnOutline} disabled={off} onClick={() => invite(p)}>
         <Icon d={icons.connect} size={14} />
@@ -144,7 +168,9 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
     { id: "sent", label: "Sent", count: net.sent.length || undefined },
   ];
   const q = query.trim().toLowerCase();
-  const connections = q ? net.connections.filter((p) => `${p.name} ${p.headline ?? ""}`.toLowerCase().includes(q)) : net.connections;
+  const connections = q
+    ? net.connections.filter((p) => `${p.name} ${p.headline ?? ""}`.toLowerCase().includes(q))
+    : net.connections;
   const invites = allInvites ? net.received : net.received.slice(0, 3);
 
   return (
@@ -192,7 +218,11 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
       {tab === "grow" && find.trim() && (
         <Section title="People" count={found?.length} last>
           {found === null ? (
-            <Loading label="Searching…" className="divide-y divide-border">{times(3, (i) => <PersonRowSkeleton key={i} i={i} />)}</Loading>
+            <Loading label="Searching…" className="divide-y divide-border">
+              {times(3, (i) => (
+                <PersonRowSkeleton key={i} i={i} />
+              ))}
+            </Loading>
           ) : found.length === 0 ? (
             <Empty>No one matches “{find.trim()}”.</Empty>
           ) : (
@@ -217,13 +247,21 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
                 <ul className="divide-y divide-border">
                   {invites.map((p) => (
                     <Row key={p.id} person={p} meta={[why(p), ago(p.at)].filter(Boolean).join(" · ")}>
-                      <button type="button" className={btnGhost} disabled={busy.has(p.id)} onClick={() => ignore(p)}>Ignore</button>
-                      <button type="button" className={btnPrimary} disabled={busy.has(p.id)} onClick={() => accept(p)}>Accept</button>
+                      <button type="button" className={btnGhost} disabled={busy.has(p.id)} onClick={() => ignore(p)}>
+                        Ignore
+                      </button>
+                      <button type="button" className={btnPrimary} disabled={busy.has(p.id)} onClick={() => accept(p)}>
+                        Accept
+                      </button>
                     </Row>
                   ))}
                 </ul>
                 {net.received.length > 3 && (
-                  <button type="button" onClick={() => setAllInvites((v) => !v)} className="h-10 w-full border-t border-border text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setAllInvites((v) => !v)}
+                    className="h-10 w-full border-t border-border text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"
+                  >
                     {allInvites ? "Show less" : `Show all ${net.received.length}`}
                   </button>
                 )}
@@ -239,7 +277,13 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
                 {net.suggestions.map((p) => (
                   <Row key={p.id} person={p} meta={why(p) ?? ""}>
                     {personAction(p)}
-                    <button type="button" title="Not interested" aria-label={`Dismiss ${p.name}`} className={`${btnGhost} px-2`} onClick={() => dismiss(p)}>
+                    <button
+                      type="button"
+                      title="Not interested"
+                      aria-label={`Dismiss ${p.name}`}
+                      className={`${btnGhost} px-2`}
+                      onClick={() => dismiss(p)}
+                    >
                       <Icon d={icons.close} size={16} />
                     </button>
                   </Row>
@@ -269,7 +313,9 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
           }
         >
           {connections.length === 0 ? (
-            <Empty>{q ? `No connections match “${query}”.` : "No connections yet. Start with People you may know."}</Empty>
+            <Empty>
+              {q ? `No connections match “${query}”.` : "No connections yet. Start with People you may know."}
+            </Empty>
           ) : (
             <ul className="divide-y divide-border">
               {connections.map((p) => (
@@ -280,7 +326,13 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
                     className={`${btnGhost} px-2`}
                     panelClassName="right-0 top-9 w-52"
                   >
-                    <button type="button" role="menuitem" disabled={busy.has(p.id)} onClick={() => remove(p)} className={`${menuItem} text-danger`}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={busy.has(p.id)}
+                      onClick={() => remove(p)}
+                      className={`${menuItem} text-danger`}
+                    >
                       <Icon d={icons.close} size={14} /> Remove connection
                     </button>
                   </Menu>
@@ -299,7 +351,9 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
             <ul className="divide-y divide-border">
               {net.sent.map((p) => (
                 <Row key={p.id} person={p} meta={`Sent ${ago(p.at)}`}>
-                  <button type="button" className={btnOutline} disabled={busy.has(p.id)} onClick={() => withdraw(p)}>Withdraw</button>
+                  <button type="button" className={btnOutline} disabled={busy.has(p.id)} onClick={() => withdraw(p)}>
+                    Withdraw
+                  </button>
                 </Row>
               ))}
             </ul>
@@ -310,7 +364,19 @@ export function Network({ initial, initialTab = "grow" }: { initial: Net; initia
   );
 }
 
-function Section({ title, count, action, last, children }: { title: string; count?: number; action?: React.ReactNode; last?: boolean; children: React.ReactNode }) {
+function Section({
+  title,
+  count,
+  action,
+  last,
+  children,
+}: {
+  title: string;
+  count?: number;
+  action?: React.ReactNode;
+  last?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <section className={last ? "" : "border-b border-border"}>
       <div className="flex h-12 items-center justify-between gap-4 px-4">
@@ -327,11 +393,17 @@ function Section({ title, count, action, last, children }: { title: string; coun
 function Row({ person: p, meta, children }: { person: Person; meta: string; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
-      <Link href={profileHref(p)} aria-label={p.name} className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <Link
+        href={profileHref(p)}
+        aria-label={p.name}
+        className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <Avatar name={p.name} src={p.imageUrl ?? undefined} size={48} />
       </Link>
       <div className="min-w-0 flex-1">
-        <Link href={profileHref(p)} className="block truncate text-sm font-medium hover:underline">{p.name}</Link>
+        <Link href={profileHref(p)} className="block truncate text-sm font-medium hover:underline">
+          {p.name}
+        </Link>
         {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
         {p.bio && <p className="truncate text-xs text-muted">{p.bio.replace(/\s+/g, " ")}</p>}
         {meta && <p className="truncate text-xs tabular-nums text-muted">{meta}</p>}
@@ -341,12 +413,20 @@ function Row({ person: p, meta, children }: { person: Person; meta: string; chil
   );
 }
 
-const Empty = ({ children }: { children: React.ReactNode }) => <p className="px-4 py-12 text-center text-sm text-muted">{children}</p>;
+const Empty = ({ children }: { children: React.ReactNode }) => (
+  <p className="px-4 py-12 text-center text-sm text-muted">{children}</p>
+);
 
 /** An invitation you sent: reads "Pending", and says what a click does ("Withdraw") on hover or focus. */
 export function PendingButton({ disabled, onClick }: { disabled?: boolean; onClick: () => void }) {
   return (
-    <button type="button" aria-label="Invitation pending. Withdraw" className={`${btnOutline} group min-w-[104px]`} disabled={disabled} onClick={onClick}>
+    <button
+      type="button"
+      aria-label="Invitation pending. Withdraw"
+      className={`${btnOutline} group min-w-[104px]`}
+      disabled={disabled}
+      onClick={onClick}
+    >
       <span className="flex items-center gap-1.5 group-hover:hidden group-focus-visible:hidden">
         <Icon d={icons.clock} size={14} />
         Pending

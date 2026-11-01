@@ -25,10 +25,26 @@ export type Profile = {
 };
 
 type Row = {
-  id: string; handle: string | null; name: string; headline: string | null; bio: string | null; location: string | null; website: string | null;
-  image_url: string | null; cover_key: string | null; joined_at: number | null; resume_public: number; open_to_work: number;
-  posts: number; connections: number; following: number; followers: number;
-  i_follow: number; follows_me: number; conn: Connection; mutual: number;
+  id: string;
+  handle: string | null;
+  name: string;
+  headline: string | null;
+  bio: string | null;
+  location: string | null;
+  website: string | null;
+  image_url: string | null;
+  cover_key: string | null;
+  joined_at: number | null;
+  resume_public: number;
+  open_to_work: number;
+  posts: number;
+  connections: number;
+  following: number;
+  followers: number;
+  i_follow: number;
+  follows_me: number;
+  conn: Connection;
+  mutual: number;
 };
 
 /** `ref` is a handle, or a user id (older links, fallback URLs). ?1 = viewer, ?2 = ref. */
@@ -45,12 +61,23 @@ export async function getProfile(viewerId: string, ref: string): Promise<Profile
             ELSE 'none' END AS conn,
        (SELECT COUNT(*) FROM connections a JOIN connections b ON b.user_id = u.id AND b.peer_id = a.peer_id WHERE a.user_id = ?1) AS mutual
      FROM users u WHERE u.handle = ?2 OR u.id = ?2 ORDER BY u.handle = ?2 DESC LIMIT 1`,
-  ).bind(viewerId, ref).first<Row>();
+  )
+    .bind(viewerId, ref)
+    .first<Row>();
   if (!r) return null;
   return {
-    id: r.id, handle: r.handle, name: r.name, headline: r.headline, bio: r.bio, location: r.location, website: r.website,
-    imageUrl: r.image_url, coverUrl: r.cover_key ? `/api/media/${r.cover_key}` : null, joinedAt: r.joined_at,
-    resumePublic: !!r.resume_public, openToWork: !!r.open_to_work,
+    id: r.id,
+    handle: r.handle,
+    name: r.name,
+    headline: r.headline,
+    bio: r.bio,
+    location: r.location,
+    website: r.website,
+    imageUrl: r.image_url,
+    coverUrl: r.cover_key ? `/api/media/${r.cover_key}` : null,
+    joinedAt: r.joined_at,
+    resumePublic: !!r.resume_public,
+    openToWork: !!r.open_to_work,
     counts: { posts: r.posts, connections: r.connections, following: r.following, followers: r.followers },
     rel: { following: !!r.i_follow, followsYou: !!r.follows_me, connection: r.conn, mutual: r.mutual },
   };
@@ -65,7 +92,8 @@ type Member = ReturnType<typeof profileOf> & { email: string; phone: string };
 const memberOf = (u: User): Member => ({
   ...profileOf(u),
   email: u.primaryEmailAddress?.emailAddress ?? "",
-  phone: (typeof u.unsafeMetadata.phone === "string" && u.unsafeMetadata.phone) || u.primaryPhoneNumber?.phoneNumber || "",
+  phone:
+    (typeof u.unsafeMetadata.phone === "string" && u.unsafeMetadata.phone) || u.primaryPhoneNumber?.phoneNumber || "",
 });
 
 /**
@@ -74,13 +102,23 @@ const memberOf = (u: User): Member => ({
  * Null when there's no D1 row and no sync.
  */
 async function viewerOf(m: Member, sync: boolean): Promise<Viewer | null> {
-  const rows = await env.DB.batch<{ name: string; image_url: string | null; handle: string | null; onboarded: number }>([
-    ...(sync ? syncStatements(m) : []),
-    env.DB.prepare("SELECT name, image_url, handle, EXISTS (SELECT 1 FROM resumes WHERE user_id = users.id) AS onboarded FROM users WHERE id = ?").bind(m.id),
-  ]);
+  const rows = await env.DB.batch<{ name: string; image_url: string | null; handle: string | null; onboarded: number }>(
+    [
+      ...(sync ? syncStatements(m) : []),
+      env.DB.prepare(
+        "SELECT name, image_url, handle, EXISTS (SELECT 1 FROM resumes WHERE user_id = users.id) AS onboarded FROM users WHERE id = ?",
+      ).bind(m.id),
+    ],
+  );
   const r = rows.at(-1)!.results[0];
   if (!r && !sync) return null;
-  return { id: m.id, name: r?.name ?? m.name, imageUrl: r?.image_url ?? m.imageUrl ?? undefined, handle: r?.handle ?? m.id, onboarded: !!r?.onboarded };
+  return {
+    id: m.id,
+    name: r?.name ?? m.name,
+    imageUrl: r?.image_url ?? m.imageUrl ?? undefined,
+    handle: r?.handle ?? m.id,
+    onboarded: !!r?.onboarded,
+  };
 }
 
 const memberKey = (id: string) => `member:${id}`;
@@ -128,10 +166,29 @@ export async function getReplies(userId: string, cursor?: string) {
             u.id AS uid, u.name, u.handle
      FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = p.author_id
      WHERE c.author_id = ?1 ORDER BY c.created_at DESC, c.id DESC LIMIT ${REPLY_PAGE} OFFSET ?2`,
-  ).bind(userId, offset).all<{ id: string; body: string; created_at: number; post_id: string; post_body: string; has_media: number; uid: string; name: string; handle: string | null }>();
+  )
+    .bind(userId, offset)
+    .all<{
+      id: string;
+      body: string;
+      created_at: number;
+      post_id: string;
+      post_body: string;
+      has_media: number;
+      uid: string;
+      name: string;
+      handle: string | null;
+    }>();
   const replies: Reply[] = results.map((r) => ({
-    id: r.id, body: r.body, createdAt: r.created_at,
-    post: { id: r.post_id, body: r.post_body, hasMedia: !!r.has_media, author: { id: r.uid, name: r.name, handle: r.handle } },
+    id: r.id,
+    body: r.body,
+    createdAt: r.created_at,
+    post: {
+      id: r.post_id,
+      body: r.post_body,
+      hasMedia: !!r.has_media,
+      author: { id: r.uid, name: r.name, handle: r.handle },
+    },
   }));
   return { replies, next: replies.length === REPLY_PAGE ? String(offset + REPLY_PAGE) : null };
 }
@@ -158,16 +215,34 @@ export async function getSummary(userId: string): Promise<Summary | null> {
                 WHERE r.user_id = ?1 AND e.value ->> '$.current' ORDER BY e.key LIMIT 1) x ON 1
      LEFT JOIN companies c ON c.id = x.company_id
      WHERE u.id = ?1`,
-  ).bind(userId).first<{ cover_key: string | null; headline: string | null; location: string | null; connections: number; followers: number; company: string | null; slug: string | null; logo_key: string | null }>();
+  )
+    .bind(userId)
+    .first<{
+      cover_key: string | null;
+      headline: string | null;
+      location: string | null;
+      connections: number;
+      followers: number;
+      company: string | null;
+      slug: string | null;
+      logo_key: string | null;
+    }>();
   if (!r) return null;
   return {
-    coverUrl: r.cover_key ? `/api/media/${r.cover_key}` : null, headline: r.headline, location: r.location,
-    connections: r.connections, followers: r.followers,
-    company: r.company ? { name: r.company, slug: r.slug, logoUrl: r.logo_key ? `/api/media/${r.logo_key}` : null } : null,
+    coverUrl: r.cover_key ? `/api/media/${r.cover_key}` : null,
+    headline: r.headline,
+    location: r.location,
+    connections: r.connections,
+    followers: r.followers,
+    company: r.company
+      ? { name: r.company, slug: r.slug, logoUrl: r.logo_key ? `/api/media/${r.logo_key}` : null }
+      : null,
   };
 }
 
 /** Whether the member has finished or skipped this product tour (see migrations/0017_tours.sql). */
 export async function seenTour(userId: string, tourId: string) {
-  return !!(await env.DB.prepare("SELECT 1 FROM user_tours WHERE user_id = ? AND tour_id = ?").bind(userId, tourId).first());
+  return !!(await env.DB.prepare("SELECT 1 FROM user_tours WHERE user_id = ? AND tour_id = ?")
+    .bind(userId, tourId)
+    .first());
 }

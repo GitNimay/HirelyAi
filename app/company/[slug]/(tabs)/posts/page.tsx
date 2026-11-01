@@ -14,7 +14,12 @@ export default async function PostsTab({ params }: { params: Promise<{ slug: str
     <Feed
       viewer={{ id: userId, name: "" }}
       initial={initial}
-      list={{ userId: c.id, tab: "company", empty: `${c.name} hasn't posted yet.`, compose: c.me.role ? { id: c.id, name: c.name, logoUrl: c.logoUrl } : undefined }}
+      list={{
+        userId: c.id,
+        tab: "company",
+        empty: `${c.name} hasn't posted yet.`,
+        compose: c.me.role ? { id: c.id, name: c.name, logoUrl: c.logoUrl } : undefined,
+      }}
     />
   );
 }
