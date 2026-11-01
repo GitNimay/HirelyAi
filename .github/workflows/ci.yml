@@ -92,6 +92,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Throwaway, well-formed test key so Clerk middleware boots in the integration job (prod key lives in the production environment)
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
@@ -122,11 +125,14 @@ jobs:
       - run: npx wrangler d1 migrations apply hire-excellence-db --local
       - name: Smoke test the built Worker
         run: |
+          printf 'CLERK_SECRET_KEY=sk_test_ci_dummy\nNEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$PK" | tee .dev.vars > dist/server/.dev.vars
           npx vite preview --port 4173 > preview.log 2>&1 &
           for _ in $(seq 1 30); do curl -fsS http://localhost:4173/api/health > health.json 2>/dev/null && break; sleep 2; done
           cat preview.log health.json
           grep -q '"ok":true' health.json
           curl -fsS -o /dev/null http://localhost:4173/
+        env:
+          PK: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
 
   agent:
     runs-on: ubuntu-latest
