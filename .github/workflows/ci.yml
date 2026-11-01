@@ -223,7 +223,7 @@ jobs:
           [ -n "$OPENCODE_API_KEY" ] || skip "AI review skipped: OPENCODE_API_KEY is not configured."
           # The exit code is ignored on purpose: a review.md with a verdict counts even if the agent exits non-zero after writing it
           opencode run --auto -m 'opencode/glm-5.3-flash-free#high' \
-            "Review this pull request with the open-code-review-delegate skill in range mode (--from origin/$BASE --to HEAD), passing --background-file .github/ai-review-rules.md to ocr delegate preview. Enforce the project rules in .github/ai-review-rules.md on top of the OCR rules. Report only real findings, each with path:line, under the headings Blocking and Non-blocking. Write two files in the repo root and modify nothing else. (1) review.md, GitHub markdown: its first line must be exactly 'VERDICT: BLOCK' if there is any critical or high severity issue or any violation of a BLOCK rule, otherwise exactly 'VERDICT: PASS'; then a one-line summary, the coverage stats and the findings. (2) findings.json: a JSON array with one object per finding, {\"path\": repo-relative path, \"line\": line number in the new file, \"severity\": \"critical\"|\"high\"|\"medium\"|\"low\", \"blocking\": true|false, \"body\": the finding and its fix in markdown}; write [] when there are none." \
+            "Review this pull request with the open-code-review-delegate skill in range mode (--from origin/$BASE --to HEAD), passing --background-file .github/ai-review-rules.md to ocr delegate preview. Enforce the project rules in .github/ai-review-rules.md on top of the OCR rules. Report only real findings. Write two files in the repo root and modify nothing else. (1) review.md, GitHub markdown: its first line must be exactly 'VERDICT: BLOCK' if there is any critical or high severity issue or any violation of a BLOCK rule, otherwise exactly 'VERDICT: PASS'. Then one plain sentence summing up the PR, then a line 'Reviewed X of Y files.', then a '### Blocking' and a '### Non-blocking' list, leaving out a heading that has no findings. Each finding is one bullet: the path:line in backticks, the severity in bold, then what is wrong and how to fix it in at most two short sentences. Nothing else: no list of rules checked, no praise, no recap. (2) findings.json: a JSON array with one object per finding, {\"path\": repo-relative path, \"line\": line number in the new file, \"severity\": \"critical\"|\"high\"|\"medium\"|\"low\", \"blocking\": true|false, \"body\": what is wrong and the fix in at most two short sentences}; write [] when there are none. Writing style for both files: short, simple, direct English; no emojis; no em dashes, en dashes or double hyphens (use a comma, colon or full stop instead)." \
             || echo "::warning::opencode exited non-zero"
           [ -f review.md ] || skip "AI review could not finish (model error or usage limit). Re-run the job to try again."
           head -1 review.md | tr -d '\r' | grep -qxE 'VERDICT: (PASS|BLOCK)' || skip "AI review returned no verdict."
@@ -234,9 +234,9 @@ jobs:
       - name: Post summary comment
         run: |
           sed -e '1s/\r$//' \
-              -e '1s/^VERDICT: PASS$/## ✅ AI review: pass, no blocking issues/' \
-              -e '1s/^VERDICT: BLOCK$/## ❌ AI review: blocked, fix the blocking issues below before merging/' \
-              -e '1s/^VERDICT: SKIPPED$/## ⚠️ AI review: skipped/' review.md > comment.md
+              -e '1s/^VERDICT: PASS$/## AI review: passed/' \
+              -e '1s/^VERDICT: BLOCK$/## AI review: blocked/' \
+              -e '1s/^VERDICT: SKIPPED$/## AI review: skipped/' review.md > comment.md
           gh pr comment "$PR" --body-file comment.md --edit-last --create-if-none
         env:
           GH_TOKEN: ${{ github.token }}
@@ -253,7 +253,7 @@ jobs:
             key=$(jq -r '"\(.path):\(.line)"' <<< "$f")
             grep -qxF "$key" <<< "$seen" && continue
             jq --arg sha "$SHA" '{
-                body: ((if .blocking then "❌ **Blocking**" else "💬 **Non-blocking**" end) + " · \(.severity // "note")\n\n\(.body)\n\n<!-- ai-review -->"),
+                body: ("**" + (if .blocking then "Blocking" else "Non-blocking" end) + ", \(.severity // "note")**: \(.body)\n\n<!-- ai-review -->"),
                 path, line: (.line | tonumber), side: "RIGHT", commit_id: $sha
               }' <<< "$f" | gh api "repos/$REPO/pulls/$PR/comments" --input - > /dev/null \
               || echo "::notice::No inline comment for $key (line is outside the diff); it is in the summary comment"
@@ -269,7 +269,7 @@ jobs:
           if gh pr view "$PR" --json labels --jq '.labels[].name' | grep -qx ai-review-override; then
             echo "::warning::Blocking AI findings overridden by the ai-review-override label"; exit 0
           fi
-          echo "::error::AI review found blocking issues (see the PR comment). Fix them, or add the ai-review-override label and re-run failed jobs."
+          echo "::error::AI review found blocking issues, see the PR comment. Fix them, or add the ai-review-override label and re-run failed jobs."
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}
