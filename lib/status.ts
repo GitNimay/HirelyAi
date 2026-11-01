@@ -38,20 +38,29 @@ const PROBES: Record<ComponentId, () => Promise<boolean>> = {
   },
 };
 
-export type Live = { at: number; up: Record<ComponentId, boolean> };
+/** One round of checks: the result per component, and for successes the response time in whole ms. */
+export type Live = { at: number; up: Record<ComponentId, boolean>; ms: Record<ComponentId, number | null> };
 
-/** Runs every probe and adds the results to today's counts. */
+/** Runs every probe and adds the results and response times to today's counts. */
 export async function checkAll(): Promise<Live> {
-  const results = await Promise.all(COMPONENTS.map(({ id }) => PROBES[id]().catch(() => false)));
-  const up = Object.fromEntries(COMPONENTS.map(({ id }, i) => [id, results[i]])) as Live["up"];
+  const results = await Promise.all(
+    COMPONENTS.map(async ({ id }) => {
+      const started = performance.now();
+      const up = await PROBES[id]().catch(() => false);
+      // Only successful checks carry latency: a timeout is a failure, not a slow success
+      return { id, up, ms: up ? Math.round(performance.now() - started) : null };
+    }),
+  );
+  const up = Object.fromEntries(results.map((r) => [r.id, r.up])) as Live["up"];
+  const ms = Object.fromEntries(results.map((r) => [r.id, r.ms])) as Live["ms"];
   const day = new Date().toISOString().slice(0, 10);
   const upsert = env.DB.prepare(
-    "INSERT INTO status_checks (component, day, total, failed) VALUES (?, ?, 1, ?) ON CONFLICT (component, day) DO UPDATE SET total = total + 1, failed = failed + excluded.failed",
+    "INSERT INTO status_checks (component, day, total, failed, ms, ms_count) VALUES (?, ?, 1, ?, ?, ?) ON CONFLICT (component, day) DO UPDATE SET total = total + 1, failed = failed + excluded.failed, ms = ms + excluded.ms, ms_count = ms_count + excluded.ms_count",
   );
-  await env.DB.batch(COMPONENTS.map(({ id }) => upsert.bind(id, day, up[id] ? 0 : 1))).catch((e) =>
+  await env.DB.batch(results.map((r) => upsert.bind(r.id, day, r.up ? 0 : 1, r.ms ?? 0, r.ms != null ? 1 : 0))).catch((e) =>
     console.error("status record", e),
   );
-  return { at: Date.now(), up };
+  return { at: Date.now(), up, ms };
 }
 
 // Page views re-check at most once a minute per data center, so traffic can't turn into probe traffic
@@ -69,11 +78,12 @@ export async function liveStatus(): Promise<Live> {
 
 export async function history() {
   const days = lastDays();
-  const { results } = await env.DB.prepare("SELECT component, day, total, failed FROM status_checks WHERE day >= ?")
+  const { results } = await env.DB
+    .prepare("SELECT component, day, total, failed, ms, ms_count FROM status_checks WHERE day >= ?")
     .bind(days[0])
     .all<Day & { component: string }>();
   const by = new Map(results.map((r) => [`${r.component}:${r.day}`, r]));
   return Object.fromEntries(
-    COMPONENTS.map(({ id }) => [id, days.map((day) => by.get(`${id}:${day}`) ?? { day, total: 0, failed: 0 })]),
+    COMPONENTS.map(({ id }) => [id, days.map((day) => by.get(`${id}:${day}`) ?? { day, total: 0, failed: 0, ms: 0, ms_count: 0 })]),
   ) as Record<ComponentId, Day[]>;
 }
