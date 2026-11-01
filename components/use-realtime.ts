@@ -58,7 +58,8 @@ function open() {
       if (socket !== ws) return;
       clearInterval(ping);
       // Jitter: after a deploy or outage, every tab shouldn't reconnect in the same instant
-      if (!stopped) timer = window.setTimeout(connect, Math.min(30_000, 1000 * 2 ** retry++) * (0.5 + Math.random() / 2));
+      if (!stopped)
+        timer = window.setTimeout(connect, Math.min(30_000, 1000 * 2 ** retry++) * (0.5 + Math.random() / 2));
     };
   };
   // Back on screen or back online: background tabs throttle timers, so a dead socket may not have been noticed yet.

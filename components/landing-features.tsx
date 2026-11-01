@@ -8,7 +8,18 @@ const ink = "#1c1c19";
 
 function Art({ children, stroke = ink }: { children: ReactNode; stroke?: string }) {
   return (
-    <svg width="84" height="84" viewBox="0 0 84 84" fill="none" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="size-16 sm:size-[84px]">
+    <svg
+      width="84"
+      height="84"
+      viewBox="0 0 84 84"
+      fill="none"
+      stroke={stroke}
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className="size-16 sm:size-[84px]"
+    >
       {children}
     </svg>
   );
@@ -16,7 +27,9 @@ function Art({ children, stroke = ink }: { children: ReactNode; stroke?: string 
 
 const TILES = [
   {
-    title: "Voice interviews", label: "Interview", bg: "bg-[#D9A3B4]",
+    title: "Voice interviews",
+    label: "Interview",
+    bg: "bg-[#D9A3B4]",
     art: (
       <Art>
         <path d="M8 14h40a6 6 0 0 1 6 6v18a6 6 0 0 1-6 6H26l-9 8v-8h-9a6 6 0 0 1-6-6V20a6 6 0 0 1 6-6z" fill="#fff" />
@@ -30,7 +43,9 @@ const TILES = [
     ),
   },
   {
-    title: "Screening tests", label: "Assessment", bg: "bg-[#E06E3E]",
+    title: "Screening tests",
+    label: "Assessment",
+    bg: "bg-[#E06E3E]",
     art: (
       <Art>
         <rect x="10" y="10" width="46" height="62" rx="4" fill="#fff" />
@@ -50,7 +65,9 @@ const TILES = [
     ),
   },
   {
-    title: "Graded reports", label: "Evaluation", bg: "bg-[#EEEAE2]",
+    title: "Graded reports",
+    label: "Evaluation",
+    bg: "bg-[#EEEAE2]",
     art: (
       <Art>
         <path d="M14 8h36l12 12v54H14z" fill="#fff" />
@@ -65,7 +82,9 @@ const TILES = [
     ),
   },
   {
-    title: "Skill profiles", label: "Candidates", bg: "bg-[#E6E0D2]",
+    title: "Skill profiles",
+    label: "Candidates",
+    bg: "bg-[#E6E0D2]",
     art: (
       <Art>
         <rect x="6" y="18" width="62" height="44" rx="5" fill="#fff" />
@@ -81,7 +100,9 @@ const TILES = [
     ),
   },
   {
-    title: "Hiring pipeline", label: "Jobs", bg: "bg-[#D9CDB7]",
+    title: "Hiring pipeline",
+    label: "Jobs",
+    bg: "bg-[#D9CDB7]",
     art: (
       <Art>
         <rect x="4" y="14" width="22" height="16" rx="3" fill="#fff" />
@@ -117,7 +138,10 @@ export function FeatureGrid({ moreHref }: { moreHref: string }) {
         </li>
       ))}
       <li className="flex">
-        <Link href={moreHref} className={`${tile} w-full border border-muted text-foreground transition-colors hover:bg-surface-hover`}>
+        <Link
+          href={moreHref}
+          className={`${tile} w-full border border-muted text-foreground transition-colors hover:bg-surface-hover`}
+        >
           <div className="flex-1">
             <Art stroke="currentColor">
               <path d="M42 8l26 10v20c0 18-12 29-26 36C28 67 16 56 16 38V18z" />
@@ -126,7 +150,9 @@ export function FeatureGrid({ moreHref }: { moreHref: string }) {
             </Art>
           </div>
           <span className={title}>And a lot more</span>
-          <span aria-hidden className="mt-1 text-[15px] text-muted">→</span>
+          <span aria-hidden className="mt-1 text-[15px] text-muted">
+            →
+          </span>
         </Link>
       </li>
     </ul>

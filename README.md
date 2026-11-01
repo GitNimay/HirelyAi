@@ -90,12 +90,12 @@ Add your keys to `.env.local` (Clerk, Bedrock, Resend, LiveKit, Turnstile) and p
 
 ## Scripts
 
-| Command | |
-|---|---|
-| `npm run dev` | Dev server on :3000 |
-| `npm test` | Unit tests |
-| `npm run typecheck` | Type check |
-| `npm run deploy` | Build, migrate, deploy |
+| Command             |                        |
+| ------------------- | ---------------------- |
+| `npm run dev`       | Dev server on :3000    |
+| `npm test`          | Unit tests             |
+| `npm run typecheck` | Type check             |
+| `npm run deploy`    | Build, migrate, deploy |
 
 ---
 

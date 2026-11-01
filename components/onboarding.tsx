@@ -5,7 +5,14 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createMyProfile, extractFromText } from "@/app/onboarding/actions";
-import { emptyResume, MAX_RESUME_PDF_BYTES, mergeResume, missingFields, validPhone, type Resume } from "@/lib/resume-fields";
+import {
+  emptyResume,
+  MAX_RESUME_PDF_BYTES,
+  mergeResume,
+  missingFields,
+  validPhone,
+  type Resume,
+} from "@/lib/resume-fields";
 import { maskEmail } from "@/lib/profile-fields";
 import { applyTheme } from "./account-menu";
 import { errorText, Logo } from "./auth";
@@ -23,14 +30,17 @@ const STEPS: { id: Step; label: string }[] = [
 ];
 const order = (s: Step) => (s === "reading" ? 1 : STEPS.findIndex((x) => x.id === s));
 
-export const primary = "inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+export const primary =
+  "inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 const upload = icons.upload;
 const chevron = "m9 18 6-6-6-6";
 
 /** PDF → plain text here in the browser (unpdf, loaded only when someone uploads), so the server never parses PDFs. */
 async function pdfText(f: File) {
   const { extractText, getDocumentProxy } = await import("unpdf");
-  const { text } = await extractText(await getDocumentProxy(new Uint8Array(await f.arrayBuffer())), { mergePages: true });
+  const { text } = await extractText(await getDocumentProxy(new Uint8Array(await f.arrayBuffer())), {
+    mergePages: true,
+  });
   return text;
 }
 
@@ -81,7 +91,9 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
       setStep("method");
       return setError("We couldn't open that PDF. Try another file, or fill in your details manually.");
     }
-    const res = await extractFromText(text).catch(() => ({ error: "Upload failed. Check your connection and try again." }));
+    const res = await extractFromText(text).catch(() => ({
+      error: "Upload failed. Check your connection and try again.",
+    }));
     if ("error" in res) {
       setStep("method");
       return setError(res.error);
@@ -145,29 +157,61 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
   const card: Record<Step, ReactNode> = {
     details: (
       <form onSubmit={submitDetails} noValidate className="space-y-5">
-        <Head title="Tell us about yourself" sub="Recruiters use these to reach you. Only people you apply to see your phone number." />
+        <Head
+          title="Tell us about yourself"
+          sub="Recruiters use these to reach you. Only people you apply to see your phone number."
+        />
         <F label="Full name" bad={show && detailsBad.name}>
-          <input value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })} maxLength={50} autoComplete="name" autoFocus placeholder="Ada Lovelace" className={`${input} h-10 max-sm:text-base ${show && detailsBad.name ? "border-danger" : "border-border"}`} />
+          <input
+            value={r.name}
+            onChange={(e) => setR({ ...r, name: e.target.value })}
+            maxLength={50}
+            autoComplete="name"
+            autoFocus
+            placeholder="Ada Lovelace"
+            className={`${input} h-10 max-sm:text-base ${show && detailsBad.name ? "border-danger" : "border-border"}`}
+          />
         </F>
         <div className="grid gap-5 sm:grid-cols-2">
           <F label="Phone number" bad={show && detailsBad.phone}>
-            <input value={r.phone} onChange={(e) => setR({ ...r, phone: e.target.value })} type="tel" maxLength={30} autoComplete="tel" placeholder="+91 98765 43210" className={`${input} h-10 max-sm:text-base ${show && detailsBad.phone ? "border-danger" : "border-border"}`} />
+            <input
+              value={r.phone}
+              onChange={(e) => setR({ ...r, phone: e.target.value })}
+              type="tel"
+              maxLength={30}
+              autoComplete="tel"
+              placeholder="+91 98765 43210"
+              className={`${input} h-10 max-sm:text-base ${show && detailsBad.phone ? "border-danger" : "border-border"}`}
+            />
           </F>
           <F label="Current city" bad={show && detailsBad.city}>
-            <input value={r.city} onChange={(e) => setR({ ...r, city: e.target.value })} maxLength={60} autoComplete="address-level2" placeholder="Pune" className={`${input} h-10 max-sm:text-base ${show && detailsBad.city ? "border-danger" : "border-border"}`} />
+            <input
+              value={r.city}
+              onChange={(e) => setR({ ...r, city: e.target.value })}
+              maxLength={60}
+              autoComplete="address-level2"
+              placeholder="Pune"
+              className={`${input} h-10 max-sm:text-base ${show && detailsBad.city ? "border-danger" : "border-border"}`}
+            />
           </F>
         </div>
         <F label="Which describes you best?">
           <StatusPicker value={r.status} onChange={(status) => setR({ ...r, status })} />
         </F>
         <div className="flex justify-end border-t border-border pt-5">
-          <button type="submit" className={primary}>Continue<Icon d={chevron} size={16} /></button>
+          <button type="submit" className={primary}>
+            Continue
+            <Icon d={chevron} size={16} />
+          </button>
         </div>
       </form>
     ),
     method: (
       <div className="space-y-5">
-        <Head title="Build your profile" sub="Start from your resume, or add your details yourself. You can edit everything later." />
+        <Head
+          title="Build your profile"
+          sub="Start from your resume, or add your details yourself. You can edit everything later."
+        />
         <div className="space-y-3">
           <button
             type="button"
@@ -177,17 +221,29 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
             onDrop={(e) => (e.preventDefault(), setDrag(false), read(e.dataTransfer.files[0]))}
             className={`${option} ${drag ? "border-foreground bg-surface-hover" : ""}`}
           >
-            <Badge tone="text-link"><Icon d={upload} size={16} /></Badge>
+            <Badge tone="text-link">
+              <Icon d={upload} size={16} />
+            </Badge>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">Upload your resume</span>
               <span className="block text-sm text-muted">PDF up to 5 MB. We&apos;ll fill in your profile for you.</span>
             </span>
-            <span className="hidden rounded-full border border-border px-2 py-0.5 text-xs text-muted sm:inline">Recommended</span>
+            <span className="hidden rounded-full border border-border px-2 py-0.5 text-xs text-muted sm:inline">
+              Recommended
+            </span>
             <Icon d={chevron} size={16} className="text-muted" />
           </button>
-          <input ref={file} type="file" accept="application/pdf" hidden onChange={(e) => (read(e.target.files?.[0]), (e.target.value = ""))} />
+          <input
+            ref={file}
+            type="file"
+            accept="application/pdf"
+            hidden
+            onChange={(e) => (read(e.target.files?.[0]), (e.target.value = ""))}
+          />
           <button type="button" onClick={() => (setFromPdf(false), setShow(false), go("review"))} className={option}>
-            <Badge tone="text-success"><Icon d={icons.edit} size={16} /></Badge>
+            <Badge tone="text-success">
+              <Icon d={icons.edit} size={16} />
+            </Badge>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">Fill in manually</span>
               <span className="block text-sm text-muted">Add your experience, education, projects and skills.</span>
@@ -197,7 +253,10 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
         </div>
         {error && <Alert>{error}</Alert>}
         <div className="flex border-t border-border pt-5">
-          <button type="button" onClick={() => go("details")} className={btnGhost}><Icon d={icons.back} size={14} />Back</button>
+          <button type="button" onClick={() => go("details")} className={btnGhost}>
+            <Icon d={icons.back} size={14} />
+            Back
+          </button>
         </div>
       </div>
     ),
@@ -205,41 +264,74 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
         <span className="size-10 animate-spin rounded-full border-2 border-border border-t-foreground" />
         <h2 className="mt-6 font-display text-xl font-normal">Reading your resume…</h2>
-        <p className="mt-1 max-w-xs text-sm text-muted">Pulling out your experience, education and skills. This takes about 10–20 seconds.</p>
+        <p className="mt-1 max-w-xs text-sm text-muted">
+          Pulling out your experience, education and skills. This takes about 10–20 seconds.
+        </p>
       </div>
     ),
     review: (
       <div className="space-y-6">
         <Head
           title="Review your profile"
-          sub={fromPdf ? "We filled this in from your resume. Check it over and complete anything highlighted." : "Add what you have. Fields marked Required are needed to continue."}
+          sub={
+            fromPdf
+              ? "We filled this in from your resume. Check it over and complete anything highlighted."
+              : "Add what you have. Fields marked Required are needed to continue."
+          }
         />
         {fromPdf && missing.length > 0 && (
           <p className="flex items-start gap-2 rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-muted">
             <Icon d={icons.notifications} size={16} className="mt-px shrink-0 text-foreground" />
             <span>
-              Your resume didn&apos;t include {missing.length === 1 ? "one detail" : `${missing.length} details`} we need. They&apos;re marked <span className="text-danger">Required</span> below.
+              Your resume didn&apos;t include {missing.length === 1 ? "one detail" : `${missing.length} details`} we
+              need. They&apos;re marked <span className="text-danger">Required</span> below.
             </span>
           </p>
         )}
         <ResumeEditor value={r} onChange={setR} missing={missing} show={show} />
         {error && <Alert>{error}</Alert>}
         <div className="sticky bottom-0 -mx-6 flex items-center justify-between gap-3 border-t border-border bg-background px-6 py-4 sm:-mx-8 sm:px-8">
-          <button type="button" onClick={() => go("method")} className={btnGhost} disabled={busy}><Icon d={icons.back} size={14} />Back</button>
-          <button type="button" onClick={save} className={primary} disabled={busy}>Continue<Icon d={chevron} size={16} /></button>
+          <button type="button" onClick={() => go("method")} className={btnGhost} disabled={busy}>
+            <Icon d={icons.back} size={14} />
+            Back
+          </button>
+          <button type="button" onClick={save} className={primary} disabled={busy}>
+            Continue
+            <Icon d={chevron} size={16} />
+          </button>
         </div>
       </div>
     ),
     verify: (
       <form onSubmit={verify} className="space-y-5">
-        <Head title="Verify your email" sub={`We sent a 6-digit code to ${initial.email ? maskEmail(initial.email) : "your email"}. This confirms the address recruiters will use to reach you, even if you signed in with Google, GitHub or X.`} />
+        <Head
+          title="Verify your email"
+          sub={`We sent a 6-digit code to ${initial.email ? maskEmail(initial.email) : "your email"}. This confirms the address recruiters will use to reach you, even if you signed in with Google, GitHub or X.`}
+        />
         <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         {error && <Alert>{error}</Alert>}
         <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <button type="button" onClick={() => go("review")} className={btnGhost} disabled={busy}><Icon d={icons.back} size={14} />Back</button>
+          <button type="button" onClick={() => go("review")} className={btnGhost} disabled={busy}>
+            <Icon d={icons.back} size={14} />
+            Back
+          </button>
           <span className="flex w-full flex-col-reverse items-center gap-3 sm:w-auto sm:flex-row sm:gap-4">
-            <button type="button" onClick={sendCode} className="text-sm text-link hover:underline disabled:opacity-60" disabled={busy}>Resend code</button>
-            <button aria-busy={busy} type="submit" className={`${primary} w-full sm:w-auto`} disabled={busy || code.length !== 6}>Verify & create profile</button>
+            <button
+              type="button"
+              onClick={sendCode}
+              className="text-sm text-link hover:underline disabled:opacity-60"
+              disabled={busy}
+            >
+              Resend code
+            </button>
+            <button
+              aria-busy={busy}
+              type="submit"
+              className={`${primary} w-full sm:w-auto`}
+              disabled={busy || code.length !== 6}
+            >
+              Verify & create profile
+            </button>
           </span>
         </div>
       </form>
@@ -256,7 +348,9 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
         </motion.span>
         <h2 className="mt-5 font-display text-xl font-normal">Your profile has been created</h2>
         <p className="mt-1 text-sm text-muted">Welcome aboard, {r.name.split(" ")[0]}. Taking you to your dashboard…</p>
-        <button type="button" onClick={() => router.replace("/dashboard")} className={`${primary} mt-8`}>Go to dashboard</button>
+        <button type="button" onClick={() => router.replace("/dashboard")} className={`${primary} mt-8`}>
+          Go to dashboard
+        </button>
       </div>
     ),
   };
@@ -269,7 +363,11 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
       stepKey={step}
       action={
         <span className="flex items-center gap-3">
-          <SignOutButton><button type="button" className={btnGhost}>Sign out</button></SignOutButton>
+          <SignOutButton>
+            <button type="button" className={btnGhost}>
+              Sign out
+            </button>
+          </SignOutButton>
           <ThemeToggle />
         </span>
       }
@@ -280,7 +378,21 @@ export function Onboarding({ initial }: { initial: { name: string; email: string
 }
 
 /** Title left, card centre, steps right; the faint rules frame the card column, like the reference. Also used by the interview flow. */
-export function StepFrame({ title, steps, current, stepKey, action, children }: { title: string; steps: string[]; current: number; stepKey: string; action?: ReactNode; children: ReactNode }) {
+export function StepFrame({
+  title,
+  steps,
+  current,
+  stepKey,
+  action,
+  children,
+}: {
+  title: string;
+  steps: string[];
+  current: number;
+  stepKey: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   const reduce = useReducedMotion();
   return (
     <div className="flex min-h-dvh flex-1 flex-col sm:min-h-screen">
@@ -298,10 +410,17 @@ export function StepFrame({ title, steps, current, stepKey, action, children }: 
         </aside>
 
         <main className="border-dashed border-border px-4 py-8 sm:py-10 lg:border-x lg:px-6">
-          <p className="mb-2 text-xs text-muted lg:hidden">Step {current + 1} of {steps.length} · {steps[current]}</p>
+          <p className="mb-2 text-xs text-muted lg:hidden">
+            Step {current + 1} of {steps.length} · {steps[current]}
+          </p>
           <ol className="mb-6 flex items-center gap-2 lg:hidden" aria-hidden>
             {steps.map((label, i) => (
-              <li key={label} className={`h-1 flex-1 rounded-full transition-colors ${i <= current ? "bg-foreground" : "bg-border"}`}><span className="sr-only">{label}</span></li>
+              <li
+                key={label}
+                className={`h-1 flex-1 rounded-full transition-colors ${i <= current ? "bg-foreground" : "bg-border"}`}
+              >
+                <span className="sr-only">{label}</span>
+              </li>
             ))}
           </ol>
           <AnimatePresence mode="wait" initial={false}>
@@ -321,7 +440,11 @@ export function StepFrame({ title, steps, current, stepKey, action, children }: 
         <aside className="hidden px-8 pt-18 lg:block">
           <ol className="space-y-3 text-sm" aria-label="Progress">
             {steps.map((label, i) => (
-              <li key={label} aria-current={i === current ? "step" : undefined} className={`flex items-center gap-2.5 ${i === current ? "font-medium text-foreground" : "text-muted"}`}>
+              <li
+                key={label}
+                aria-current={i === current ? "step" : undefined}
+                className={`flex items-center gap-2.5 ${i === current ? "font-medium text-foreground" : "text-muted"}`}
+              >
                 {i < current ? (
                   <Icon d={icons.check} size={14} className="text-success" />
                 ) : (
@@ -366,10 +489,15 @@ export function ThemeToggle() {
 }
 
 export function Alert({ children }: { children: ReactNode }) {
-  return <p role="alert" className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{children}</p>;
+  return (
+    <p role="alert" className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+      {children}
+    </p>
+  );
 }
 
-const option = "flex w-full items-center gap-4 rounded-lg border border-border bg-background p-4 text-left transition-colors duration-150 outline-none hover:border-muted/50 hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring";
+const option =
+  "flex w-full items-center gap-4 rounded-lg border border-border bg-background p-4 text-left transition-colors duration-150 outline-none hover:border-muted/50 hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring";
 
 export function Head({ title, sub }: { title: string; sub: string }) {
   return (
@@ -381,5 +509,11 @@ export function Head({ title, sub }: { title: string; sub: string }) {
 }
 
 function Badge({ tone, children }: { tone: string; children: ReactNode }) {
-  return <span className={`flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface ${tone}`}>{children}</span>;
+  return (
+    <span
+      className={`flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface ${tone}`}
+    >
+      {children}
+    </span>
+  );
 }

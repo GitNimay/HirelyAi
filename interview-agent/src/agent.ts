@@ -18,7 +18,9 @@ export const stripLabels = (t: string) => t.replace(LABELS, '').replace(/\s+/g, 
 
 class Interviewer extends Agent {
   override async onUserTurnCompleted(_: llm.ChatContext, msg: llm.ChatMessage) {
-    msg.content = msg.content.map((c) => (typeof c === 'string' ? stripLabels(c) : c)).filter((c) => c !== '');
+    msg.content = msg.content
+      .map((c) => (typeof c === 'string' ? stripLabels(c) : c))
+      .filter((c) => c !== '');
     if (!msg.textContent) throw new voice.StopResponse(); // nothing was said: no reply, nothing in the transcript
   }
 }
@@ -54,10 +56,14 @@ export function createInterviewer(meta: Meta, endCall: () => Promise<void>) {
       Job description, for context only (don't read it out):
       ${job.description}
     `,
-    llm: new inference.LLM({ model: 'google/gemma-4-31b-it', modelOptions: { temperature: 0.6, max_completion_tokens: 200 } }),
+    llm: new inference.LLM({
+      model: 'google/gemma-4-31b-it',
+      modelOptions: { temperature: 0.6, max_completion_tokens: 200 },
+    }),
     tools: {
       end_interview: tool({
-        description: 'End the call. Only after you have said goodbye, or when the candidate asks to stop.',
+        description:
+          'End the call. Only after you have said goodbye, or when the candidate asks to stop.',
         execute: async (_, { ctx }) => {
           await ctx.waitForPlayout(); // let the goodbye finish playing
           await endCall();

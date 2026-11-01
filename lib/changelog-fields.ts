@@ -38,7 +38,13 @@ export function parseNote(source: string): { skip: true } | { skip: false; title
   const block = /```release-note\s*\n([\s\S]*?)```/i.exec(source)?.[1].trim();
   if (block === undefined) return null;
   if (/^none\.?$/i.test(block)) return { skip: true };
-  const lines = block.split("\n").map((l) => /^\s*(title|new|improved|fixed)\s*:\s*(.+)$/i.exec(l)).filter((m) => m !== null);
+  const lines = block
+    .split("\n")
+    .map((l) => /^\s*(title|new|improved|fixed)\s*:\s*(.+)$/i.exec(l))
+    .filter((m) => m !== null);
   const title = lines.find((m) => m[1].toLowerCase() === "title")?.[2] ?? /^Title: (.*)$/m.exec(source)?.[1] ?? "";
-  return cleanRelease({ title, changes: lines.filter((m) => m[1].toLowerCase() !== "title").map((m) => ({ type: m[1].toLowerCase(), text: m[2] })) });
+  return cleanRelease({
+    title,
+    changes: lines.filter((m) => m[1].toLowerCase() !== "title").map((m) => ({ type: m[1].toLowerCase(), text: m[2] })),
+  });
 }

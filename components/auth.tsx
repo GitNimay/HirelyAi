@@ -12,7 +12,9 @@ type Result = Promise<{ error: unknown }>;
 
 export function errorText(e: unknown) {
   const err = e as { errors?: { longMessage?: string; message?: string }[]; longMessage?: string; message?: string };
-  return err.errors?.[0]?.longMessage ?? err.errors?.[0]?.message ?? err.longMessage ?? err.message ?? "Something went wrong";
+  return (
+    err.errors?.[0]?.longMessage ?? err.errors?.[0]?.message ?? err.longMessage ?? err.message ?? "Something went wrong"
+  );
 }
 
 // Full page load, not router.push: Clerk's Next.js integration runs router.refresh() right after setActive, and in
@@ -43,47 +45,86 @@ export function Logo({ size = 48, faint = true }: { size?: number; faint?: boole
 }
 
 /** Under the sign-in / sign-up footers: back to the landing page. */
-const homeLink = <Link href="/" className="mt-3 block text-xs text-muted hover:text-foreground hover:underline underline-offset-2">Go to home</Link>;
+const homeLink = (
+  <Link href="/" className="mt-3 block text-xs text-muted hover:text-foreground hover:underline underline-offset-2">
+    Go to home
+  </Link>
+);
 
 /** The auth card. Until Clerk has loaded in the browser the form is placeholders; with `busy` (a status label) it stays so, above `children`. */
-export function Shell({ title, subtitle, children, footer, busy }: { title: string; subtitle: ReactNode; children?: ReactNode; footer?: ReactNode; busy?: string }) {
+export function Shell({
+  title,
+  subtitle,
+  children,
+  footer,
+  busy,
+}: {
+  title: string;
+  subtitle: ReactNode;
+  children?: ReactNode;
+  footer?: ReactNode;
+  busy?: string;
+}) {
   const { isLoaded } = useAuth();
   return (
     <main className="flex min-h-dvh flex-1 flex-col lg:flex-row-reverse">
       {/* Art panel: top banner on phone/tablet, left half on desktop */}
       <aside className="relative flex h-60 shrink-0 flex-col justify-between overflow-hidden bg-background px-6 pb-6 pt-8 md:h-[360px] md:p-8 lg:h-auto lg:w-1/2 lg:p-10">
         {/* Sky art, day sky in light mode and night sky in dark mode */}
-        <img src="/auth-sky-dark.webp" alt="" aria-hidden className="art-in absolute inset-0 size-full object-cover light:hidden" />
-        <img src="/auth-sky-light.webp" alt="" aria-hidden className="art-in absolute inset-0 hidden size-full object-cover light:block" />
-        <div className="relative"><img src="/logo-dark.png" width={48} height={48} alt="" aria-hidden /></div>
+        <img
+          src="/auth-sky-dark.webp"
+          alt=""
+          aria-hidden
+          className="art-in absolute inset-0 size-full object-cover light:hidden"
+        />
+        <img
+          src="/auth-sky-light.webp"
+          alt=""
+          aria-hidden
+          className="art-in absolute inset-0 hidden size-full object-cover light:block"
+        />
         <div className="relative">
-          <p className="font-display text-[28px] leading-8 tracking-tight text-white md:text-4xl md:leading-10 lg:text-[44px] lg:leading-12">Hire character. Train skill.</p>
+          <img src="/logo-dark.png" width={48} height={48} alt="" aria-hidden />
+        </div>
+        <div className="relative">
+          <p className="font-display text-[28px] leading-8 tracking-tight text-white md:text-4xl md:leading-10 lg:text-[44px] lg:leading-12">
+            Hire character. Train skill.
+          </p>
           <p className="mt-2 text-sm font-medium tracking-wide text-white md:mt-3">— Peter Schutz</p>
         </div>
       </aside>
       <div className="flex flex-1 items-center justify-center px-6 py-10 md:p-10">
-      <div className="w-full max-w-[360px]">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <span className="hidden lg:block"><Logo /></span>
-          <h1 className="mt-0 lg:mt-6 font-display text-2xl font-normal text-balance">{title}</h1>
-          <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
+        <div className="w-full max-w-[360px]">
+          <div className="mb-8 flex flex-col items-center text-center">
+            <span className="hidden lg:block">
+              <Logo />
+            </span>
+            <h1 className="mt-0 lg:mt-6 font-display text-2xl font-normal text-balance">{title}</h1>
+            <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
+          </div>
+          {isLoaded && !busy ? (
+            children
+          ) : (
+            <Loading label={busy}>
+              <div className="space-y-3">
+                {times(3, (i) => (
+                  <Skeleton key={i} className="h-10" />
+                ))}
+              </div>
+              <div className="my-6 flex items-center gap-3 text-xs uppercase text-muted">
+                <span className="h-px flex-1 bg-border" />
+                or
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <div className="space-y-3">
+                <Skeleton className="h-10" />
+                <Skeleton className="h-10" />
+              </div>
+            </Loading>
+          )}
+          {busy && children}
+          {footer && <p className="mt-8 text-center text-sm text-muted">{footer}</p>}
         </div>
-        {isLoaded && !busy ? (
-          children
-        ) : (
-          <Loading label={busy}>
-            <div className="space-y-3">{times(3, (i) => <Skeleton key={i} className="h-10" />)}</div>
-            <div className="my-6 flex items-center gap-3 text-xs uppercase text-muted">
-              <span className="h-px flex-1 bg-border" />
-              or
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            <div className="space-y-3"><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
-          </Loading>
-        )}
-        {busy && children}
-        {footer && <p className="mt-8 text-center text-sm text-muted">{footer}</p>}
-      </div>
       </div>
     </main>
   );
@@ -97,8 +138,14 @@ export const providerIcons: Record<string, ReactNode> = {
   ),
   oauth_google: (
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
-      <path fill="#4285F4" d="M22.6 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8.1" />
-      <path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1-3.7 1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23" />
+      <path
+        fill="#4285F4"
+        d="M22.6 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8.1"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1-3.7 1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23"
+      />
       <path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.1a11 11 0 0 0 0 9.8z" />
       <path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.6l3.2-3.2A11 11 0 0 0 2.1 7.1l3.7 2.8C6.7 7.3 9.1 5.4 12 5.4" />
     </svg>
@@ -186,15 +233,38 @@ function AuthBody({
           We sent a 6-digit code to <span className="text-foreground">{email}</span>
         </p>
         <CodeField value={code} onChange={setCode} processing={pending === "code"} invalid={!!error} />
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        <button aria-busy={pending === "code"} type="submit" className={btnPrimary} disabled={disabled || code.length !== 6}>
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
+        <button
+          aria-busy={pending === "code"}
+          type="submit"
+          className={btnPrimary}
+          disabled={disabled || code.length !== 6}
+        >
           Verify
         </button>
         <div className="flex justify-between text-sm">
-          <button type="button" className="text-muted hover:text-foreground hover:underline underline-offset-2" onClick={() => { setStep("email"); setCode(""); setError(""); }}>
+          <button
+            type="button"
+            className="text-muted hover:text-foreground hover:underline underline-offset-2"
+            onClick={() => {
+              setStep("email");
+              setCode("");
+              setError("");
+            }}
+          >
             Use a different email
           </button>
-          <button aria-busy={pending === "resend"} type="button" className="text-link hover:underline underline-offset-2 disabled:opacity-60" disabled={disabled} onClick={() => run("resend", () => sendCode(email.trim()))}>
+          <button
+            aria-busy={pending === "resend"}
+            type="button"
+            className="text-link hover:underline underline-offset-2 disabled:opacity-60"
+            disabled={disabled}
+            onClick={() => run("resend", () => sendCode(email.trim()))}
+          >
             Resend code
           </button>
         </div>
@@ -206,7 +276,14 @@ function AuthBody({
     <>
       <div className="space-y-3">
         {providers.map(({ strategy, label }) => (
-          <button aria-busy={pending === strategy} key={strategy} type="button" className={btnSecondary} disabled={disabled} onClick={() => onSso(strategy)}>
+          <button
+            aria-busy={pending === strategy}
+            key={strategy}
+            type="button"
+            className={btnSecondary}
+            disabled={disabled}
+            onClick={() => onSso(strategy)}
+          >
             <span className="absolute left-4 flex w-5 shrink-0 justify-center">{providerIcons[strategy]}</span>
             {`Continue with ${label}`}
             {last === strategy && <LastUsed />}
@@ -232,7 +309,11 @@ function AuthBody({
           autoFocus
           required
         />
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
         <button aria-busy={pending === "email"} type="submit" className={`${btnPrimary} relative`} disabled={disabled}>
           {cta}
           {last === "email" && <LastUsed />}
@@ -242,7 +323,11 @@ function AuthBody({
   );
 }
 
-const LastUsed = () => <span className="absolute right-3 rounded-full border border-current/20 px-2 py-0.5 text-xs font-normal opacity-70">Last used</span>;
+const LastUsed = () => (
+  <span className="absolute right-3 rounded-full border border-current/20 px-2 py-0.5 text-xs font-normal opacity-70">
+    Last used
+  </span>
+);
 
 /* ---------- Flows ---------- */
 
@@ -253,7 +338,15 @@ export function SignInForm() {
     <Shell
       title="Welcome back"
       subtitle="Log in to your account"
-      footer={<>Don&apos;t have an account? <Link href="/sign-up" className="text-link hover:underline underline-offset-2">Sign up</Link>{homeLink}</>}
+      footer={
+        <>
+          Don&apos;t have an account?{" "}
+          <Link href="/sign-up" className="text-link hover:underline underline-offset-2">
+            Sign up
+          </Link>
+          {homeLink}
+        </>
+      }
     >
       <AuthBody
         cta="Log in"
@@ -278,7 +371,15 @@ export function SignUpForm() {
     <Shell
       title="Create your account"
       subtitle="Join Hire Excellence to connect and grow"
-      footer={<>Already have an account? <Link href="/sign-in" className="text-link hover:underline underline-offset-2">Log in</Link>{homeLink}</>}
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link href="/sign-in" className="text-link hover:underline underline-offset-2">
+            Log in
+          </Link>
+          {homeLink}
+        </>
+      }
     >
       <AuthBody
         cta="Sign up"

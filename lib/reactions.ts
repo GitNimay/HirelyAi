@@ -28,4 +28,7 @@ export function moveReaction(counts: ReactionCounts, from: Reaction | null, to: 
 
 /** Most used first, at most `n`: the little stack of icons beside the count. */
 export const topReactions = (counts: ReactionCounts, n = 3) =>
-  (Object.entries(counts) as [Reaction, number][]).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k);
+  (Object.entries(counts) as [Reaction, number][])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([k]) => k);

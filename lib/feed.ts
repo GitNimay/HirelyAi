@@ -31,12 +31,32 @@ export type FeedPost = {
 };
 
 type Row = {
-  entry_id: string; entry_at: number; entry_author: string; reposter_name: string; repost_of: string | null;
-  id: string; body: string; media: string | null; created_at: number; edited_at: number | null; author_id: string;
-  name: string; image_url: string | null; headline: string | null; handle: string | null;
-  company_id: string | null; co_slug: string | null; co_name: string | null; co_logo: string | null;
-  like_count: number; reactions: string; comment_count: number; repost_count: number;
-  reaction: Reaction | null; reposted: number; following: number;
+  entry_id: string;
+  entry_at: number;
+  entry_author: string;
+  reposter_name: string;
+  repost_of: string | null;
+  id: string;
+  body: string;
+  media: string | null;
+  created_at: number;
+  edited_at: number | null;
+  author_id: string;
+  name: string;
+  image_url: string | null;
+  headline: string | null;
+  handle: string | null;
+  company_id: string | null;
+  co_slug: string | null;
+  co_name: string | null;
+  co_logo: string | null;
+  like_count: number;
+  reactions: string;
+  comment_count: number;
+  repost_count: number;
+  reaction: Reaction | null;
+  reposted: number;
+  following: number;
 };
 
 export const PAGE = 20;
@@ -67,7 +87,9 @@ const toPost = (r: Row): FeedPost => ({
   createdAt: r.created_at,
   editedAt: r.edited_at,
   author: { id: r.author_id, name: r.name, imageUrl: r.image_url, headline: r.headline, handle: r.handle },
-  company: r.company_id ? { id: r.company_id, slug: r.co_slug!, name: r.co_name!, logoUrl: r.co_logo ? `/api/media/${r.co_logo}` : null } : null,
+  company: r.company_id
+    ? { id: r.company_id, slug: r.co_slug!, name: r.co_name!, logoUrl: r.co_logo ? `/api/media/${r.co_logo}` : null }
+    : null,
   likes: r.like_count,
   reactions: JSON.parse(r.reactions),
   comments: r.comment_count,
@@ -86,7 +108,9 @@ async function following(viewerId: string, cursor?: string) {
             OR p.company_id IN (SELECT company_id FROM company_follows WHERE user_id = ?1))
        AND (p.created_at, p.id) < (?2, ?3)
      ORDER BY p.created_at DESC, p.id DESC LIMIT ${PAGE}`,
-  ).bind(viewerId, at, id || "￿").all<Row>();
+  )
+    .bind(viewerId, at, id || "￿")
+    .all<Row>();
   const posts = results.map(toPost);
   const last = posts.at(-1);
   return { posts, next: posts.length === PAGE && last ? `${last.entryAt}:${last.entryId}` : null };
@@ -107,7 +131,12 @@ async function forYou(viewerId: string, cursor?: string) {
   const cache = await caches.open("for-you");
   const hit = offset > 0 ? await cache.match(rankedKey(viewerId)) : undefined;
   const ranked: FeedPost[] = hit ? await hit.json() : await rankForYou(viewerId);
-  if (!hit) waitUntil(cache.put(rankedKey(viewerId), Response.json(ranked, { headers: { "Cache-Control": `max-age=${RANKED_TTL}` } })).catch(() => {}));
+  if (!hit)
+    waitUntil(
+      cache
+        .put(rankedKey(viewerId), Response.json(ranked, { headers: { "Cache-Control": `max-age=${RANKED_TTL}` } }))
+        .catch(() => {}),
+    );
   const page = ranked.slice(offset, offset + PAGE);
   return { posts: page, next: offset + PAGE < ranked.length ? String(offset + PAGE) : null };
 }
@@ -129,8 +158,15 @@ async function rankForYou(viewerId: string): Promise<FeedPost[]> {
   const aff = new Map((affinity.results as { author_id: string; w: number }[]).map((a) => [a.author_id, a.w]));
   const ranked = rank(
     (candidates.results as Row[]).map((r) => ({
-      row: r, entryId: r.entry_id, targetId: r.id, entryAuthor: r.entry_author, targetAuthor: r.author_id, entryAt: r.entry_at,
-      likes: r.like_count, comments: r.comment_count, reposts: r.repost_count,
+      row: r,
+      entryId: r.entry_id,
+      targetId: r.id,
+      entryAuthor: r.entry_author,
+      targetAuthor: r.author_id,
+      entryAt: r.entry_at,
+      likes: r.like_count,
+      comments: r.comment_count,
+      reposts: r.repost_count,
     })),
     viewerId,
     aff,
@@ -152,11 +188,20 @@ export type ProfileTab = "posts" | "media" | "likes" | "company";
 export async function getUserPosts(viewerId: string, userId: string, tab: ProfileTab, cursor?: string) {
   const offset = Number(cursor) || 0;
   const [join, where, order] =
-    tab === "likes" ? [" JOIN likes lk ON lk.post_id = p.id AND lk.user_id = ?2", "p.repost_of IS NULL", "lk.created_at DESC"]
-    : tab === "company" ? ["", "p.company_id = ?2", "p.created_at DESC, p.id DESC"]
-    : tab === "media" ? ["", "p.author_id = ?2 AND p.company_id IS NULL AND p.repost_of IS NULL AND p.media IS NOT NULL", "p.created_at DESC, p.id DESC"]
-    : ["", "p.author_id = ?2 AND p.company_id IS NULL", "p.created_at DESC, p.id DESC"];
-  const { results } = await env.DB.prepare(`${SELECT}${join} WHERE ${where} ORDER BY ${order} LIMIT ${PAGE} OFFSET ?3`).bind(viewerId, userId, offset).all<Row>();
+    tab === "likes"
+      ? [" JOIN likes lk ON lk.post_id = p.id AND lk.user_id = ?2", "p.repost_of IS NULL", "lk.created_at DESC"]
+      : tab === "company"
+        ? ["", "p.company_id = ?2", "p.created_at DESC, p.id DESC"]
+        : tab === "media"
+          ? [
+              "",
+              "p.author_id = ?2 AND p.company_id IS NULL AND p.repost_of IS NULL AND p.media IS NOT NULL",
+              "p.created_at DESC, p.id DESC",
+            ]
+          : ["", "p.author_id = ?2 AND p.company_id IS NULL", "p.created_at DESC, p.id DESC"];
+  const { results } = await env.DB.prepare(`${SELECT}${join} WHERE ${where} ORDER BY ${order} LIMIT ${PAGE} OFFSET ?3`)
+    .bind(viewerId, userId, offset)
+    .all<Row>();
   return { posts: results.map(toPost), next: results.length === PAGE ? String(offset + PAGE) : null };
 }
 
@@ -166,7 +211,9 @@ export async function getPost(viewerId: string, id: string) {
 }
 
 export async function getFollowingIds(viewerId: string) {
-  const { results } = await env.DB.prepare("SELECT followee_id FROM follows WHERE follower_id = ?").bind(viewerId).all<{ followee_id: string }>();
+  const { results } = await env.DB.prepare("SELECT followee_id FROM follows WHERE follower_id = ?")
+    .bind(viewerId)
+    .all<{ followee_id: string }>();
   return results.map((r) => r.followee_id);
 }
 

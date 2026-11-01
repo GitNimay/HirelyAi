@@ -6,12 +6,38 @@ import { track } from "@/lib/analytics";
 import { aiWriter, Fail, failed, text, viewer, writer } from "@/lib/guard";
 import { generateMcq, insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
 import type { Kind } from "@/lib/interview-fields";
-import { cleanFilters, JOB_TYPES, LEVELS, LIMITS, RESUME_TYPE, STATUSES, WORKPLACES, type AppStatus, type MyJobsTab } from "@/lib/job-fields";
+import {
+  cleanFilters,
+  JOB_TYPES,
+  LEVELS,
+  LIMITS,
+  RESUME_TYPE,
+  STATUSES,
+  WORKPLACES,
+  type AppStatus,
+  type MyJobsTab,
+} from "@/lib/job-fields";
 import { canPostJobs, roleOf } from "@/lib/companies";
 import { getApplicants, getJob, myJobs, searchJobs } from "@/lib/jobs";
-import { inFolder, isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, MEDIA_TYPES } from "@/lib/media";
+import {
+  inFolder,
+  isVideo,
+  MAX_ALT_CHARS,
+  MAX_COMMENT_CHARS,
+  MAX_IMAGES,
+  MAX_POST_CHARS,
+  MEDIA_TYPES,
+} from "@/lib/media";
 import { getNetwork, getPersonAndCounts, searchPeople } from "@/lib/network";
-import { announceRemoved, followersOf, latestNotifications, listNotifications, notifyUsers, retractNotification, unseenCount } from "@/lib/notifications";
+import {
+  announceRemoved,
+  followersOf,
+  latestNotifications,
+  listNotifications,
+  notifyUsers,
+  retractNotification,
+  unseenCount,
+} from "@/lib/notifications";
 import type { NotificationType } from "@/lib/notification-format";
 import { isReaction, type Reaction } from "@/lib/reactions";
 import { broadcast, sendTo, type NetEvent } from "@/lib/realtime";
@@ -19,19 +45,30 @@ import { signedIn } from "@/lib/profile";
 import { getResume } from "@/lib/resume";
 import { enqueue } from "@/lib/tasks";
 
-
 // Every action re-checks auth (viewer/writer): server actions are public POST endpoints.
 // No Clerk call on writes: the dashboard layout already synced this member's users row on page load.
 
 async function pushStats(postId: string) {
   const p = await env.DB.prepare("SELECT like_count, reactions, comment_count, repost_count FROM posts WHERE id = ?")
-    .bind(postId).first<{ like_count: number; reactions: string; comment_count: number; repost_count: number }>();
-  if (p) broadcast({ t: "stats", id: postId, likes: p.like_count, reactions: JSON.parse(p.reactions), comments: p.comment_count, reposts: p.repost_count });
+    .bind(postId)
+    .first<{ like_count: number; reactions: string; comment_count: number; repost_count: number }>();
+  if (p)
+    broadcast({
+      t: "stats",
+      id: postId,
+      likes: p.like_count,
+      reactions: JSON.parse(p.reactions),
+      comments: p.comment_count,
+      reposts: p.repost_count,
+    });
   return p;
 }
 
 const snippet = (s: string) => s.slice(0, 140) || null;
-const postOf = (id: string) => env.DB.prepare("SELECT author_id, body FROM posts WHERE id = ?").bind(id).first<{ author_id: string; body: string }>();
+const postOf = (id: string) =>
+  env.DB.prepare("SELECT author_id, body FROM posts WHERE id = ?")
+    .bind(id)
+    .first<{ author_id: string; body: string }>();
 /** After the response: the undo is already committed, so the recipient's notification loses this actor (lib/notifications.ts). */
 const retract = (type: NotificationType, actor: string, ref: string, to: string) =>
   waitUntil(retractNotification(type, actor, ref, to).catch((e) => console.error("retract failed", e)));
@@ -82,12 +119,22 @@ async function publish(input: { body: string; media: MediaInput[]; companyId?: s
   if (companyId && !(await roleOf(userId, companyId))) throw new Fail("Only page admins can post as this company");
 
   const id = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO posts (id, author_id, body, media, company_id, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(id, userId, body, media.length ? JSON.stringify(media) : null, companyId, Date.now()).run();
+  await env.DB.prepare(
+    "INSERT INTO posts (id, author_id, body, media, company_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(id, userId, body, media.length ? JSON.stringify(media) : null, companyId, Date.now())
+    .run();
   broadcast({ t: "post", id, authorId: userId });
   await track(userId, "post created", { post_id: id, media: media.length, as_company: !!companyId });
   // ponytail: company posts reach followers through their Following feed, not notifications; add a fan-out when pages get big audiences
-  if (!companyId) await notifyUsers(await followersOf(userId), { type: "post", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(body) });
+  if (!companyId)
+    await notifyUsers(await followersOf(userId), {
+      type: "post",
+      actor: userId,
+      ref: id,
+      link: `/dashboard/post/${id}`,
+      body: snippet(body),
+    });
   return getPost(userId, id);
 }
 
@@ -99,7 +146,8 @@ export async function editPost(id: string, input: { body: string; media: MediaIn
 async function edit(id: string, input: { body: string; media: MediaInput[] }) {
   const userId = await writer();
   const post = await env.DB.prepare("SELECT media FROM posts WHERE id = ? AND author_id = ? AND repost_of IS NULL")
-    .bind(id, userId).first<{ media: string | null }>();
+    .bind(id, userId)
+    .first<{ media: string | null }>();
   if (!post) throw new Fail("Post not found");
 
   const body = text(input?.body, MAX_POST_CHARS);
@@ -108,11 +156,14 @@ async function edit(id: string, input: { body: string; media: MediaInput[] }) {
 
   const editedAt = Date.now();
   await env.DB.prepare("UPDATE posts SET body = ?, media = ?, edited_at = ? WHERE id = ? AND author_id = ?")
-    .bind(body, media.length ? JSON.stringify(media) : null, editedAt, id, userId).run();
+    .bind(body, media.length ? JSON.stringify(media) : null, editedAt, id, userId)
+    .run();
 
   // Files dropped in this edit are no longer referenced anywhere
   const kept = new Set(media.map((m) => m.key));
-  const removed = (post.media ? (JSON.parse(post.media) as Media[]) : []).filter((m) => !kept.has(m.key)).map((m) => m.key);
+  const removed = (post.media ? (JSON.parse(post.media) as Media[]) : [])
+    .filter((m) => !kept.has(m.key))
+    .map((m) => m.key);
   if (removed.length) await env.MEDIA.delete(removed);
 
   broadcast({ t: "edit", id, body, media, editedAt });
@@ -122,13 +173,16 @@ async function edit(id: string, input: { body: string; media: MediaInput[] }) {
 export async function deletePost(id: string) {
   const userId = await writer();
   const post = await env.DB.prepare("SELECT media, repost_of FROM posts WHERE id = ? AND author_id = ?")
-    .bind(String(id), userId).first<{ media: string | null; repost_of: string | null }>();
+    .bind(String(id), userId)
+    .first<{ media: string | null; repost_of: string | null }>();
   if (!post) throw new Error("Not found");
   // Reposts of this post cascade in SQL; their counters don't matter since the original is gone
   const [, notifs] = await env.DB.batch<{ id: string; user_id: string }>([
     env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(String(id)),
     // Their notifications would only lead to a missing page: gone from the list, and from open tabs
-    env.DB.prepare("DELETE FROM notifications WHERE link = ? RETURNING id, user_id").bind(`/dashboard/post/${String(id)}`),
+    env.DB.prepare("DELETE FROM notifications WHERE link = ? RETURNING id, user_id").bind(
+      `/dashboard/post/${String(id)}`,
+    ),
   ]);
   waitUntil(announceRemoved(notifs.results).catch(() => {}));
   if (post.media) await env.MEDIA.delete((JSON.parse(post.media) as Media[]).map((m) => m.key));
@@ -147,12 +201,25 @@ export async function react(postId: string, kind: Reaction | null) {
     if (post) retract("like", userId, id, post.author_id);
   } else {
     // Switch an existing reaction, or add one (OR IGNORE: a double-click race is a no-op, not an error)
-    const upd = await env.DB.prepare("UPDATE likes SET kind = ? WHERE user_id = ? AND post_id = ?").bind(kind, userId, id).run();
-    const ins = upd.meta.changes ? null : await env.DB.prepare(
-      "INSERT OR IGNORE INTO likes (user_id, post_id, kind, created_at) SELECT ?, id, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL",
-    ).bind(userId, kind, Date.now(), id).run();
+    const upd = await env.DB.prepare("UPDATE likes SET kind = ? WHERE user_id = ? AND post_id = ?")
+      .bind(kind, userId, id)
+      .run();
+    const ins = upd.meta.changes
+      ? null
+      : await env.DB.prepare(
+          "INSERT OR IGNORE INTO likes (user_id, post_id, kind, created_at) SELECT ?, id, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL",
+        )
+          .bind(userId, kind, Date.now(), id)
+          .run();
     const post = ins?.meta.changes ? await postOf(id) : null;
-    if (post) await notifyUsers([post.author_id], { type: "like", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
+    if (post)
+      await notifyUsers([post.author_id], {
+        type: "like",
+        actor: userId,
+        ref: id,
+        link: `/dashboard/post/${id}`,
+        body: snippet(post.body),
+      });
   }
   await pushStats(id);
   return { reaction: kind };
@@ -161,7 +228,9 @@ export async function react(postId: string, kind: Reaction | null) {
 export async function toggleRepost(postId: string) {
   const userId = await writer();
   const id = String(postId);
-  const removed = await env.DB.prepare("DELETE FROM posts WHERE author_id = ? AND repost_of = ? RETURNING id").bind(userId, id).first<{ id: string }>();
+  const removed = await env.DB.prepare("DELETE FROM posts WHERE author_id = ? AND repost_of = ? RETURNING id")
+    .bind(userId, id)
+    .first<{ id: string }>();
   if (removed) {
     broadcast({ t: "delete", id: removed.id });
     const post = await postOf(id);
@@ -170,26 +239,55 @@ export async function toggleRepost(postId: string) {
     const entryId = crypto.randomUUID();
     const ins = await env.DB.prepare(
       "INSERT INTO posts (id, author_id, repost_of, created_at) SELECT ?, ?, id, ? FROM posts WHERE id = ? AND repost_of IS NULL AND author_id <> ?",
-    ).bind(entryId, userId, Date.now(), id, userId).run();
+    )
+      .bind(entryId, userId, Date.now(), id, userId)
+      .run();
     if (ins.meta.changes) {
       broadcast({ t: "post", id: entryId, authorId: userId });
       const post = await postOf(id);
-      if (post) await notifyUsers([post.author_id], { type: "repost", actor: userId, ref: id, link: `/dashboard/post/${id}`, body: snippet(post.body) });
+      if (post)
+        await notifyUsers([post.author_id], {
+          type: "repost",
+          actor: userId,
+          ref: id,
+          link: `/dashboard/post/${id}`,
+          body: snippet(post.body),
+        });
     }
   }
   await pushStats(id);
   return { reposted: !removed };
 }
 
-export type Comment = { id: string; body: string; createdAt: number; author: { id: string; name: string; imageUrl: string | null; handle: string | null } };
+export type Comment = {
+  id: string;
+  body: string;
+  createdAt: number;
+  author: { id: string; name: string; imageUrl: string | null; handle: string | null };
+};
 
 export async function loadComments(postId: string): Promise<Comment[]> {
   await viewer();
   const { results } = await env.DB.prepare(
     `SELECT c.id, c.body, c.created_at, u.id AS uid, u.name, u.image_url, u.handle FROM comments c JOIN users u ON u.id = c.author_id
      WHERE c.post_id = ? ORDER BY c.created_at LIMIT 200`,
-  ).bind(String(postId)).all<{ id: string; body: string; created_at: number; uid: string; name: string; image_url: string | null; handle: string | null }>();
-  return results.map((r) => ({ id: r.id, body: r.body, createdAt: r.created_at, author: { id: r.uid, name: r.name, imageUrl: r.image_url, handle: r.handle } }));
+  )
+    .bind(String(postId))
+    .all<{
+      id: string;
+      body: string;
+      created_at: number;
+      uid: string;
+      name: string;
+      image_url: string | null;
+      handle: string | null;
+    }>();
+  return results.map((r) => ({
+    id: r.id,
+    body: r.body,
+    createdAt: r.created_at,
+    author: { id: r.uid, name: r.name, imageUrl: r.image_url, handle: r.handle },
+  }));
 }
 
 export async function addComment(postId: string, input: string) {
@@ -201,8 +299,11 @@ async function comment(postId: string, input: string) {
   const body = text(input, MAX_COMMENT_CHARS);
   if (!body) throw new Fail("Comment is empty");
   const commentId = crypto.randomUUID();
-  const ins = await env.DB.prepare("INSERT INTO comments (id, post_id, author_id, body, created_at) SELECT ?, id, ?, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL")
-    .bind(commentId, userId, body, Date.now(), String(postId)).run();
+  const ins = await env.DB.prepare(
+    "INSERT INTO comments (id, post_id, author_id, body, created_at) SELECT ?, id, ?, ?, ? FROM posts WHERE id = ? AND repost_of IS NULL",
+  )
+    .bind(commentId, userId, body, Date.now(), String(postId))
+    .run();
   if (!ins.meta.changes) throw new Fail("This post was deleted");
   await track(userId, "comment added", { post_id: String(postId) });
   const post = await postOf(String(postId));
@@ -210,9 +311,15 @@ async function comment(postId: string, input: string) {
     const link = `/dashboard/post/${String(postId)}`;
     await notifyUsers([post.author_id], { type: "comment", actor: userId, ref: commentId, link, body: snippet(body) });
     // People already in the conversation hear about it too (the author already got the message above)
-    const { results } = await env.DB.prepare("SELECT DISTINCT author_id FROM comments WHERE post_id = ? AND author_id NOT IN (?, ?) LIMIT 50")
-      .bind(String(postId), userId, post.author_id).all<{ author_id: string }>();
-    await notifyUsers(results.map((r) => r.author_id), { type: "thread", actor: userId, ref: commentId, link, body: snippet(body) });
+    const { results } = await env.DB.prepare(
+      "SELECT DISTINCT author_id FROM comments WHERE post_id = ? AND author_id NOT IN (?, ?) LIMIT 50",
+    )
+      .bind(String(postId), userId, post.author_id)
+      .all<{ author_id: string }>();
+    await notifyUsers(
+      results.map((r) => r.author_id),
+      { type: "thread", actor: userId, ref: commentId, link, body: snippet(body) },
+    );
   }
   await pushStats(String(postId));
   return loadComments(postId);
@@ -222,14 +329,20 @@ export async function toggleFollow(targetId: string) {
   const userId = await writer();
   const id = String(targetId);
   if (id === userId) throw new Error("You can't follow yourself");
-  const del = await env.DB.prepare("DELETE FROM follows WHERE follower_id = ? AND followee_id = ?").bind(userId, id).run();
+  const del = await env.DB.prepare("DELETE FROM follows WHERE follower_id = ? AND followee_id = ?")
+    .bind(userId, id)
+    .run();
   if (!del.meta.changes) {
-    await env.DB.prepare("INSERT INTO follows (follower_id, followee_id, created_at) SELECT ?, id, ? FROM users WHERE id = ?")
-      .bind(userId, Date.now(), id).run();
+    await env.DB.prepare(
+      "INSERT INTO follows (follower_id, followee_id, created_at) SELECT ?, id, ? FROM users WHERE id = ?",
+    )
+      .bind(userId, Date.now(), id)
+      .run();
   }
   notify("follow", userId, id);
   await track(userId, del.meta.changes ? "user unfollowed" : "user followed");
-  if (!del.meta.changes) await notifyUsers([id], { type: "follow", actor: userId, ref: "", link: "/dashboard/network" });
+  if (!del.meta.changes)
+    await notifyUsers([id], { type: "follow", actor: userId, ref: "", link: "/dashboard/network" });
   else retract("follow", userId, "", id);
   return { following: !del.meta.changes };
 }
@@ -241,14 +354,21 @@ export async function toggleFollow(targetId: string) {
  * each with the other person as they see them and their own fresh counts.
  */
 function notify(kind: NetEvent["kind"], actor: string, other: string, both = true) {
-  const pair = both ? ([[actor, other, "out"], [other, actor, "in"]] as const) : ([[actor, other, "out"]] as const);
+  const pair = both
+    ? ([
+        [actor, other, "out"],
+        [other, actor, "in"],
+      ] as const)
+    : ([[actor, other, "out"]] as const);
   // After the response: it's two lookups per side, and only feeds realtime
-  waitUntil(Promise.all(
-    pair.map(async ([to, about, dir]) => {
-      const { person, counts } = await getPersonAndCounts(to, about);
-      if (person) sendTo(to, { t: "net", kind, dir, person, counts });
-    }),
-  ).catch((e) => console.error("notify failed", e)));
+  waitUntil(
+    Promise.all(
+      pair.map(async ([to, about, dir]) => {
+        const { person, counts } = await getPersonAndCounts(to, about);
+        if (person) sendTo(to, { t: "net", kind, dir, person, counts });
+      }),
+    ).catch((e) => console.error("notify failed", e)),
+  );
 }
 
 export async function loadNetwork() {
@@ -263,8 +383,11 @@ export async function findPeople(query: string) {
 /** Hide someone from your "People you may know" for good. */
 export async function dismissSuggestion(peerId: string) {
   const me = await writer();
-  await env.DB.prepare("INSERT OR IGNORE INTO suggestion_dismissals (user_id, peer_id, created_at) SELECT ?1, id, ?3 FROM users WHERE id = ?2 AND id <> ?1")
-    .bind(me, String(peerId), Date.now()).run();
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO suggestion_dismissals (user_id, peer_id, created_at) SELECT ?1, id, ?3 FROM users WHERE id = ?2 AND id <> ?1",
+  )
+    .bind(me, String(peerId), Date.now())
+    .run();
 }
 
 export async function connect(targetId: string) {
@@ -276,7 +399,9 @@ export async function connect(targetId: string) {
   const ins = await env.DB.prepare(
     `INSERT OR IGNORE INTO invitations (from_id, to_id, created_at) SELECT ?1, id, ?3 FROM users
      WHERE id = ?2 AND NOT EXISTS (SELECT 1 FROM connections WHERE user_id = ?1 AND peer_id = ?2)`,
-  ).bind(me, id, Date.now()).run();
+  )
+    .bind(me, id, Date.now())
+    .run();
   if (ins.meta.changes) {
     await track(me, "connection requested");
     notify("invite", me, id);
@@ -292,8 +417,12 @@ export async function acceptInvite(fromId: string) {
   const now = Date.now();
   // Connecting also makes you follow each other, like LinkedIn. A crossed invite in the other direction is now moot.
   await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO connections (user_id, peer_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)").bind(me, id, now),
-    env.DB.prepare("INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)").bind(me, id, now),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO connections (user_id, peer_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)",
+    ).bind(me, id, now),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)",
+    ).bind(me, id, now),
     env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, id),
   ]);
   notify("connect", me, id);
@@ -305,7 +434,9 @@ export async function acceptInvite(fromId: string) {
 /** The sender isn't told (same as LinkedIn): their request just stays pending on their side. */
 export async function ignoreInvite(fromId: string) {
   const me = await writer();
-  const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(String(fromId), me).run();
+  const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?")
+    .bind(String(fromId), me)
+    .run();
   if (del.meta.changes) {
     notify("uninvite", me, String(fromId), false);
     retract("invite", String(fromId), String(fromId), me);
@@ -314,7 +445,9 @@ export async function ignoreInvite(fromId: string) {
 
 export async function withdrawInvite(toId: string) {
   const me = await writer();
-  const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?").bind(me, String(toId)).run();
+  const del = await env.DB.prepare("DELETE FROM invitations WHERE from_id = ? AND to_id = ?")
+    .bind(me, String(toId))
+    .run();
   if (del.meta.changes) {
     notify("uninvite", me, String(toId));
     retract("invite", me, me, String(toId));
@@ -325,8 +458,12 @@ export async function removeConnection(peerId: string) {
   const me = await writer();
   const id = String(peerId);
   const [del] = await env.DB.batch([
-    env.DB.prepare("DELETE FROM connections WHERE (user_id = ?1 AND peer_id = ?2) OR (user_id = ?2 AND peer_id = ?1)").bind(me, id),
-    env.DB.prepare("DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)").bind(me, id),
+    env.DB.prepare(
+      "DELETE FROM connections WHERE (user_id = ?1 AND peer_id = ?2) OR (user_id = ?2 AND peer_id = ?1)",
+    ).bind(me, id),
+    env.DB.prepare(
+      "DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)",
+    ).bind(me, id),
   ]);
   if (del.meta.changes) notify("disconnect", me, id);
 }
@@ -375,9 +512,10 @@ function jobFields(input: Record<string, unknown>) {
 async function createJob(input: Record<string, unknown>) {
   const me = await writer();
   const companyId = text(input.companyId, 40);
-  const company = companyId && (await canPostJobs(me, companyId))
-    ? await env.DB.prepare("SELECT name FROM companies WHERE id = ?").bind(companyId).first<string>("name")
-    : null;
+  const company =
+    companyId && (await canPostJobs(me, companyId))
+      ? await env.DB.prepare("SELECT name FROM companies WHERE id = ?").bind(companyId).first<string>("name")
+      : null;
   if (!company) throw new Fail("Only employees who verified their work email on the company page can post its jobs");
   const job = { ...jobFields(input), company };
   const interview = parseInterview(input);
@@ -386,12 +524,38 @@ async function createJob(input: Record<string, unknown>) {
   await env.DB.batch([
     env.DB.prepare(
       "INSERT INTO jobs (id, poster_id, title, company, company_id, location, workplace, type, level, salary, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(id, me, job.title, job.company, companyId, job.location, job.workplace, job.type, job.level, job.salary, job.description, Date.now()),
+    ).bind(
+      id,
+      me,
+      job.title,
+      job.company,
+      companyId,
+      job.location,
+      job.workplace,
+      job.type,
+      job.level,
+      job.salary,
+      job.description,
+      Date.now(),
+    ),
     ...(interview ? [insertInterview(id, interview)] : []),
   ]);
   broadcast({ t: "job", id, posterId: me });
-  await track(me, "job posted", { job_id: id, company_id: companyId, interview: interview?.kind ?? null, workplace: job.workplace, level: job.level, salary_shown: !!job.salary });
-  await notifyUsers(await followersOf(me), { type: "job", actor: me, ref: id, link: `/dashboard/jobs?id=${id}`, body: job.title });
+  await track(me, "job posted", {
+    job_id: id,
+    company_id: companyId,
+    interview: interview?.kind ?? null,
+    workplace: job.workplace,
+    level: job.level,
+    salary_shown: !!job.salary,
+  });
+  await notifyUsers(await followersOf(me), {
+    type: "job",
+    actor: me,
+    ref: id,
+    link: `/dashboard/jobs?id=${id}`,
+    body: job.title,
+  });
   return getJob(me, id);
 }
 
@@ -409,17 +573,29 @@ async function editJob(id: string, input: Record<string, unknown>) {
   const current = await env.DB.prepare(
     `SELECT i.deadline, i.kind, i.questions, EXISTS (SELECT 1 FROM interview_sessions s WHERE s.job_id = j.id AND s.started_at IS NOT NULL) AS started
      FROM jobs j LEFT JOIN interviews i ON i.job_id = j.id WHERE j.id = ? AND j.poster_id = ?`,
-  ).bind(id, me).first<{ deadline: number | null; kind: Kind | null; questions: string | null; started: number }>();
+  )
+    .bind(id, me)
+    .first<{ deadline: number | null; kind: Kind | null; questions: string | null; started: number }>();
   if (!current) throw new Fail("Job not found");
-  const interview = current.deadline === null ? null : parseInterview(input, { kind: current.kind!, deadline: current.deadline });
+  const interview =
+    current.deadline === null ? null : parseInterview(input, { kind: current.kind!, deadline: current.deadline });
   if (interview && current.started && JSON.stringify(interview.questions) !== current.questions) {
     // Answers are graded against the stored questions, so changing them would re-score earlier candidates
     throw new Fail("Questions can't change after a candidate has started");
   }
   await env.DB.batch([
-    env.DB.prepare("UPDATE jobs SET title = ?, location = ?, workplace = ?, type = ?, level = ?, salary = ?, description = ? WHERE id = ? AND poster_id = ?")
-      .bind(job.title, job.location, job.workplace, job.type, job.level, job.salary, job.description, id, me),
-    ...(interview ? [env.DB.prepare("UPDATE interviews SET questions = ?, deadline = ? WHERE job_id = ?").bind(JSON.stringify(interview.questions), interview.deadline, id)] : []),
+    env.DB.prepare(
+      "UPDATE jobs SET title = ?, location = ?, workplace = ?, type = ?, level = ?, salary = ?, description = ? WHERE id = ? AND poster_id = ?",
+    ).bind(job.title, job.location, job.workplace, job.type, job.level, job.salary, job.description, id, me),
+    ...(interview
+      ? [
+          env.DB.prepare("UPDATE interviews SET questions = ?, deadline = ? WHERE job_id = ?").bind(
+            JSON.stringify(interview.questions),
+            interview.deadline,
+            id,
+          ),
+        ]
+      : []),
   ]);
   return getJob(me, id);
 }
@@ -435,12 +611,15 @@ export async function deleteJob(jobId: string) {
   if (!del.meta.changes) throw new Error("Job not found");
   // Every notification about it (new job, applicants, status changes) would lead to a missing listing
   const { results } = await env.DB.prepare("DELETE FROM notifications WHERE link IN (?1, ?2, ?3) RETURNING id, user_id")
-    .bind(`/dashboard/jobs?id=${id}`, `/dashboard/jobs?tab=applied&id=${id}`, `/dashboard/jobs?tab=posted&id=${id}`).all<{ id: string; user_id: string }>();
+    .bind(`/dashboard/jobs?id=${id}`, `/dashboard/jobs?tab=applied&id=${id}`, `/dashboard/jobs?tab=posted&id=${id}`)
+    .all<{ id: string; user_id: string }>();
   waitUntil(announceRemoved(results).catch(() => {}));
 }
 
 async function pushJobStats(jobId: string) {
-  const j = await env.DB.prepare("SELECT applicant_count, closed_at FROM jobs WHERE id = ?").bind(jobId).first<{ applicant_count: number; closed_at: number | null }>();
+  const j = await env.DB.prepare("SELECT applicant_count, closed_at FROM jobs WHERE id = ?")
+    .bind(jobId)
+    .first<{ applicant_count: number; closed_at: number | null }>();
   if (j) broadcast({ t: "jobstat", id: jobId, applicants: j.applicant_count, closed: j.closed_at !== null });
 }
 
@@ -450,15 +629,26 @@ export async function setJobClosed(jobId: string, closed: boolean) {
   // A job whose interview deadline has passed stays closed (the cron would close it again anyway)
   const upd = await env.DB.prepare(
     "UPDATE jobs SET closed_at = ?1 WHERE id = ?2 AND poster_id = ?3 AND (?1 IS NOT NULL OR NOT EXISTS (SELECT 1 FROM interviews WHERE job_id = ?2 AND deadline <= ?4))",
-  ).bind(closed ? Date.now() : null, String(jobId), me, Date.now()).run();
+  )
+    .bind(closed ? Date.now() : null, String(jobId), me, Date.now())
+    .run();
   if (!upd.meta.changes) throw new Error("Job not found, or its interview deadline has passed");
   await pushJobStats(String(jobId));
   await track(me, closed ? "job closed" : "job reopened", { job_id: String(jobId) });
   if (closed) {
-    const { results } = await env.DB.prepare("SELECT applicant_id FROM applications WHERE job_id = ? LIMIT 200").bind(String(jobId)).all<{ applicant_id: string }>();
-    await notifyUsers(results.map((r) => r.applicant_id), {
-      type: "job_closed", actor: me, ref: String(jobId), link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`, body: await jobTitle(String(jobId)),
-    });
+    const { results } = await env.DB.prepare("SELECT applicant_id FROM applications WHERE job_id = ? LIMIT 200")
+      .bind(String(jobId))
+      .all<{ applicant_id: string }>();
+    await notifyUsers(
+      results.map((r) => r.applicant_id),
+      {
+        type: "job_closed",
+        actor: me,
+        ref: String(jobId),
+        link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`,
+        body: await jobTitle(String(jobId)),
+      },
+    );
   }
 }
 
@@ -466,7 +656,10 @@ export async function toggleSaveJob(jobId: string) {
   const me = await writer();
   const id = String(jobId);
   const del = await env.DB.prepare("DELETE FROM saved_jobs WHERE user_id = ? AND job_id = ?").bind(me, id).run();
-  if (!del.meta.changes) await env.DB.prepare("INSERT INTO saved_jobs (user_id, job_id, created_at) SELECT ?, id, ? FROM jobs WHERE id = ?").bind(me, Date.now(), id).run();
+  if (!del.meta.changes)
+    await env.DB.prepare("INSERT INTO saved_jobs (user_id, job_id, created_at) SELECT ?, id, ? FROM jobs WHERE id = ?")
+      .bind(me, Date.now(), id)
+      .run();
   await track(me, del.meta.changes ? "job unsaved" : "job saved", { job_id: id });
   return { saved: !del.meta.changes };
 }
@@ -489,7 +682,8 @@ async function apply(jobId: string, input: Record<string, unknown>) {
   if (resumeKey) {
     if (!inFolder(resumeKey, "resumes", me)) throw new Fail("Upload your resume again");
     const obj = await env.MEDIA.head(resumeKey);
-    if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE) throw new Fail("Upload your resume again");
+    if (!obj || obj.customMetadata?.owner !== me || obj.httpMetadata?.contentType !== RESUME_TYPE)
+      throw new Fail("Upload your resume again");
   }
   // The profile as it is now, so the poster reads what was sent even if it's edited later
   const profile = await getResume(me);
@@ -501,25 +695,43 @@ async function apply(jobId: string, input: Record<string, unknown>) {
      SELECT id, ?2, ?3, ?4, ?5, ?8, ?6, ?7, ?7 FROM jobs WHERE id = ?1 AND closed_at IS NULL AND poster_id <> ?2
        AND NOT EXISTS (SELECT 1 FROM interviews WHERE job_id = ?1 AND deadline <= ?7)
        AND NOT EXISTS (SELECT 1 FROM applications WHERE job_id = ?1 AND email = ?3 COLLATE NOCASE)`,
-  ).bind(jobId, me, email, phone, resumeKey, note, now, JSON.stringify(profile)).run();
+  )
+    .bind(jobId, me, email, phone, resumeKey, note, now, JSON.stringify(profile))
+    .run();
   if (!ins.meta.changes) {
     const job = await getJob(me, jobId);
     if (job?.application) throw new Fail("You already applied to this job");
     // The interview gate signs candidates in by job + email, so one email must map to one applicant
-    if (await env.DB.prepare("SELECT 1 FROM applications WHERE job_id = ? AND email = ? COLLATE NOCASE").bind(jobId, email).first()) {
+    if (
+      await env.DB.prepare("SELECT 1 FROM applications WHERE job_id = ? AND email = ? COLLATE NOCASE")
+        .bind(jobId, email)
+        .first()
+    ) {
       throw new Fail("Another applicant already used this email. Use your own email address.");
     }
-    throw new Fail(job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications");
+    throw new Fail(
+      job?.poster.id === me ? "You can't apply to your own job" : "This job is no longer accepting applications",
+    );
   }
   const job = await getJob(me, jobId);
-  await track(me, "job applied", { job_id: jobId, resume_attached: !!resumeKey, interview: job?.interview?.kind ?? null });
+  await track(me, "job applied", {
+    job_id: jobId,
+    resume_attached: !!resumeKey,
+    interview: job?.interview?.kind ?? null,
+  });
   // Queued: Resend is slow-ish and can fail; the link is also on the job page, so the application never waits on it
   // Only to the account's own (Clerk-verified) address, so the form can't make us mail strangers. Others use the link on the job page.
   const own = job?.interview && (await signedIn())?.account.email.toLowerCase() === email.toLowerCase();
   if (own) await enqueue({ t: "invite", jobId, to: email }).catch((e) => console.error("invite: enqueue failed", e));
   if (job) {
     sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
-    await notifyUsers([job.poster.id], { type: "applicant", actor: me, ref: jobId, link: `/dashboard/jobs?tab=posted&id=${jobId}`, body: job.title });
+    await notifyUsers([job.poster.id], {
+      type: "applicant",
+      actor: me,
+      ref: jobId,
+      link: `/dashboard/jobs?tab=posted&id=${jobId}`,
+      body: job.title,
+    });
   }
   await pushJobStats(jobId);
   return job;
@@ -533,12 +745,23 @@ export async function loadApplicants(jobId: string) {
     `UPDATE applications SET status = 'viewed', updated_at = ?3
      WHERE job_id = ?1 AND status = 'submitted' AND EXISTS (SELECT 1 FROM jobs WHERE id = ?1 AND poster_id = ?2)
      RETURNING applicant_id`,
-  ).bind(id, me, Date.now()).all<{ applicant_id: string }>();
-  results.forEach((r) => sendTo(r.applicant_id, { t: "app", jobId: id, applicantId: r.applicant_id, status: "viewed" }));
+  )
+    .bind(id, me, Date.now())
+    .all<{ applicant_id: string }>();
+  results.forEach((r) =>
+    sendTo(r.applicant_id, { t: "app", jobId: id, applicantId: r.applicant_id, status: "viewed" }),
+  );
   if (results.length) {
-    await notifyUsers(results.map((r) => r.applicant_id), {
-      type: "app_viewed", actor: me, ref: id, link: `/dashboard/jobs?tab=applied&id=${id}`, body: await jobTitle(id),
-    });
+    await notifyUsers(
+      results.map((r) => r.applicant_id),
+      {
+        type: "app_viewed",
+        actor: me,
+        ref: id,
+        link: `/dashboard/jobs?tab=applied&id=${id}`,
+        body: await jobTitle(id),
+      },
+    );
   }
   return getApplicants(me, id);
 }
@@ -549,13 +772,19 @@ export async function setApplicationStatus(jobId: string, applicantId: string, s
   const upd = await env.DB.prepare(
     `UPDATE applications SET status = ?4, updated_at = ?5
      WHERE job_id = ?1 AND applicant_id = ?2 AND EXISTS (SELECT 1 FROM jobs WHERE id = ?1 AND poster_id = ?3)`,
-  ).bind(String(jobId), String(applicantId), me, s, Date.now()).run();
+  )
+    .bind(String(jobId), String(applicantId), me, s, Date.now())
+    .run();
   if (!upd.meta.changes) throw new Error("Application not found");
   sendTo(String(applicantId), { t: "app", jobId: String(jobId), applicantId: String(applicantId), status: s });
   await track(me, "application status changed", { job_id: String(jobId), status: s });
   if (s === "viewed" || s === "shortlisted" || s === "rejected") {
     await notifyUsers([String(applicantId)], {
-      type: `app_${s}`, actor: me, ref: String(jobId), link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`, body: await jobTitle(String(jobId)),
+      type: `app_${s}`,
+      actor: me,
+      ref: String(jobId),
+      link: `/dashboard/jobs?tab=applied&id=${String(jobId)}`,
+      body: await jobTitle(String(jobId)),
     });
   }
 }
@@ -579,7 +808,9 @@ export async function markSeen() {
   const me = await viewer();
   const now = Date.now();
   const [upd] = await env.DB.batch([
-    env.DB.prepare("UPDATE users SET notif_seen_at = ?1 WHERE id = ?2 AND EXISTS (SELECT 1 FROM notifications WHERE user_id = ?2 AND created_at > users.notif_seen_at)").bind(now, me),
+    env.DB.prepare(
+      "UPDATE users SET notif_seen_at = ?1 WHERE id = ?2 AND EXISTS (SELECT 1 FROM notifications WHERE user_id = ?2 AND created_at > users.notif_seen_at)",
+    ).bind(now, me),
     // Keep the table bounded: nobody scrolls back three months
     env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND created_at < ?").bind(me, now - 90 * 86_400_000),
   ]);
@@ -590,19 +821,29 @@ export async function markSeen() {
 
 export async function markRead(id: string) {
   const me = await viewer();
-  const upd = await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ? AND read_at IS NULL").bind(Date.now(), String(id), me).run();
+  const upd = await env.DB.prepare(
+    "UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ? AND read_at IS NULL",
+  )
+    .bind(Date.now(), String(id), me)
+    .run();
   if (upd.meta.changes) sendTo(me, { t: "notif-read", id: String(id) });
 }
 
 export async function markAllRead() {
   const me = await viewer();
-  const upd = await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL").bind(Date.now(), me).run();
+  const upd = await env.DB.prepare("UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL")
+    .bind(Date.now(), me)
+    .run();
   if (upd.meta.changes) sendTo(me, { t: "notif-read" });
 }
 
 export async function deleteNotification(id: string) {
   const me = await viewer();
-  const { results } = await env.DB.prepare("DELETE FROM notifications WHERE id = ? AND user_id = ? RETURNING id, user_id").bind(String(id), me).all<{ id: string; user_id: string }>();
+  const { results } = await env.DB.prepare(
+    "DELETE FROM notifications WHERE id = ? AND user_id = ? RETURNING id, user_id",
+  )
+    .bind(String(id), me)
+    .all<{ id: string; user_id: string }>();
   waitUntil(announceRemoved(results).catch(() => {}));
 }
 
@@ -635,6 +876,8 @@ const TOURS = ["welcome"];
 export async function finishTour(tourId: string, skipped: boolean, step: number) {
   const me = await viewer();
   if (!TOURS.includes(tourId)) return;
-  await env.DB.prepare("INSERT OR IGNORE INTO user_tours (user_id, tour_id, skipped, done_at) VALUES (?, ?, ?, ?)").bind(me, tourId, skipped ? 1 : 0, Date.now()).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO user_tours (user_id, tour_id, skipped, done_at) VALUES (?, ?, ?, ?)")
+    .bind(me, tourId, skipped ? 1 : 0, Date.now())
+    .run();
   await track(me, skipped ? "tour skipped" : "tour completed", { tour: tourId, step: Number(step) || 0 });
 }

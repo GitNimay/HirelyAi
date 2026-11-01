@@ -11,8 +11,16 @@ export function capture(distinctId: string, event: string, properties: Record<st
     fetch(`${env.POSTHOG_HOST}/i/v0/e/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: env.POSTHOG_KEY, event, distinct_id: distinctId, properties: { $lib: "worker", ...properties } }),
-    }).then((r) => void (r.ok || console.error("posthog", r.status)), (e) => console.error("posthog", e)),
+      body: JSON.stringify({
+        api_key: env.POSTHOG_KEY,
+        event,
+        distinct_id: distinctId,
+        properties: { $lib: "worker", ...properties },
+      }),
+    }).then(
+      (r) => void (r.ok || console.error("posthog", r.status)),
+      (e) => console.error("posthog", e),
+    ),
   );
 }
 
@@ -22,6 +30,9 @@ export function capture(distinctId: string, event: string, properties: Record<st
  */
 export async function track(userId: string, event: string, properties: Record<string, unknown> = {}) {
   // Outside a request (queue, cron) there are no cookies; those callers don't track people
-  const off = await cookies().then((c) => c.get(OPT_OUT_COOKIE)?.value === "off", () => false);
+  const off = await cookies().then(
+    (c) => c.get(OPT_OUT_COOKIE)?.value === "off",
+    () => false,
+  );
   if (!off) capture(userId, event, properties);
 }

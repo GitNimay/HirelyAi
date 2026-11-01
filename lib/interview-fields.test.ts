@@ -1,12 +1,31 @@
 import assert from "node:assert/strict";
-import { callKeyterms, cleanAnswers, cleanMcq, cleanProfile, cleanQuestions, cleanReport, cleanTranscript, gradeMcq, resumeYears, screeningFacts } from "./interview-fields.ts";
+import {
+  callKeyterms,
+  cleanAnswers,
+  cleanMcq,
+  cleanProfile,
+  cleanQuestions,
+  cleanReport,
+  cleanTranscript,
+  gradeMcq,
+  resumeYears,
+  screeningFacts,
+} from "./interview-fields.ts";
 
 // One per line, blanks dropped, capped at 5
 assert.deepEqual(cleanQuestions(" a \n\n b\nc\nd\ne\nf"), ["a", "b", "c", "d", "e"]);
 assert.deepEqual(cleanQuestions(42), []);
 
 // Required fields and a bad phone are reported; unknown notice falls back; non-http links are dropped
-const p = cleanProfile({ name: " Ada ", phone: "abc", city: "Pune", role: "", years: "120", notice: "toString", link: "javascript:alert(1)" });
+const p = cleanProfile({
+  name: " Ada ",
+  phone: "abc",
+  city: "Pune",
+  role: "",
+  years: "120",
+  notice: "toString",
+  link: "javascript:alert(1)",
+});
 assert.equal(p.profile.name, "Ada");
 assert.equal(p.profile.years, 50);
 assert.equal(p.profile.notice, "30d");
@@ -52,16 +71,30 @@ assert.deepEqual(cleanTranscript([{ role: "agent", text: "Hi" }, { role: "x", te
   { role: "candidate", text: "yo" },
 ]);
 // One answer split by a pause becomes one line
-assert.deepEqual(cleanTranscript([{ role: "agent", text: "Q1?" }, { role: "candidate", text: "First," }, { role: "candidate", text: "then more." }, { role: "agent", text: "Q2?" }]), [
-  { role: "agent", text: "Q1?" },
-  { role: "candidate", text: "First, then more." },
-  { role: "agent", text: "Q2?" },
-]);
+assert.deepEqual(
+  cleanTranscript([
+    { role: "agent", text: "Q1?" },
+    { role: "candidate", text: "First," },
+    { role: "candidate", text: "then more." },
+    { role: "agent", text: "Q2?" },
+  ]),
+  [
+    { role: "agent", text: "Q1?" },
+    { role: "candidate", text: "First, then more." },
+    { role: "agent", text: "Q2?" },
+  ],
+);
 
-const kt = callKeyterms("We use Node.js, C++ and AWS with PostgreSQL. The team ships daily.", { skills: ["React", "react", "TypeScript"], experience: [{ title: "SDE 2", company: "Acme" }] });
+const kt = callKeyterms("We use Node.js, C++ and AWS with PostgreSQL. The team ships daily.", {
+  skills: ["React", "react", "TypeScript"],
+  experience: [{ title: "SDE 2", company: "Acme" }],
+});
 assert.deepEqual(kt, ["React", "TypeScript", "Acme", "SDE 2", "Node.js", "C++", "AWS", "PostgreSQL"]);
 assert.equal(callKeyterms("x", null).length, 0);
-assert.equal(callKeyterms("", { skills: Array.from({ length: 120 }, (_, i) => `skill${i}`), experience: [] }).length, 80);
+assert.equal(
+  callKeyterms("", { skills: Array.from({ length: 120 }, (_, i) => `skill${i}`), experience: [] }).length,
+  80,
+);
 
 assert.equal(resumeYears([{ start: "2021-03" }, { start: "2019-10" }, { start: "" }], new Date(2026, 9, 10)), 7);
 assert.equal(resumeYears([], new Date()), 0);
@@ -76,8 +109,19 @@ const m = cleanMcq([
 ]);
 assert.deepEqual(m, [{ q: "What is 2+2?", options: ["3", "4"], answer: 1 }]);
 assert.throws(() => cleanMcq([{ q: "x", options: ["a"], answer: 0 }], true), /Question 1 needs at least 2 options/);
-assert.deepEqual(cleanAnswers([1, 9, "x"], [{ options: ["a", "b"] }, { options: ["a", "b"] }, { options: ["a"] }]), [1, -1, -1]);
-const g = gradeMcq([...m, { q: "y", options: ["a", "b"], answer: 0 }, { q: "z", options: ["a", "b"], answer: 1 }, { q: "w", options: ["a", "b"], answer: 1 }], [1, 0, -1, 0]);
+assert.deepEqual(
+  cleanAnswers([1, 9, "x"], [{ options: ["a", "b"] }, { options: ["a", "b"] }, { options: ["a"] }]),
+  [1, -1, -1],
+);
+const g = gradeMcq(
+  [
+    ...m,
+    { q: "y", options: ["a", "b"], answer: 0 },
+    { q: "z", options: ["a", "b"], answer: 1 },
+    { q: "w", options: ["a", "b"], answer: 1 },
+  ],
+  [1, 0, -1, 0],
+);
 assert.equal(g.score, 50);
 assert.equal(g.fit, "moderate");
 assert.equal(g.summary, "2 of 4 correct, 1 unanswered.");

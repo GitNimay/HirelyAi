@@ -19,7 +19,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   if (resume && owner !== userId) {
     const ok = await env.DB.prepare(
       "SELECT 1 FROM applications a JOIN jobs j ON j.id = a.job_id WHERE a.applicant_id = ? AND a.resume_key = ? AND j.poster_id = ? LIMIT 1",
-    ).bind(owner, key, userId).first();
+    )
+      .bind(owner, key, userId)
+      .first();
     if (!ok) return new Response("Not found", { status: 404 });
   }
   const obj = await env.MEDIA.get(key, { range: request.headers, onlyIf: request.headers });

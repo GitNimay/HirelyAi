@@ -46,9 +46,12 @@ const landingKey = (url: URL, env: Env) => `${url.origin}/?__landing=${env.CF_VE
 /** Retries only transient failures; `attempts` starts at 1. The last tries of a grading store "failed" instead of throwing. */
 async function runTask(task: Task, attempts: number) {
   switch (task.t) {
-    case "evaluate": return evaluate(task.sessionId, attempts >= 4);
-    case "invite": return sendInvite(task.jobId, task.to);
-    case "notify": return deliverNotifications(task.to, task.spec);
+    case "evaluate":
+      return evaluate(task.sessionId, attempts >= 4);
+    case "invite":
+      return sendInvite(task.jobId, task.to);
+    case "notify":
+      return deliverNotifications(task.to, task.spec);
   }
 }
 
@@ -97,14 +100,25 @@ export default {
     const url = new URL(request.url);
     // Uptime monitors and the post-deploy smoke test (.github/workflows/ci.yml): Worker up, D1 reachable, which version
     if (url.pathname === "/api/health") {
-      const db = await env.DB.prepare("SELECT 1").first().then(() => true, () => false);
-      return Response.json({ ok: db, version: env.CF_VERSION_METADATA.id }, { status: db ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+      const db = await env.DB.prepare("SELECT 1")
+        .first()
+        .then(
+          () => true,
+          () => false,
+        );
+      return Response.json(
+        { ok: db, version: env.CF_VERSION_METADATA.id },
+        { status: db ? 200 : 503, headers: { "Cache-Control": "no-store" } },
+      );
     }
     if (url.pathname === "/api/realtime") {
       if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected WebSocket", { status: 426 });
       // Browsers don't apply CORS to WebSockets, so block cross-site hijacking by origin
       if (request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
-      const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY, publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY });
+      const clerk = createClerkClient({
+        secretKey: env.CLERK_SECRET_KEY,
+        publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      });
       const state = await clerk.authenticateRequest(request, { authorizedParties: [url.origin] });
       if (!state.isAuthenticated) return new Response("Unauthorized", { status: 401 });
       const { userId } = state.toAuth();
@@ -114,10 +128,15 @@ export default {
     }
     // The interview agent (LiveKit Cloud) posts the transcript here when a call ends; grading runs after we answer
     if (url.pathname === "/api/interview/complete" && request.method === "POST") {
-      if (!env.INTERVIEW_AGENT_SECRET || !same(request.headers.get("Authorization") ?? "", `Bearer ${env.INTERVIEW_AGENT_SECRET}`)) return new Response(null, { status: 401 });
+      if (
+        !env.INTERVIEW_AGENT_SECRET ||
+        !same(request.headers.get("Authorization") ?? "", `Bearer ${env.INTERVIEW_AGENT_SECRET}`)
+      )
+        return new Response(null, { status: 401 });
       const body = (await request.json().catch(() => ({}))) as { sessionId?: unknown; transcript?: unknown };
       const sessionId = String(body.sessionId);
-      if (!(await acceptTranscript(sessionId, cleanTranscript(body.transcript)))) return new Response(null, { status: 409 });
+      if (!(await acceptTranscript(sessionId, cleanTranscript(body.transcript))))
+        return new Response(null, { status: 409 });
       capture(sessionId, "interview completed", { kind: "voice", $process_person_profile: false });
       // Grading takes up to a minute or two: the queue gives it retries and a 15 minute budget (waitUntil only gets 30 s)
       await enqueue({ t: "evaluate", sessionId });
@@ -127,8 +146,12 @@ export default {
     if (url.pathname === "/api/human" && request.method === "POST") {
       if (request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
       const body = (await request.json().catch(() => ({}))) as { token?: unknown };
-      if (!(await verifyTurnstile(body.token, request.headers.get("CF-Connecting-IP")))) return Response.json({ ok: false }, { status: 403 });
-      return Response.json({ ok: true }, { headers: { "Set-Cookie": await passCookie(url), "Cache-Control": "no-store" } });
+      if (!(await verifyTurnstile(body.token, request.headers.get("CF-Connecting-IP"))))
+        return Response.json({ ok: false }, { status: 403 });
+      return Response.json(
+        { ok: true },
+        { headers: { "Set-Cookie": await passCookie(url), "Cache-Control": "no-store" } },
+      );
     }
     // PostHog through our own origin (components/analytics.tsx): ad blockers drop *.posthog.com, and the CSP stays 'self'
     if (url.pathname.startsWith("/relay/")) {
@@ -140,9 +163,17 @@ export default {
       return fetch(`https://${host}${path}${url.search}`, { method: request.method, headers, body: request.body });
     }
     if (needsCheck(url.pathname, request.headers.get("User-Agent")) && !(await hasPass(request, url))) {
-      return Response.redirect(`${url.origin}/verify?next=${encodeURIComponent(safeNext(url.pathname + url.search))}`, 302);
+      return Response.redirect(
+        `${url.origin}/verify?next=${encodeURIComponent(safeNext(url.pathname + url.search))}`,
+        302,
+      );
     }
-    const landing = request.method === "GET" && url.pathname === "/" && !url.search && !request.headers.has("Cookie") && !request.headers.has("RSC");
+    const landing =
+      request.method === "GET" &&
+      url.pathname === "/" &&
+      !url.search &&
+      !request.headers.has("Cookie") &&
+      !request.headers.has("RSC");
     if (landing) {
       const hit = await (await caches.open("landing")).match(landingKey(url, env));
       if (hit) return hit;
@@ -166,7 +197,12 @@ export default {
     if (batch.queue.endsWith("-dlq")) {
       for (const msg of batch.messages) {
         const t = msg.body;
-        const ref = t.t === "evaluate" ? { sessionId: t.sessionId } : t.t === "invite" ? { jobId: t.jobId } : { type: t.spec.type, ref: t.spec.ref, recipients: t.to.length };
+        const ref =
+          t.t === "evaluate"
+            ? { sessionId: t.sessionId }
+            : t.t === "invite"
+              ? { jobId: t.jobId }
+              : { type: t.spec.type, ref: t.spec.ref, recipients: t.to.length };
         console.error(JSON.stringify({ msg: "task dead-lettered", task: t.t, ...ref }));
         msg.ack();
       }
@@ -178,7 +214,9 @@ export default {
           await runTask(msg.body, msg.attempts);
           msg.ack();
         } catch (e) {
-          console.error(JSON.stringify({ msg: "task failed", task: msg.body.t, attempts: msg.attempts, error: String(e) }));
+          console.error(
+            JSON.stringify({ msg: "task failed", task: msg.body.t, attempts: msg.attempts, error: String(e) }),
+          );
           msg.retry({ delaySeconds: Math.min(30 * 2 ** (msg.attempts - 1), 900) });
         }
       }),

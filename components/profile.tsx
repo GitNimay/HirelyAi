@@ -10,7 +10,15 @@ import type { FeedPost } from "@/lib/feed";
 import type { FollowDir, FollowPerson } from "@/lib/network";
 import { isVideo } from "@/lib/media";
 import type { Connection, Profile, Reply } from "@/lib/profile";
-import { AVATAR_PX, COVER_PX, LIMITS, MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_TYPES, profileHref, shortUrl } from "@/lib/profile-fields";
+import {
+  AVATAR_PX,
+  COVER_PX,
+  LIMITS,
+  MAX_PROFILE_IMAGE_BYTES,
+  PROFILE_IMAGE_TYPES,
+  profileHref,
+  shortUrl,
+} from "@/lib/profile-fields";
 import { field, Field } from "./jobs";
 import { ask, BackButton, leaveIfClean, TabLabel, toast, useUnsavedGuard } from "./kit";
 import { PendingButton } from "./network";
@@ -19,7 +27,8 @@ import { ago, Avatar, backBtn, btn, btnGhost, btnOutline, btnPrimary, Icon, icon
 import { useRealtime } from "./use-realtime";
 
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
-const camera = "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8";
+const camera =
+  "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8";
 const link = icons.link;
 const calendar = icons.calendar;
 
@@ -42,7 +51,12 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
     ...(own || profile.resumePublic ? [{ href: `${base}/about`, label: "About" }] : []),
     { href: `${base}/replies`, label: "Replies" },
     { href: `${base}/media`, label: "Media" },
-    ...(own ? [{ href: `${base}/likes`, label: "Likes" }, { href: `${base}/resume`, label: "Resume" }] : []),
+    ...(own
+      ? [
+          { href: `${base}/likes`, label: "Likes" },
+          { href: `${base}/resume`, label: "Resume" },
+        ]
+      : []),
   ];
   const followers = profile.counts.followers + Number(rel.following) - Number(profile.rel.following);
   const first = profile.name.split(" ")[0];
@@ -71,14 +85,29 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
   const follow = () => run({ following: !rel.following }, () => actions.toggleFollow(profile.id));
   const connection: Record<Connection, React.ReactNode> = {
     none: (
-      <button type="button" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy} onClick={() => run({ connection: "sent" }, () => actions.connect(profile.id), true)}>
+      <button
+        type="button"
+        className={`${btnPrimary} min-h-10 sm:min-h-0`}
+        disabled={busy}
+        onClick={() => run({ connection: "sent" }, () => actions.connect(profile.id), true)}
+      >
         <Icon d={icons.connect} size={14} />
         Connect
       </button>
     ),
-    sent: <PendingButton disabled={busy} onClick={() => run({ connection: "none" }, () => actions.withdrawInvite(profile.id), true)} />,
+    sent: (
+      <PendingButton
+        disabled={busy}
+        onClick={() => run({ connection: "none" }, () => actions.withdrawInvite(profile.id), true)}
+      />
+    ),
     received: (
-      <button type="button" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy} onClick={() => run({ connection: "connected", following: true }, () => actions.acceptInvite(profile.id), true)}>
+      <button
+        type="button"
+        className={`${btnPrimary} min-h-10 sm:min-h-0`}
+        disabled={busy}
+        onClick={() => run({ connection: "connected", following: true }, () => actions.acceptInvite(profile.id), true)}
+      >
         Accept
       </button>
     ),
@@ -89,8 +118,12 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
         className={`${btnOutline} min-h-10 sm:min-h-0`}
         disabled={busy}
         onClick={async () =>
-          (await ask({ title: `Remove ${profile.name}?`, body: "They won't be notified. You can send a new invitation later.", confirm: "Remove connection", danger: true })) &&
-          run({ connection: "none", following: false }, () => actions.removeConnection(profile.id), true)
+          (await ask({
+            title: `Remove ${profile.name}?`,
+            body: "They won't be notified. You can send a new invitation later.",
+            confirm: "Remove connection",
+            danger: true,
+          })) && run({ connection: "none", following: false }, () => actions.removeConnection(profile.id), true)
         }
       >
         <Icon d={icons.check} size={14} />
@@ -105,7 +138,9 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
         <BackButton />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-medium leading-tight">{profile.name}</h1>
-          <p className="text-xs text-muted">{profile.counts.posts} {profile.counts.posts === 1 ? "post" : "posts"}</p>
+          <p className="text-xs text-muted">
+            {profile.counts.posts} {profile.counts.posts === 1 ? "post" : "posts"}
+          </p>
         </div>
       </header>
 
@@ -130,7 +165,13 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
               ) : (
                 <>
                   {connection[rel.connection]}
-                  <button type="button" aria-pressed={rel.following} className={`${btnOutline} min-h-10 sm:min-h-0`} disabled={busy} onClick={follow}>
+                  <button
+                    type="button"
+                    aria-pressed={rel.following}
+                    className={`${btnOutline} min-h-10 sm:min-h-0`}
+                    disabled={busy}
+                    onClick={follow}
+                  >
                     {rel.following ? "Following" : "Follow"}
                   </button>
                 </>
@@ -142,8 +183,14 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
             <h2 className="font-display text-xl font-normal leading-tight break-words text-balance">{profile.name}</h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted">
               <span className="min-w-0 truncate">@{profile.handle ?? profile.id}</span>
-              {!own && rel.followsYou && <span className="rounded-md bg-surface-hover px-1.5 py-0.5 text-xs">Follows you</span>}
-              {profile.openToWork && <span className="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">Open to work</span>}
+              {!own && rel.followsYou && (
+                <span className="rounded-md bg-surface-hover px-1.5 py-0.5 text-xs">Follows you</span>
+              )}
+              {profile.openToWork && (
+                <span className="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+                  Open to work
+                </span>
+              )}
             </p>
           </div>
           {profile.headline && <p className="mt-2 break-words text-sm">{profile.headline}</p>}
@@ -159,7 +206,12 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
             {profile.website && (
               <li className="flex min-w-0 max-w-full items-center gap-1.5">
                 <Icon d={link} size={15} />
-                <a href={profile.website} target="_blank" rel="noopener noreferrer nofollow" className="truncate text-link hover:underline">
+                <a
+                  href={profile.website}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="truncate text-link hover:underline"
+                >
                   {shortUrl(profile.website)}
                 </a>
               </li>
@@ -167,17 +219,24 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
             {profile.joinedAt && (
               <li className="flex items-center gap-1.5">
                 <Icon d={calendar} size={15} />
-                Joined {new Date(profile.joinedAt).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
+                Joined{" "}
+                {new Date(profile.joinedAt).toLocaleDateString("en-US", {
+                  month: "long",
+                  year: "numeric",
+                  timeZone: "UTC",
+                })}
               </li>
             )}
           </ul>
 
           <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            {([
-              ["connections", profile.counts.connections, own ? "/dashboard/network?tab=connections" : null],
-              ["following", profile.counts.following, `${base}/following`],
-              ["followers", followers, `${base}/followers`],
-            ] as const).map(([k, n, href]) => (
+            {(
+              [
+                ["connections", profile.counts.connections, own ? "/dashboard/network?tab=connections" : null],
+                ["following", profile.counts.following, `${base}/following`],
+                ["followers", followers, `${base}/followers`],
+              ] as const
+            ).map(([k, n, href]) => (
               <div key={k}>
                 <dt className="sr-only">{k}</dt>
                 <dd>
@@ -203,7 +262,10 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
           )}
         </div>
 
-        <nav aria-label="Profile sections" className="mt-3 flex overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav
+          aria-label="Profile sections"
+          className="mt-3 flex overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {tabs.map((t) => {
             const active = pathname === t.href;
             return (
@@ -219,7 +281,6 @@ export function ProfileHeader({ profile, own }: { profile: Profile; own: boolean
           })}
         </nav>
       </section>
-
     </>
   );
 }
@@ -228,7 +289,11 @@ type Picked = { blob: Blob; url: string };
 
 /** Upload a cropped JPEG for a profile (avatar, cover) or a company page (logo, cover); returns its R2 key. */
 export async function uploadImage(blob: Blob, kind: "profile" | "company" = "profile") {
-  const res = await fetch(`/api/uploads?for=${kind}`, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
+  const res = await fetch(`/api/uploads?for=${kind}`, {
+    method: "PUT",
+    headers: { "Content-Type": "image/jpeg" },
+    body: blob,
+  });
   const json = (await res.json()) as { key?: string; error?: string };
   if (!res.ok || !json.key) throw new Error(json.error || "Upload failed");
   return json.key;
@@ -279,10 +344,20 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     setBusy(true);
     setError("");
     try {
-      const [avatarKey, coverKey] = await Promise.all([avatar && uploadImage(avatar.blob), cover && uploadImage(cover.blob)]);
+      const [avatarKey, coverKey] = await Promise.all([
+        avatar && uploadImage(avatar.blob),
+        cover && uploadImage(cover.blob),
+      ]);
       const res = await saveProfile({
-        name: val("name"), handle: val("handle"), headline: val("headline"), bio, location: val("location"), website: val("website"),
-        avatarKey: avatarKey || undefined, coverKey: coverKey || undefined, removeCover: coverRemoved && !cover,
+        name: val("name"),
+        handle: val("handle"),
+        headline: val("headline"),
+        bio,
+        location: val("location"),
+        website: val("website"),
+        avatarKey: avatarKey || undefined,
+        coverKey: coverKey || undefined,
+        removeCover: coverRemoved && !cover,
       });
       if ("error" in res) throw new Error(res.error);
       setDirty(false);
@@ -299,89 +374,159 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   }
 
   const coverSrc = cover?.url ?? (coverRemoved ? null : profile.coverUrl);
-  const overlay = "absolute flex size-10 items-center sm:size-9 justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:opacity-50";
+  const overlay =
+    "absolute flex size-10 items-center sm:size-9 justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:opacity-50";
 
   return (
     <form onSubmit={submit} onChange={() => setDirty(true)} className="space-y-4 pb-8">
-        <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
-          <Link href={back} onClick={leave} aria-label="Back to profile" className={backBtn}>
-            <Icon d={icons.back} size={18} />
+      <header className="sticky top-14 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur sm:top-0">
+        <Link href={back} onClick={leave} aria-label="Back to profile" className={backBtn}>
+          <Icon d={icons.back} size={18} />
+        </Link>
+        <h1 className="flex-1 text-sm font-medium">Edit profile</h1>
+        <button aria-busy={busy} type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy}>
+          Save
+        </button>
+      </header>
+      <div className="relative aspect-[3/1] bg-gradient-to-br from-surface-hover to-surface">
+        {/* eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media */}
+        {coverSrc && <img src={coverSrc} alt="" className="size-full object-cover" />}
+        <div className="absolute inset-0 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            aria-label="Change cover photo"
+            disabled={busy}
+            onClick={() => coverInput.current?.click()}
+            className={`${overlay} static`}
+          >
+            <Icon d={camera} size={18} />
+          </button>
+          {coverSrc && (
+            <button
+              type="button"
+              aria-label="Remove cover photo"
+              disabled={busy}
+              onClick={() => (setCover(null), setCoverRemoved(true))}
+              className={`${overlay} static`}
+            >
+              <Icon d={icons.close} size={18} />
+            </button>
+          )}
+        </div>
+        <input
+          ref={coverInput}
+          type="file"
+          hidden
+          accept={PROFILE_IMAGE_TYPES.join()}
+          onChange={(e) => (
+            pick(e.target.files?.[0], COVER_PX, (p) => (setCover(p), setCoverRemoved(false))),
+            (e.target.value = "")
+          )}
+        />
+      </div>
+
+      <div className="px-4">
+        <div className="relative -mt-14 w-fit rounded-full border-4 border-background bg-background">
+          <Avatar name={profile.name} src={avatar?.url ?? profile.imageUrl ?? undefined} size={88} />
+          <button
+            type="button"
+            aria-label="Change profile photo"
+            disabled={busy}
+            onClick={() => avatarInput.current?.click()}
+            className={`${overlay} inset-0 m-auto`}
+          >
+            <Icon d={camera} size={18} />
+          </button>
+          <input
+            ref={avatarInput}
+            type="file"
+            hidden
+            accept={PROFILE_IMAGE_TYPES.join()}
+            onChange={(e) => (pick(e.target.files?.[0], AVATAR_PX, setAvatar), (e.target.value = ""))}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-4 px-4">
+        <Field label="Name">
+          <input
+            name="name"
+            required
+            maxLength={LIMITS.name}
+            defaultValue={profile.name}
+            autoComplete="name"
+            className={field}
+          />
+        </Field>
+        <Field label="Headline" hint="shown under your name across the app">
+          <input
+            name="headline"
+            maxLength={LIMITS.headline}
+            defaultValue={profile.headline ?? ""}
+            placeholder="Product designer at Acme"
+            className={field}
+          />
+        </Field>
+        <Field label="Bio" hint={`${bio.length}/${LIMITS.bio}`}>
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            rows={4}
+            maxLength={LIMITS.bio}
+            className={`${field} h-auto resize-none py-2`}
+          />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Location" hint="optional">
+            <input
+              name="location"
+              maxLength={LIMITS.location}
+              defaultValue={profile.location ?? ""}
+              placeholder="Pune, India"
+              className={field}
+            />
+          </Field>
+          <Field label="Website" hint="optional">
+            <input
+              name="website"
+              maxLength={LIMITS.website}
+              defaultValue={profile.website ?? ""}
+              placeholder="example.com"
+              inputMode="url"
+              className={field}
+            />
+          </Field>
+        </div>
+        <Field label="Profile URL" hint="3-30 letters, numbers, hyphens. Changing it breaks links to your old URL">
+          <div className="flex h-10 items-center rounded-md border border-border pl-3 text-sm text-muted focus-within:border-ring">
+            <span>/in/</span>
+            <input
+              name="handle"
+              required
+              minLength={3}
+              maxLength={30}
+              pattern="[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*"
+              defaultValue={profile.handle ?? ""}
+              autoCapitalize="none"
+              spellCheck={false}
+              className="h-full min-w-0 flex-1 bg-transparent px-1 text-foreground outline-none"
+            />
+          </div>
+        </Field>
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Link href={back} onClick={leave} className={`${btnGhost} min-h-10 sm:min-h-0`}>
+            Cancel
           </Link>
-          <h1 className="flex-1 text-sm font-medium">Edit profile</h1>
-          <button aria-busy={busy} type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy}>Save</button>
-        </header>
-        <div className="relative aspect-[3/1] bg-gradient-to-br from-surface-hover to-surface">
-          {/* eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media */}
-          {coverSrc && <img src={coverSrc} alt="" className="size-full object-cover" />}
-          <div className="absolute inset-0 flex items-center justify-center gap-2">
-            <button type="button" aria-label="Change cover photo" disabled={busy} onClick={() => coverInput.current?.click()} className={`${overlay} static`}>
-              <Icon d={camera} size={18} />
-            </button>
-            {coverSrc && (
-              <button
-                type="button"
-                aria-label="Remove cover photo"
-                disabled={busy}
-                onClick={() => (setCover(null), setCoverRemoved(true))}
-                className={`${overlay} static`}
-              >
-                <Icon d={icons.close} size={18} />
-              </button>
-            )}
-          </div>
-          <input ref={coverInput} type="file" hidden accept={PROFILE_IMAGE_TYPES.join()} onChange={(e) => (pick(e.target.files?.[0], COVER_PX, (p) => (setCover(p), setCoverRemoved(false))), (e.target.value = ""))} />
+          <button aria-busy={busy} type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy}>
+            Save
+          </button>
         </div>
-
-        <div className="px-4">
-          <div className="relative -mt-14 w-fit rounded-full border-4 border-background bg-background">
-            <Avatar name={profile.name} src={avatar?.url ?? profile.imageUrl ?? undefined} size={88} />
-            <button type="button" aria-label="Change profile photo" disabled={busy} onClick={() => avatarInput.current?.click()} className={`${overlay} inset-0 m-auto`}>
-              <Icon d={camera} size={18} />
-            </button>
-            <input ref={avatarInput} type="file" hidden accept={PROFILE_IMAGE_TYPES.join()} onChange={(e) => (pick(e.target.files?.[0], AVATAR_PX, setAvatar), (e.target.value = ""))} />
-          </div>
-        </div>
-
-        <div className="space-y-4 px-4">
-          <Field label="Name">
-            <input name="name" required maxLength={LIMITS.name} defaultValue={profile.name} autoComplete="name" className={field} />
-          </Field>
-          <Field label="Headline" hint="shown under your name across the app">
-            <input name="headline" maxLength={LIMITS.headline} defaultValue={profile.headline ?? ""} placeholder="Product designer at Acme" className={field} />
-          </Field>
-          <Field label="Bio" hint={`${bio.length}/${LIMITS.bio}`}>
-            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} maxLength={LIMITS.bio} className={`${field} h-auto resize-none py-2`} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Location" hint="optional">
-              <input name="location" maxLength={LIMITS.location} defaultValue={profile.location ?? ""} placeholder="Pune, India" className={field} />
-            </Field>
-            <Field label="Website" hint="optional">
-              <input name="website" maxLength={LIMITS.website} defaultValue={profile.website ?? ""} placeholder="example.com" inputMode="url" className={field} />
-            </Field>
-          </div>
-          <Field label="Profile URL" hint="3-30 letters, numbers, hyphens. Changing it breaks links to your old URL">
-            <div className="flex h-10 items-center rounded-md border border-border pl-3 text-sm text-muted focus-within:border-ring">
-              <span>/in/</span>
-              <input
-                name="handle"
-                required
-                minLength={3}
-                maxLength={30}
-                pattern="[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*"
-                defaultValue={profile.handle ?? ""}
-                autoCapitalize="none"
-                spellCheck={false}
-                className="h-full min-w-0 flex-1 bg-transparent px-1 text-foreground outline-none"
-              />
-            </div>
-          </Field>
-          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <Link href={back} onClick={leave} className={`${btnGhost} min-h-10 sm:min-h-0`}>Cancel</Link>
-            <button aria-busy={busy} type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`} disabled={busy}>Save</button>
-          </div>
-        </div>
+      </div>
     </form>
   );
 }
@@ -397,13 +542,21 @@ export function MediaGrid({ userId, initial, own }: { userId: string; initial: P
     setLoading(true);
     try {
       const r = await loadUserPosts(userId, "media", page.next ?? undefined);
-      setPage((pg) => ({ posts: [...pg.posts, ...r.posts.filter((p) => !pg.posts.some((q) => q.entryId === p.entryId))], next: r.next }));
+      setPage((pg) => ({
+        posts: [...pg.posts, ...r.posts.filter((p) => !pg.posts.some((q) => q.entryId === p.entryId))],
+        next: r.next,
+      }));
     } finally {
       setLoading(false);
     }
   }
 
-  if (page.posts.length === 0) return <p className="px-4 py-12 text-center text-sm text-muted">{own ? "Photos and videos you post will show up here." : "No photos or videos yet."}</p>;
+  if (page.posts.length === 0)
+    return (
+      <p className="px-4 py-12 text-center text-sm text-muted">
+        {own ? "Photos and videos you post will show up here." : "No photos or videos yet."}
+      </p>
+    );
   return (
     <>
       <ul className="grid grid-cols-3 gap-0.5 p-0.5">
@@ -411,10 +564,22 @@ export function MediaGrid({ userId, initial, own }: { userId: string; initial: P
           <li key={p.entryId} className="relative aspect-square bg-surface">
             <Link href={`/dashboard/post/${p.id}`} aria-label="Open post" className="block size-full">
               {isVideo(p.media[0].type) ? (
-                <video src={`/api/media/${p.media[0].key}#t=0.1`} preload="metadata" muted playsInline className="size-full object-cover" />
+                <video
+                  src={`/api/media/${p.media[0].key}#t=0.1`}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  className="size-full object-cover"
+                />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media
-                <img src={`/api/media/${p.media[0].key}`} alt={p.media[0].alt ?? ""} loading="lazy" decoding="async" className="size-full object-cover" />
+                <img
+                  src={`/api/media/${p.media[0].key}`}
+                  alt={p.media[0].alt ?? ""}
+                  loading="lazy"
+                  decoding="async"
+                  className="size-full object-cover"
+                />
               )}
               {(isVideo(p.media[0].type) || p.media.length > 1) && (
                 <span className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white">
@@ -426,10 +591,16 @@ export function MediaGrid({ userId, initial, own }: { userId: string; initial: P
         ))}
       </ul>
       {loading ? (
-        <div className="-mt-0.5"><MediaTilesSkeleton n={3} /></div>
+        <div className="-mt-0.5">
+          <MediaTilesSkeleton n={3} />
+        </div>
       ) : (
         page.next && (
-          <button type="button" onClick={more} className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+          <button
+            type="button"
+            onClick={more}
+            className="h-12 w-full text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"
+          >
             Load more
           </button>
         )
@@ -439,7 +610,15 @@ export function MediaGrid({ userId, initial, own }: { userId: string; initial: P
 }
 
 /** The Replies tab: the member's comments, each with the post it answers. */
-export function ReplyList({ author, initial, own }: { author: { id: string; name: string; handle: string | null; imageUrl: string | null }; initial: { replies: Reply[]; next: string | null }; own: boolean }) {
+export function ReplyList({
+  author,
+  initial,
+  own,
+}: {
+  author: { id: string; name: string; handle: string | null; imageUrl: string | null };
+  initial: { replies: Reply[]; next: string | null };
+  own: boolean;
+}) {
   const [page, setPage] = useState(initial);
   const [loading, setLoading] = useState(false);
 
@@ -447,32 +626,50 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
     setLoading(true);
     try {
       const r = await loadReplies(author.id, page.next ?? undefined);
-      setPage((pg) => ({ replies: [...pg.replies, ...r.replies.filter((x) => !pg.replies.some((y) => y.id === x.id))], next: r.next }));
+      setPage((pg) => ({
+        replies: [...pg.replies, ...r.replies.filter((x) => !pg.replies.some((y) => y.id === x.id))],
+        next: r.next,
+      }));
     } finally {
       setLoading(false);
     }
   }
 
-  if (page.replies.length === 0) return <p className="px-4 py-12 text-center text-sm text-muted">{own ? "Your replies to other posts show up here." : "No replies yet."}</p>;
+  if (page.replies.length === 0)
+    return (
+      <p className="px-4 py-12 text-center text-sm text-muted">
+        {own ? "Your replies to other posts show up here." : "No replies yet."}
+      </p>
+    );
   return (
     <>
       <ul>
         {page.replies.map((r) => (
           <li key={r.id} className="border-b border-border p-4">
             <p className="mb-2 ml-13 text-xs text-muted">
-              Replying to <Link href={profileHref(r.post.author)} className="text-link hover:underline">{r.post.author.name}</Link>
+              Replying to{" "}
+              <Link href={profileHref(r.post.author)} className="text-link hover:underline">
+                {r.post.author.name}
+              </Link>
             </p>
             <div className="flex gap-3">
               <Avatar name={author.name} src={author.imageUrl ?? undefined} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1 text-sm">
                   <span className="truncate font-medium">{author.name}</span>
-                  <span className="shrink-0 text-muted" suppressHydrationWarning>· {ago(r.createdAt)}</span>
+                  <span className="shrink-0 text-muted" suppressHydrationWarning>
+                    · {ago(r.createdAt)}
+                  </span>
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{r.body}</p>
-                <Link href={`/dashboard/post/${r.post.id}`} className="mt-3 block break-words rounded-lg border border-border p-3 text-sm transition-colors hover:bg-surface">
+                <Link
+                  href={`/dashboard/post/${r.post.id}`}
+                  className="mt-3 block break-words rounded-lg border border-border p-3 text-sm transition-colors hover:bg-surface"
+                >
                   <span className="font-medium">{r.post.author.name}</span>
-                  <p className="mt-0.5 line-clamp-2 text-muted">{r.post.body || (r.post.hasMedia ? "Photo or video" : "")}</p>
+                  <p className="mt-0.5 line-clamp-2 text-muted">
+                    {r.post.body || (r.post.hasMedia ? "Photo or video" : "")}
+                  </p>
                 </Link>
               </div>
             </div>
@@ -483,7 +680,11 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
         <RepliesSkeleton n={2} />
       ) : (
         page.next && (
-          <button type="button" onClick={more} className={`${btn} h-12 w-full rounded-none text-muted hover:bg-surface hover:text-foreground`}>
+          <button
+            type="button"
+            onClick={more}
+            className={`${btn} h-12 w-full rounded-none text-muted hover:bg-surface hover:text-foreground`}
+          >
             Load more
           </button>
         )
@@ -493,7 +694,13 @@ export function ReplyList({ author, initial, own }: { author: { id: string; name
 }
 
 /** Followers / following of one member (X style): who they are, and a Follow toggle for everyone but you. */
-export function FollowList({ userId, viewerId, dir, initial, empty }: {
+export function FollowList({
+  userId,
+  viewerId,
+  dir,
+  initial,
+  empty,
+}: {
   userId: string;
   viewerId: string;
   dir: FollowDir;
@@ -508,7 +715,10 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
     setLoading(true);
     try {
       const r = await loadFollows(userId, dir, page.next ?? undefined);
-      setPage((pg) => ({ people: [...pg.people, ...r.people.filter((p) => !pg.people.some((q) => q.id === p.id))], next: r.next }));
+      setPage((pg) => ({
+        people: [...pg.people, ...r.people.filter((p) => !pg.people.some((q) => q.id === p.id))],
+        next: r.next,
+      }));
     } finally {
       setLoading(false);
     }
@@ -516,7 +726,8 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
 
   async function follow(p: FollowPerson) {
     setBusy(p.id);
-    const flip = (on: boolean) => setPage((pg) => ({ ...pg, people: pg.people.map((q) => (q.id === p.id ? { ...q, iFollow: on } : q)) }));
+    const flip = (on: boolean) =>
+      setPage((pg) => ({ ...pg, people: pg.people.map((q) => (q.id === p.id ? { ...q, iFollow: on } : q)) }));
     flip(!p.iFollow);
     try {
       const { following } = await actions.toggleFollow(p.id);
@@ -531,25 +742,43 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
 
   return (
     <section aria-label={dir === "followers" ? "Followers" : "Following"}>
-      <h2 className="border-b border-border px-4 py-3 text-sm font-medium">{dir === "followers" ? "Followers" : "Following"}</h2>
+      <h2 className="border-b border-border px-4 py-3 text-sm font-medium">
+        {dir === "followers" ? "Followers" : "Following"}
+      </h2>
       {page.people.length === 0 ? (
         <p className="px-4 py-12 text-center text-sm text-muted">{empty}</p>
       ) : (
         <ul className="divide-y divide-border">
           {page.people.map((p) => (
             <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-              <Link href={profileHref(p)} aria-label={p.name} className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Link
+                href={profileHref(p)}
+                aria-label={p.name}
+                className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <Avatar name={p.name} src={p.imageUrl ?? undefined} size={40} />
               </Link>
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2">
-                  <Link href={profileHref(p)} className="truncate text-sm font-medium hover:underline">{p.name}</Link>
-                  {p.id !== viewerId && p.followsYou && <span className="shrink-0 rounded-md bg-surface-hover px-1.5 py-0.5 text-xs text-muted">Follows you</span>}
+                  <Link href={profileHref(p)} className="truncate text-sm font-medium hover:underline">
+                    {p.name}
+                  </Link>
+                  {p.id !== viewerId && p.followsYou && (
+                    <span className="shrink-0 rounded-md bg-surface-hover px-1.5 py-0.5 text-xs text-muted">
+                      Follows you
+                    </span>
+                  )}
                 </p>
                 {p.headline && <p className="truncate text-xs text-muted">{p.headline}</p>}
               </div>
               {p.id !== viewerId && (
-                <button type="button" aria-pressed={p.iFollow} disabled={busy === p.id} onClick={() => follow(p)} className={`${p.iFollow ? btnOutline : btnPrimary} min-h-10 sm:min-h-0`}>
+                <button
+                  type="button"
+                  aria-pressed={p.iFollow}
+                  disabled={busy === p.id}
+                  onClick={() => follow(p)}
+                  className={`${p.iFollow ? btnOutline : btnPrimary} min-h-10 sm:min-h-0`}
+                >
                   {p.iFollow ? "Following" : "Follow"}
                 </button>
               )}
@@ -558,7 +787,13 @@ export function FollowList({ userId, viewerId, dir, initial, empty }: {
         </ul>
       )}
       {page.next && (
-        <button aria-busy={loading} type="button" onClick={more} disabled={loading} className={`${btn} h-12 w-full rounded-none border-t border-border text-muted hover:bg-surface hover:text-foreground`}>
+        <button
+          aria-busy={loading}
+          type="button"
+          onClick={more}
+          disabled={loading}
+          className={`${btn} h-12 w-full rounded-none border-t border-border text-muted hover:bg-surface hover:text-foreground`}
+        >
           Load more
         </button>
       )}
@@ -588,8 +823,16 @@ export function ProfileVisibility({ resumePublic, openToWork }: { resumePublic: 
   }
 
   const options = [
-    { key: "resumePublic", label: "Show my experience on my profile", hint: "Members see your summary, experience, education, projects and skills in your About tab, and you're listed on your companies' pages. Contact details stay private." },
-    { key: "openToWork", label: "Open to work", hint: "Adds an \"Open to work\" badge next to your name so recruiters know you're looking." },
+    {
+      key: "resumePublic",
+      label: "Show my experience on my profile",
+      hint: "Members see your summary, experience, education, projects and skills in your About tab, and you're listed on your companies' pages. Contact details stay private.",
+    },
+    {
+      key: "openToWork",
+      label: "Open to work",
+      hint: 'Adds an "Open to work" badge next to your name so recruiters know you\'re looking.',
+    },
   ] as const;
 
   return (
@@ -597,7 +840,13 @@ export function ProfileVisibility({ resumePublic, openToWork }: { resumePublic: 
       <legend className="px-1 text-sm font-medium">Profile visibility</legend>
       {options.map((o) => (
         <label key={o.key} className="flex cursor-pointer items-start gap-3">
-          <input type="checkbox" role="switch" checked={v[o.key]} onChange={(e) => change({ ...v, [o.key]: e.target.checked })} className="mt-0.5 size-4 shrink-0 accent-foreground" />
+          <input
+            type="checkbox"
+            role="switch"
+            checked={v[o.key]}
+            onChange={(e) => change({ ...v, [o.key]: e.target.checked })}
+            className="mt-0.5 size-4 shrink-0 accent-foreground"
+          />
           <span>
             <span className="block text-sm font-medium">{o.label}</span>
             <span className="block text-xs text-muted">{o.hint}</span>

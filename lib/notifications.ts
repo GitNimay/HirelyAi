@@ -15,12 +15,26 @@ export type Notification = {
 };
 
 type Row = {
-  id: string; user_id: string; type: NotificationType; link: string; body: string | null; created_at: number;
-  read_at: number | null; count: number; actors: string | null; unseen: number;
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  link: string;
+  body: string | null;
+  created_at: number;
+  read_at: number | null;
+  count: number;
+  actors: string | null;
+  unseen: number;
 };
 
 const toNotification = (r: Row): Notification => ({
-  id: r.id, type: r.type, link: r.link, body: r.body, at: r.created_at, read: r.read_at !== null, count: r.count,
+  id: r.id,
+  type: r.type,
+  link: r.link,
+  body: r.body,
+  at: r.created_at,
+  read: r.read_at !== null,
+  count: r.count,
   actors: r.actors ? JSON.parse(r.actors) : [],
 });
 
@@ -66,7 +80,8 @@ export type Spec = { type: NotificationType; actor: string; ref: string; link: s
  */
 export async function notifyUsers(to: string[], spec: Spec) {
   const ids = [...new Set(to)].filter((id) => id !== spec.actor).slice(0, MAX_RECIPIENTS);
-  if (ids.length) await enqueue({ t: "notify", to: ids, spec }).catch((e) => console.error("notifyUsers: enqueue failed", e));
+  if (ids.length)
+    await enqueue({ t: "notify", to: ids, spec }).catch((e) => console.error("notifyUsers: enqueue failed", e));
 }
 
 /**
@@ -91,8 +106,11 @@ export async function deliverNotifications(to: string[], s: Spec) {
     ).bind(...args),
   ]);
   // Only rows this delivery changed (new, or resurfaced by a new actor: the trigger stamps them with `now`)
-  const { results } = await env.DB.prepare(`${SELECT} WHERE n.type = ?1 AND n.ref_id = ?2 AND n.user_id IN (SELECT value FROM json_each(?3)) AND n.created_at = ?4`)
-    .bind(s.type, s.ref, ids, now).all<Row>();
+  const { results } = await env.DB.prepare(
+    `${SELECT} WHERE n.type = ?1 AND n.ref_id = ?2 AND n.user_id IN (SELECT value FROM json_each(?3)) AND n.created_at = ?4`,
+  )
+    .bind(s.type, s.ref, ids, now)
+    .all<Row>();
   sendEach(results.map((r) => ({ to: r.user_id, event: { t: "notif", n: toNotification(r), unseen: r.unseen } })));
 }
 
@@ -103,8 +121,9 @@ export async function deliverNotifications(to: string[], s: Spec) {
  */
 export async function retractNotification(type: NotificationType, actor: string, ref: string, to: string) {
   const [off, gone] = await env.DB.batch<{ id: string; user_id: string }>([
-    env.DB.prepare("DELETE FROM notification_actors WHERE actor_id = ?1 AND notification_id = (SELECT id FROM notifications WHERE user_id = ?2 AND type = ?3 AND ref_id = ?4)")
-      .bind(actor, to, type, ref),
+    env.DB.prepare(
+      "DELETE FROM notification_actors WHERE actor_id = ?1 AND notification_id = (SELECT id FROM notifications WHERE user_id = ?2 AND type = ?3 AND ref_id = ?4)",
+    ).bind(actor, to, type, ref),
     env.DB.prepare(
       `DELETE FROM notifications WHERE user_id = ?1 AND type = ?2 AND ref_id = ?3
          AND NOT EXISTS (SELECT 1 FROM notification_actors WHERE notification_id = notifications.id) RETURNING id, user_id`,
@@ -112,7 +131,9 @@ export async function retractNotification(type: NotificationType, actor: string,
   ]);
   if (gone.results.length) return announceRemoved(gone.results);
   if (!off.meta.changes) return; // they weren't on it (never delivered): nothing on screen to change
-  const row = await env.DB.prepare(`${SELECT} WHERE n.user_id = ?1 AND n.type = ?2 AND n.ref_id = ?3`).bind(to, type, ref).first<Row>();
+  const row = await env.DB.prepare(`${SELECT} WHERE n.user_id = ?1 AND n.type = ?2 AND n.ref_id = ?3`)
+    .bind(to, type, ref)
+    .first<Row>();
   if (row) sendTo(to, { t: "notif", n: toNotification(row), unseen: row.unseen });
 }
 
@@ -122,36 +143,54 @@ export async function announceRemoved(rows: { id: string; user_id: string }[]) {
   const { results } = await env.DB.prepare(
     `SELECT u.id, (SELECT COUNT(*) FROM notifications x WHERE x.user_id = u.id AND x.created_at > u.notif_seen_at) AS n
      FROM users u WHERE u.id IN (SELECT value FROM json_each(?))`,
-  ).bind(JSON.stringify([...new Set(rows.map((r) => r.user_id))])).all<{ id: string; n: number }>();
+  )
+    .bind(JSON.stringify([...new Set(rows.map((r) => r.user_id))]))
+    .all<{ id: string; n: number }>();
   const unseen = new Map(results.map((r) => [r.id, r.n]));
-  sendEach(rows.map((r) => ({ to: r.user_id, event: { t: "notif-del", id: r.id, unseen: unseen.get(r.user_id) ?? 0 } })));
+  sendEach(
+    rows.map((r) => ({ to: r.user_id, event: { t: "notif-del", id: r.id, unseen: unseen.get(r.user_id) ?? 0 } })),
+  );
 }
 
 export async function listNotifications(userId: string, cursor?: string) {
   const [at, id] = cursor ? [Number(cursor.split(":")[0]), cursor.split(":")[1]] : [Number.MAX_SAFE_INTEGER, ""];
   const { results } = await env.DB.prepare(
     `${SELECT} WHERE n.user_id = ?1 AND (n.created_at < ?2 OR (n.created_at = ?2 AND n.id < ?3)) ORDER BY n.created_at DESC, n.id DESC LIMIT 31`,
-  ).bind(userId, at, id).all<Row>();
+  )
+    .bind(userId, at, id)
+    .all<Row>();
   const page = results.slice(0, 30);
   const last = page[page.length - 1];
-  return { items: page.map(toNotification), next: results.length > 30 && last ? `${last.created_at}:${last.id}` : null };
+  return {
+    items: page.map(toNotification),
+    next: results.length > 30 && last ? `${last.created_at}:${last.id}` : null,
+  };
 }
 
 export async function unseenCount(userId: string) {
   const row = await env.DB.prepare(
     "SELECT COUNT(*) AS n FROM notifications x JOIN users me ON me.id = x.user_id WHERE x.user_id = ? AND x.created_at > me.notif_seen_at",
-  ).bind(userId).first<{ n: number }>();
+  )
+    .bind(userId)
+    .first<{ n: number }>();
   return row?.n ?? 0;
 }
 
 export async function followersOf(userId: string) {
-  const { results } = await env.DB.prepare("SELECT follower_id FROM follows WHERE followee_id = ? ORDER BY created_at DESC LIMIT ?")
-    .bind(userId, MAX_RECIPIENTS).all<{ follower_id: string }>();
+  const { results } = await env.DB.prepare(
+    "SELECT follower_id FROM follows WHERE followee_id = ? ORDER BY created_at DESC LIMIT ?",
+  )
+    .bind(userId, MAX_RECIPIENTS)
+    .all<{ follower_id: string }>();
   return results.map((r) => r.follower_id);
 }
 
 /** Newest few, for the dashboard's quick panel. */
 export async function latestNotifications(userId: string, n = 3) {
-  const { results } = await env.DB.prepare(`${SELECT} WHERE n.user_id = ?1 ORDER BY n.created_at DESC, n.id DESC LIMIT ?2`).bind(userId, n).all<Row>();
+  const { results } = await env.DB.prepare(
+    `${SELECT} WHERE n.user_id = ?1 ORDER BY n.created_at DESC, n.id DESC LIMIT ?2`,
+  )
+    .bind(userId, n)
+    .all<Row>();
   return results.map(toNotification);
 }

@@ -9,9 +9,15 @@ type Row = { data: string | null; name: string; location: string | null; headlin
 
 /** The member's resume, or null before onboarding. Name, city and headline come from their profile so both stay in sync. */
 export async function getResume(userId: string): Promise<Resume | null> {
-  const r = await env.DB.prepare("SELECT r.data, u.name, u.location, u.headline FROM resumes r JOIN users u ON u.id = r.user_id WHERE r.user_id = ?")
-    .bind(userId).first<Row>();
-  return r && cleanResume({ ...JSON.parse(r.data ?? "{}"), name: r.name, city: r.location ?? "", headline: r.headline ?? "" });
+  const r = await env.DB.prepare(
+    "SELECT r.data, u.name, u.location, u.headline FROM resumes r JOIN users u ON u.id = r.user_id WHERE r.user_id = ?",
+  )
+    .bind(userId)
+    .first<Row>();
+  return (
+    r &&
+    cleanResume({ ...JSON.parse(r.data ?? "{}"), name: r.name, city: r.location ?? "", headline: r.headline ?? "" })
+  );
 }
 
 /**
@@ -24,22 +30,44 @@ export async function saveResume(userId: string, input: unknown) {
   if (miss.length) throw new Fail("Some required details are missing. Check the highlighted fields.");
   const { results: pages } = await env.DB.prepare(
     "SELECT id, name FROM companies WHERE id IN (SELECT value FROM json_each(?1)) OR lower(name) IN (SELECT value FROM json_each(?2))",
-  ).bind(JSON.stringify(r.experience.flatMap((e) => e.companyId ?? [])), JSON.stringify(r.experience.map((e) => e.company.toLowerCase())))
+  )
+    .bind(
+      JSON.stringify(r.experience.flatMap((e) => e.companyId ?? [])),
+      JSON.stringify(r.experience.map((e) => e.company.toLowerCase())),
+    )
     .all<{ id: string; name: string }>();
   r.experience = linkExperience(r.experience, pages);
   const { name, city, headline, ...data } = { ...r, headline: autoHeadline(r) || null };
   const now = Date.now();
   const [, , row] = await env.DB.batch<{ handle: string; bio: string | null; image_url: string | null }>([
-    env.DB.prepare("UPDATE users SET name = ?2, location = ?3, headline = ?4, custom = 1, updated_at = ?5 WHERE id = ?1").bind(userId, name, city, headline, now),
-    env.DB.prepare("INSERT INTO resumes (user_id, data, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT (user_id) DO UPDATE SET data = ?2, updated_at = ?3")
-      .bind(userId, JSON.stringify(data), now),
+    env.DB.prepare(
+      "UPDATE users SET name = ?2, location = ?3, headline = ?4, custom = 1, updated_at = ?5 WHERE id = ?1",
+    ).bind(userId, name, city, headline, now),
+    env.DB.prepare(
+      "INSERT INTO resumes (user_id, data, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT (user_id) DO UPDATE SET data = ?2, updated_at = ?3",
+    ).bind(userId, JSON.stringify(data), now),
     env.DB.prepare("SELECT handle, bio, image_url FROM users WHERE id = ?").bind(userId),
     env.DB.prepare("DELETE FROM company_members WHERE user_id = ?").bind(userId),
     ...memberRows(r.experience).map((m) =>
-      env.DB.prepare("INSERT INTO company_members (company_id, user_id, title, current) VALUES (?, ?, ?, ?)").bind(m.companyId, userId, m.title, m.current ? 1 : 0)),
+      env.DB.prepare("INSERT INTO company_members (company_id, user_id, title, current) VALUES (?, ?, ?, ?)").bind(
+        m.companyId,
+        userId,
+        m.title,
+        m.current ? 1 : 0,
+      ),
+    ),
   ]);
   const u = row.results[0];
-  if (u) broadcast({ t: "profile", id: userId, name, handle: u.handle, headline, bio: u.bio && u.bio.slice(0, 120), imageUrl: u.image_url });
+  if (u)
+    broadcast({
+      t: "profile",
+      id: userId,
+      name,
+      handle: u.handle,
+      headline,
+      bio: u.bio && u.bio.slice(0, 120),
+      imageUrl: u.image_url,
+    });
   return r;
 }
 
@@ -63,15 +91,25 @@ Rules: never invent facts; use "" or [] when something isn't in the resume. Inte
  * → Bedrock → cleaned Resume. Throws Fail with a message the onboarding screen shows before falling back to the manual form.
  */
 export async function extractResume(raw: unknown): Promise<Resume> {
-  const text = (typeof raw === "string" ? raw.slice(0, 60_000) : "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-  if (text.length < 80) throw new Fail("That PDF has no readable text (it may be a scanned image). Fill in your details manually.");
+  const text = (typeof raw === "string" ? raw.slice(0, 60_000) : "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (text.length < 80)
+    throw new Fail("That PDF has no readable text (it may be a scanned image). Fill in your details manually.");
 
   // ponytail: first 20k chars (~5 pages) only; plenty for resumes.
-  const r = await bedrockJson("resume", PROMPT, `Resume:
+  const r = await bedrockJson(
+    "resume",
+    PROMPT,
+    `Resume:
 """
 ${text.slice(0, 20_000)}
-"""`, 6000);
-  if (!r.ok && r.reason === "busy") throw new Fail("Our resume reader is busy right now. Fill in your details manually, or try again in a minute.");
+"""`,
+    6000,
+  );
+  if (!r.ok && r.reason === "busy")
+    throw new Fail("Our resume reader is busy right now. Fill in your details manually, or try again in a minute.");
   if (!r.ok) throw new Fail("We couldn't read that resume. Fill in your details manually.");
   return cleanResume(r.value);
 }

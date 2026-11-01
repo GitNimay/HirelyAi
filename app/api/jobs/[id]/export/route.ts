@@ -20,8 +20,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const data = await completedApplicants(userId, (await params).id);
   if (!data) return new Response("Not found", { status: 404 });
   const name = `${`${data.title} - ${data.company}`.replace(/[^\w -]/g, "").trim() || "Applicants"} - Completed applicants.${f}`;
-  const body = f === "csv" ? toCsv(data.list, env.APP_URL) : f === "pdf" ? await toPdf(data.list, name) : toDocx(data.list);
+  const body =
+    f === "csv" ? toCsv(data.list, env.APP_URL) : f === "pdf" ? await toPdf(data.list, name) : toDocx(data.list);
   return new Response(body as BodyInit, {
-    headers: { "Content-Type": TYPES[f], "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "private, no-store" },
+    headers: {
+      "Content-Type": TYPES[f],
+      "Content-Disposition": `attachment; filename="${name}"`,
+      "Cache-Control": "private, no-store",
+    },
   });
 }

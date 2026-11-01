@@ -4,7 +4,8 @@ export type IconDef = string;
 
 export const icons = {
   home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
-  network: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  network:
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   jobs: "M4 7h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M3 13h18",
   notifications: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
   settings: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
@@ -12,8 +13,10 @@ export const icons = {
   comment: "M7.9 20A9 9 0 1 0 4 16.1L2 22z",
   repost: "m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3",
   share: "M22 2 11 13M22 2l-7 20-4-9-9-4z",
-  photo: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4M21 15l-5-5L5 21",
-  video: "m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+  photo:
+    "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4M21 15l-5-5L5 21",
+  video:
+    "m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
   article: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8",
   more: "M5 12h.01M12 12h.01M19 12h.01",
   search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16M21 21l-4.3-4.3",
@@ -56,10 +59,12 @@ export const btnDanger = `${btn} tx-danger`;
 /** Form controls are 40px (Geist medium); toolbar and inline buttons stay 32px on desktop (`btn`, 40px on phones). */
 export const btnLg = "h-10 px-4";
 /** Icon-only back button in sticky page headers: 32px target, optically aligned to the header's padding. */
-export const backBtn = "-ml-1.5 max-sm:-ml-2.5 flex size-8 max-sm:size-10 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:transition-[stroke-width] hover:[&_svg]:stroke-[2.25]";
+export const backBtn =
+  "-ml-1.5 max-sm:-ml-2.5 flex size-8 max-sm:size-10 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground motion-safe:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:transition-[stroke-width] hover:[&_svg]:stroke-[2.25]";
 /** One row in a dropdown menu (see Menu in kit.tsx). */
 // No hover fill: Menu's fluid highlight slides under the rows (hence `relative`, to paint above it)
-export const menuItem = "dd-item relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 max-sm:py-2.5 text-left outline-none";
+export const menuItem =
+  "dd-item relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 max-sm:py-2.5 text-left outline-none";
 
 /** Compact relative time: now, 5m, 3h, 2d, then a date. */
 export function ago(ms: number) {
@@ -73,7 +78,18 @@ export function ago(ms: number) {
 
 export function Icon({ d, size = 20, className }: { d: IconDef; size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={className}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={className}
+    >
       <path d={d} />
     </svg>
   );
@@ -90,12 +106,27 @@ export const navItems = [
 
 /** Image when we have one (Clerk avatar), initials otherwise. */
 export function Avatar({ name, src, size = 40 }: { name: string; src?: string; size?: number }) {
-  const initials = name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const initials = name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element -- remote Clerk avatar, no loader config needed
-    <img src={src} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      className="shrink-0 rounded-full object-cover"
+      style={{ width: size, height: size }}
+    />
   ) : (
-    <span className="flex shrink-0 items-center justify-center rounded-full bg-surface-hover text-xs font-medium text-muted" style={{ width: size, height: size }}>
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full bg-surface-hover text-xs font-medium text-muted"
+      style={{ width: size, height: size }}
+    >
       {initials}
     </span>
   );
@@ -105,9 +136,19 @@ export function Avatar({ name, src, size = 40 }: { name: string; src?: string; s
 export function CompanyLogo({ name, src, size = 48 }: { name: string; src?: string | null; size?: number }) {
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media
-    <img src={src} alt="" width={size} height={size} className="shrink-0 rounded-md border border-border bg-background object-cover" style={{ width: size, height: size }} />
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      className="shrink-0 rounded-md border border-border bg-background object-cover"
+      style={{ width: size, height: size }}
+    />
   ) : (
-    <span className="flex shrink-0 items-center justify-center rounded-md border border-border bg-surface font-medium text-muted" style={{ width: size, height: size, fontSize: size / 2.6 }}>
+    <span
+      className="flex shrink-0 items-center justify-center rounded-md border border-border bg-surface font-medium text-muted"
+      style={{ width: size, height: size, fontSize: size / 2.6 }}
+    >
       {name.trim()[0]?.toUpperCase() ?? "?"}
     </span>
   );

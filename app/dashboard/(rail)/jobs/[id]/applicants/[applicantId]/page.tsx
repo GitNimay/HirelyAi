@@ -20,7 +20,10 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
   const { id, applicantId } = await params;
   // getApplicants, applicationProfile and interviewResult all check the viewer posted this job
   const [job, [a], profile, result] = await Promise.all([
-    getJob(userId, id), getApplicants(userId, id, applicantId), applicationProfile(userId, id, applicantId), interviewResult(userId, id, applicantId),
+    getJob(userId, id),
+    getApplicants(userId, id, applicantId),
+    applicationProfile(userId, id, applicantId),
+    interviewResult(userId, id, applicantId),
   ]);
   if (!job || !a) notFound();
   const companies = profile ? await companiesByIds(profile.experience.flatMap((e) => e.companyId ?? [])) : {};
@@ -31,7 +34,9 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
         <BackButton fallback={`/dashboard/jobs?tab=posted&id=${id}`} />
         <div className="min-w-0">
           <h1 className="truncate text-sm font-medium">{a.name}</h1>
-          <p className="truncate text-xs text-muted">{job.title} · {job.company}</p>
+          <p className="truncate text-xs text-muted">
+            {job.title} · {job.company}
+          </p>
         </div>
       </header>
 
@@ -40,21 +45,39 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <Link href={`/in/${a.id}`} className="block truncate font-display text-xl font-normal hover:underline underline-offset-2">{a.name}</Link>
+              <Link
+                href={`/in/${a.id}`}
+                className="block truncate font-display text-xl font-normal hover:underline underline-offset-2"
+              >
+                {a.name}
+              </Link>
               {a.headline && <p className="truncate text-sm text-muted">{a.headline}</p>}
               {job.interview && <ScreeningBadge a={a} />}
             </div>
-            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-border px-2.5 text-xs font-medium">{a.status === "submitted" ? "Under review" : STATUSES[a.status]}</span>
+            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-border px-2.5 text-xs font-medium">
+              {a.status === "submitted" ? "Under review" : STATUSES[a.status]}
+            </span>
           </div>
           <p className="flex flex-wrap gap-x-3 text-xs text-muted" suppressHydrationWarning>
-            <a href={`mailto:${a.email}`} className="text-link hover:underline underline-offset-2">{a.email}</a>
-            {a.phone && <a href={`tel:${a.phone}`} className="hover:text-foreground">{a.phone}</a>}
+            <a href={`mailto:${a.email}`} className="text-link hover:underline underline-offset-2">
+              {a.email}
+            </a>
+            {a.phone && (
+              <a href={`tel:${a.phone}`} className="hover:text-foreground">
+                {a.phone}
+              </a>
+            )}
             {profile?.city && <span>{profile.city}</span>}
             {profile && <span>{CAREER[profile.status]}</span>}
             <span>Applied {new Date(a.at).toLocaleDateString(undefined, { dateStyle: "medium" })}</span>
           </p>
           {a.resumeKey && (
-            <a href={`/api/media/${a.resumeKey}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline underline-offset-2">
+            <a
+              href={`/api/media/${a.resumeKey}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-link hover:underline underline-offset-2"
+            >
               <Icon d={icons.file} size={14} />
               View attached resume (PDF)
             </a>
@@ -63,14 +86,19 @@ export default async function ApplicantPage({ params }: PageProps<"/dashboard/jo
       </section>
 
       <ApplicantViews
-        profile={profile && (
-          <div className="space-y-6 border-b border-border px-4 py-5">
-            <ResumeSections r={profile} companies={companies} />
-            {profile.preferredLocations.length > 0 && (
-              <p className="border-t border-border pt-5 text-sm"><span className="font-medium">Preferred locations</span> <span className="text-muted">· {profile.preferredLocations.join(", ")}</span></p>
-            )}
-          </div>
-        )}
+        profile={
+          profile && (
+            <div className="space-y-6 border-b border-border px-4 py-5">
+              <ResumeSections r={profile} companies={companies} />
+              {profile.preferredLocations.length > 0 && (
+                <p className="border-t border-border pt-5 text-sm">
+                  <span className="font-medium">Preferred locations</span>{" "}
+                  <span className="text-muted">· {profile.preferredLocations.join(", ")}</span>
+                </p>
+              )}
+            </div>
+          )
+        }
         application={
           <>
             {a.note && (

@@ -11,7 +11,9 @@ export default function NotFound() {
         <Logo />
         <h1 className="mt-6 font-display text-2xl font-normal text-balance">Page not found</h1>
         <p className="mt-1.5 text-sm text-muted">The link may be broken, or the page may have been removed.</p>
-        <Link href="/dashboard" className={`${btnPrimary} ${btnLg} mt-8 w-full`}>Go to home</Link>
+        <Link href="/dashboard" className={`${btnPrimary} ${btnLg} mt-8 w-full`}>
+          Go to home
+        </Link>
       </div>
     </main>
   );

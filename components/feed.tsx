@@ -6,7 +6,15 @@ import * as actions from "@/app/dashboard/actions";
 import { loadUserPosts } from "@/app/in/actions";
 import type { Comment, MediaInput } from "@/app/dashboard/actions";
 import type { FeedPost, FeedTab, ProfileTab } from "@/lib/feed";
-import { isVideo, MAX_ALT_CHARS, MAX_COMMENT_CHARS, MAX_IMAGES, MAX_POST_CHARS, maxBytes, MEDIA_TYPES } from "@/lib/media";
+import {
+  isVideo,
+  MAX_ALT_CHARS,
+  MAX_COMMENT_CHARS,
+  MAX_IMAGES,
+  MAX_POST_CHARS,
+  maxBytes,
+  MEDIA_TYPES,
+} from "@/lib/media";
 import { profileHref } from "@/lib/profile-fields";
 import { moveReaction, type Reaction } from "@/lib/reactions";
 import { playLike, playPost, unlockSfx } from "@/lib/sfx";
@@ -20,7 +28,8 @@ import { useRealtime } from "./use-realtime";
 type Viewer = { id: string; name: string; imageUrl?: string };
 type Page = { posts: FeedPost[]; next: string | null };
 
-const iconBtn = "flex h-8 min-h-10 sm:min-h-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-safe:active:scale-[0.94]";
+const iconBtn =
+  "flex h-8 min-h-10 sm:min-h-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-[background-color,color,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-surface hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-safe:active:scale-[0.94]";
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
 /**
@@ -31,7 +40,21 @@ const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "S
 type AsCompany = { id: string; name: string; logoUrl: string | null };
 
 // `followingIds` only matters for the main feed's "new posts" pill; single posts and profile/company lists don't read it
-export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [], single, list }: { viewer: Viewer; initial: Page; initialTab?: FeedTab; followingIds?: string[]; single?: boolean; list?: { userId: string; tab: ProfileTab; empty: string; compose?: AsCompany } }) {
+export function Feed({
+  viewer,
+  initial,
+  initialTab = "for-you",
+  followingIds = [],
+  single,
+  list,
+}: {
+  viewer: Viewer;
+  initial: Page;
+  initialTab?: FeedTab;
+  followingIds?: string[];
+  single?: boolean;
+  list?: { userId: string; tab: ProfileTab; empty: string; compose?: AsCompany };
+}) {
   const [tab, setTab] = useState<FeedTab>(initialTab);
   const [page, setPage] = useState(initial);
   const [fresh, setFresh] = useState(0);
@@ -47,7 +70,14 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
     try {
       const cursor = append ? (page.next ?? undefined) : undefined;
       const res = list ? await loadUserPosts(list.userId, list.tab, cursor) : await actions.loadFeed(t, cursor);
-      setPage((pg) => (append ? { posts: [...pg.posts, ...res.posts.filter((p) => !pg.posts.some((q) => q.entryId === p.entryId))], next: res.next } : res));
+      setPage((pg) =>
+        append
+          ? {
+              posts: [...pg.posts, ...res.posts.filter((p) => !pg.posts.some((q) => q.entryId === p.entryId))],
+              next: res.next,
+            }
+          : res,
+      );
       if (!append) setFresh(0);
     } finally {
       setLoading(false);
@@ -55,25 +85,38 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
   }
 
   useRealtime((e) => {
-    if (e.t === "stats") patch(e.id, () => ({ likes: e.likes, reactions: e.reactions, comments: e.comments, reposts: e.reposts }));
+    if (e.t === "stats")
+      patch(e.id, () => ({ likes: e.likes, reactions: e.reactions, comments: e.comments, reposts: e.reposts }));
     else if (e.t === "edit") patch(e.id, () => ({ body: e.body, media: e.media, editedAt: e.editedAt }));
-    else if (e.t === "delete") setPage((pg) => ({ ...pg, posts: pg.posts.filter((p) => p.entryId !== e.id && p.id !== e.id) }));
+    else if (e.t === "delete")
+      setPage((pg) => ({ ...pg, posts: pg.posts.filter((p) => p.entryId !== e.id && p.id !== e.id) }));
     else if (e.t === "profile")
       setPage((pg) => ({
         ...pg,
         posts: pg.posts.map((p) => ({
           ...p,
-          author: p.author.id === e.id ? { ...p.author, name: e.name, handle: e.handle, headline: e.headline, imageUrl: e.imageUrl } : p.author,
+          author:
+            p.author.id === e.id
+              ? { ...p.author, name: e.name, handle: e.handle, headline: e.headline, imageUrl: e.imageUrl }
+              : p.author,
           repostedBy: p.repostedBy?.id === e.id ? { id: e.id, name: e.name } : p.repostedBy,
         })),
       }));
-    else if (e.t === "post" && !single && !list && e.authorId !== viewer.id && (tab === "for-you" || following.has(e.authorId))) setFresh((n) => n + 1);
+    else if (
+      e.t === "post" &&
+      !single &&
+      !list &&
+      e.authorId !== viewer.id &&
+      (tab === "for-you" || following.has(e.authorId))
+    )
+      setFresh((n) => n + 1);
   });
 
   // Posts made from the sidebar's Post button (PostButton) land at the top of the home timeline
   useEffect(() => {
     if (single || list) return;
-    const onPost = (e: Event) => setPage((pg) => ({ ...pg, posts: [(e as CustomEvent<FeedPost>).detail, ...pg.posts] }));
+    const onPost = (e: Event) =>
+      setPage((pg) => ({ ...pg, posts: [(e as CustomEvent<FeedPost>).detail, ...pg.posts] }));
     window.addEventListener("posted", onPost);
     return () => window.removeEventListener("posted", onPost);
   }, [single, list]);
@@ -93,7 +136,11 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
       if (kind === p.reaction) return;
       if (kind) playLike();
       // Optimistic: move the viewer's reaction locally; on failure move it back from whatever it is now
-      const to = (q: FeedPost, k: Reaction | null) => ({ reaction: k, reactions: moveReaction(q.reactions, q.reaction, k), likes: q.likes + (k ? 1 : 0) - (q.reaction ? 1 : 0) });
+      const to = (q: FeedPost, k: Reaction | null) => ({
+        reaction: k,
+        reactions: moveReaction(q.reactions, q.reaction, k),
+        likes: q.likes + (k ? 1 : 0) - (q.reaction ? 1 : 0),
+      });
       const prev = p.reaction;
       patch(p.id, (q) => to(q, kind));
       try {
@@ -122,7 +169,10 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
         else n.delete(authorId);
         return n;
       });
-      setPage((pg) => ({ ...pg, posts: pg.posts.map((p) => (p.author.id === authorId ? { ...p, following: now } : p)) }));
+      setPage((pg) => ({
+        ...pg,
+        posts: pg.posts.map((p) => (p.author.id === authorId ? { ...p, following: now } : p)),
+      }));
     },
     async edit(p: FeedPost, body: string, media: MediaInput[]) {
       const res = await actions.editPost(p.id, { body, media });
@@ -131,7 +181,15 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
       return null;
     },
     async remove(p: FeedPost) {
-      if (!(await ask({ title: "Delete post?", body: "It will be removed from your profile and everyone's feed. This can't be undone.", confirm: "Delete", danger: true }))) return;
+      if (
+        !(await ask({
+          title: "Delete post?",
+          body: "It will be removed from your profile and everyone's feed. This can't be undone.",
+          confirm: "Delete",
+          danger: true,
+        }))
+      )
+        return;
       try {
         await actions.deletePost(p.entryId);
       } catch {
@@ -150,7 +208,10 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
             <Tabs
               label="Feed"
               fill
-              tabs={[{ id: "for-you", label: "For you" }, { id: "following", label: "Following" }]}
+              tabs={[
+                { id: "for-you", label: "For you" },
+                { id: "following", label: "Following" },
+              ]}
               value={tab}
               onChange={(t) => {
                 if (t === tab) return;
@@ -165,7 +226,13 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
         </>
       )}
 
-      {list?.compose && <Composer viewer={viewer} company={list.compose} onPosted={(p) => setPage((pg) => ({ ...pg, posts: [p, ...pg.posts] }))} />}
+      {list?.compose && (
+        <Composer
+          viewer={viewer}
+          company={list.compose}
+          onPosted={(p) => setPage((pg) => ({ ...pg, posts: [p, ...pg.posts] }))}
+        />
+      )}
 
       {fresh > 0 && (
         <div className="sticky top-28 z-10 flex justify-center sm:top-16" aria-live="polite">
@@ -192,7 +259,15 @@ export function Feed({ viewer, initial, initialTab = "for-you", followingIds = [
             <PostsSkeleton n={page.posts.length ? 2 : 3} />
           ) : (
             <p className="py-8 text-center text-sm text-muted">
-              {page.posts.length === 0 ? (list ? list.empty : tab === "following" ? "Follow people to see their posts here." : "No posts yet. Be the first to share something.") : page.next ? "" : "You're all caught up."}
+              {page.posts.length === 0
+                ? list
+                  ? list.empty
+                  : tab === "following"
+                    ? "Follow people to see their posts here."
+                    : "No posts yet. Be the first to share something."
+                : page.next
+                  ? ""
+                  : "You're all caught up."}
             </p>
           )}
         </div>
@@ -207,7 +282,9 @@ const mediaUrl = (key: string) => `/api/media/${key}`;
 type DraftItem = { key?: string; file?: File; type: string; url: string; alt: string };
 
 function useMediaDraft(initial: FeedPost["media"] = []) {
-  const [items, setItems] = useState<DraftItem[]>(() => initial.map((m) => ({ ...m, alt: m.alt ?? "", url: mediaUrl(m.key) })));
+  const [items, setItems] = useState<DraftItem[]>(() =>
+    initial.map((m) => ({ ...m, alt: m.alt ?? "", url: mediaUrl(m.key) })),
+  );
   const [error, setError] = useState("");
 
   function add(list: FileList | null) {
@@ -218,10 +295,14 @@ function useMediaDraft(initial: FeedPost["media"] = []) {
     const big = picked.find((f) => f.size > maxBytes(f.type));
     if (bad) setError("Only JPEG, PNG, WebP, GIF, MP4 and WebM are supported");
     else if (big) setError(`${big.name} is too large (max ${maxBytes(big.type) / 1024 / 1024} MB)`);
-    else if (videos > 1 || (videos && types.length > 1) || types.length > MAX_IMAGES) setError(`Add up to ${MAX_IMAGES} images or 1 video`);
+    else if (videos > 1 || (videos && types.length > 1) || types.length > MAX_IMAGES)
+      setError(`Add up to ${MAX_IMAGES} images or 1 video`);
     else {
       setError("");
-      setItems((xs) => [...xs, ...picked.map((file) => ({ file, type: file.type, url: URL.createObjectURL(file), alt: "" }))]);
+      setItems((xs) => [
+        ...xs,
+        ...picked.map((file) => ({ file, type: file.type, url: URL.createObjectURL(file), alt: "" })),
+      ]);
     }
   }
 
@@ -270,9 +351,19 @@ function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boole
             <video src={it.url} controls preload="metadata" className="max-h-[360px] w-full bg-black" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- blob preview or auth-gated R2 media
-            <img src={it.url} alt={it.alt} className={`w-full object-cover ${items.length > 1 ? "aspect-square" : "max-h-[360px]"}`} />
+            <img
+              src={it.url}
+              alt={it.alt}
+              className={`w-full object-cover ${items.length > 1 ? "aspect-square" : "max-h-[360px]"}`}
+            />
           )}
-          <button type="button" aria-label="Remove" onClick={() => draft.remove(i)} disabled={disabled} className="absolute right-2 top-2 min-h-10 min-w-10 rounded-full bg-black/70 p-1.5 text-white hover:bg-black sm:min-h-0 sm:min-w-0">
+          <button
+            type="button"
+            aria-label="Remove"
+            onClick={() => draft.remove(i)}
+            disabled={disabled}
+            className="absolute right-2 top-2 min-h-10 min-w-10 rounded-full bg-black/70 p-1.5 text-white hover:bg-black sm:min-h-0 sm:min-w-0"
+          >
             <Icon d={icons.close} size={14} />
           </button>
           {!isVideo(it.type) && (
@@ -291,13 +382,28 @@ function MediaPreviews({ draft, disabled }: { draft: MediaDraft; disabled: boole
         </div>
       ))}
       {describing !== null && items[describing] && (
-        <AltDialog url={items[describing].url} initial={items[describing].alt} onSave={(alt) => draft.setAlt(describing, alt)} onClose={() => setDescribing(null)} />
+        <AltDialog
+          url={items[describing].url}
+          initial={items[describing].alt}
+          onSave={(alt) => draft.setAlt(describing, alt)}
+          onClose={() => setDescribing(null)}
+        />
       )}
     </div>
   );
 }
 
-function AltDialog({ url, initial, onSave, onClose }: { url: string; initial: string; onSave: (alt: string) => void; onClose: () => void }) {
+function AltDialog({
+  url,
+  initial,
+  onSave,
+  onClose,
+}: {
+  url: string;
+  initial: string;
+  onSave: (alt: string) => void;
+  onClose: () => void;
+}) {
   const [alt, setAlt] = useState(initial);
   return (
     <Modal title="Image description" onClose={onClose}>
@@ -314,7 +420,9 @@ function AltDialog({ url, initial, onSave, onClose }: { url: string; initial: st
         <label className="block space-y-1.5">
           <span className="flex items-baseline justify-between text-sm font-medium">
             Description
-            <span className="text-xs font-normal tabular-nums text-muted">{alt.length}/{MAX_ALT_CHARS}</span>
+            <span className="text-xs font-normal tabular-nums text-muted">
+              {alt.length}/{MAX_ALT_CHARS}
+            </span>
           </span>
           <textarea
             data-autofocus
@@ -327,8 +435,12 @@ function AltDialog({ url, initial, onSave, onClose }: { url: string; initial: st
           />
         </label>
         <div className="flex justify-end gap-2">
-          <button type="button" className={`${btnGhost} min-h-10 sm:min-h-0`} onClick={onClose}>Cancel</button>
-          <button type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`}>Save</button>
+          <button type="button" className={`${btnGhost} min-h-10 sm:min-h-0`} onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className={`${btnPrimary} min-h-10 sm:min-h-0`}>
+            Save
+          </button>
         </div>
       </form>
     </Modal>
@@ -342,13 +454,36 @@ function MediaButtons({ draft, disabled }: { draft: MediaDraft; disabled: boolea
   const hasVideo = items.some((i) => isVideo(i.type));
   return (
     <div className="flex gap-1">
-      <input ref={imageInput} type="file" hidden multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => (draft.add(e.target.files), (e.target.value = ""))} />
-      <input ref={videoInput} type="file" hidden accept="video/mp4,video/webm" onChange={(e) => (draft.add(e.target.files), (e.target.value = ""))} />
-      <button type="button" className={iconBtn} disabled={disabled || hasVideo || items.length >= MAX_IMAGES} onClick={() => imageInput.current?.click()}>
+      <input
+        ref={imageInput}
+        type="file"
+        hidden
+        multiple
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onChange={(e) => (draft.add(e.target.files), (e.target.value = ""))}
+      />
+      <input
+        ref={videoInput}
+        type="file"
+        hidden
+        accept="video/mp4,video/webm"
+        onChange={(e) => (draft.add(e.target.files), (e.target.value = ""))}
+      />
+      <button
+        type="button"
+        className={iconBtn}
+        disabled={disabled || hasVideo || items.length >= MAX_IMAGES}
+        onClick={() => imageInput.current?.click()}
+      >
         <Icon d={icons.photo} size={16} />
         <span className="hidden sm:inline">Photo</span>
       </button>
-      <button type="button" className={iconBtn} disabled={disabled || items.length > 0} onClick={() => videoInput.current?.click()}>
+      <button
+        type="button"
+        className={iconBtn}
+        disabled={disabled || items.length > 0}
+        onClick={() => videoInput.current?.click()}
+      >
         <Icon d={icons.video} size={16} />
         <span className="hidden sm:inline">Video</span>
       </button>
@@ -356,7 +491,15 @@ function MediaButtons({ draft, disabled }: { draft: MediaDraft; disabled: boolea
   );
 }
 
-export function Composer({ viewer, company, onPosted }: { viewer: Viewer; company?: AsCompany; onPosted: (p: FeedPost) => void }) {
+export function Composer({
+  viewer,
+  company,
+  onPosted,
+}: {
+  viewer: Viewer;
+  company?: AsCompany;
+  onPosted: (p: FeedPost) => void;
+}) {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -385,7 +528,11 @@ export function Composer({ viewer, company, onPosted }: { viewer: Viewer; compan
 
   return (
     <section data-tour="composer" className="flex gap-3 border-b border-border p-4">
-      {company ? <CompanyLogo name={company.name} src={company.logoUrl} size={40} /> : <Avatar name={viewer.name} src={viewer.imageUrl} />}
+      {company ? (
+        <CompanyLogo name={company.name} src={company.logoUrl} size={40} />
+      ) : (
+        <Avatar name={viewer.name} src={viewer.imageUrl} />
+      )}
       <div className="min-w-0 flex-1">
         <textarea
           rows={Math.min(8, Math.max(2, body.split("\n").length))}
@@ -400,13 +547,27 @@ export function Composer({ viewer, company, onPosted }: { viewer: Viewer; compan
           className="w-full resize-none bg-transparent pt-2 text-sm leading-relaxed placeholder:text-muted outline-none"
         />
         <MediaPreviews draft={media} disabled={busy} />
-        {media.error && <p role="alert" className="mt-2 text-sm text-danger">{media.error}</p>}
+        {media.error && (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {media.error}
+          </p>
+        )}
         <div className="mt-2 flex items-center justify-between">
           <MediaButtons draft={media} disabled={busy} />
           <div className="flex items-center gap-3">
-            {focused && canPost && <span className="hidden text-xs text-muted sm:inline">Ctrl / ⌘ + Enter to post</span>}
-            {body.length > MAX_POST_CHARS - 200 && <span className="text-xs tabular-nums text-muted">{MAX_POST_CHARS - body.length}</span>}
-            <button aria-busy={busy} type="button" disabled={!canPost} onClick={submit} className={`${btnPrimary} min-h-10 px-4 sm:min-h-0`}>
+            {focused && canPost && (
+              <span className="hidden text-xs text-muted sm:inline">Ctrl / ⌘ + Enter to post</span>
+            )}
+            {body.length > MAX_POST_CHARS - 200 && (
+              <span className="text-xs tabular-nums text-muted">{MAX_POST_CHARS - body.length}</span>
+            )}
+            <button
+              aria-busy={busy}
+              type="button"
+              disabled={!canPost}
+              onClick={submit}
+              className={`${btnPrimary} min-h-10 px-4 sm:min-h-0`}
+            >
               Post
             </button>
           </div>
@@ -459,14 +620,24 @@ function PostEditor({ post, save, onDone }: { post: FeedPost; save: Handlers["ed
         className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-ring"
       />
       <MediaPreviews draft={media} disabled={busy} />
-      {media.error && <p role="alert" className="mt-2 text-sm text-danger">{media.error}</p>}
+      {media.error && (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {media.error}
+        </p>
+      )}
       <div className="mt-2 flex items-center justify-between">
         <MediaButtons draft={media} disabled={busy} />
         <div className="flex gap-2">
           <button type="button" onClick={close} disabled={busy} className={`${btnGhost} min-h-10 sm:min-h-0`}>
             Cancel
           </button>
-          <button aria-busy={busy} type="button" onClick={submit} disabled={!canSave} className={`${btnPrimary} min-h-10 px-4 sm:min-h-0`}>
+          <button
+            aria-busy={busy}
+            type="button"
+            onClick={submit}
+            disabled={!canSave}
+            className={`${btnPrimary} min-h-10 px-4 sm:min-h-0`}
+          >
             Save
           </button>
         </div>
@@ -483,22 +654,44 @@ type Handlers = {
   remove: (p: FeedPost) => void;
 };
 
-function PostCard({ post: p, viewerId, openComments, react, repost, follow, edit, remove }: { post: FeedPost; viewerId: string; openComments?: boolean } & Handlers) {
+function PostCard({
+  post: p,
+  viewerId,
+  openComments,
+  react,
+  repost,
+  follow,
+  edit,
+  remove,
+}: { post: FeedPost; viewerId: string; openComments?: boolean } & Handlers) {
   const [editing, setEditing] = useState(false);
   const [showComments, setShowComments] = useState(!!openComments);
   const mine = p.author.id === viewerId;
   const ownEntry = p.repostedBy ? p.repostedBy.id === viewerId : mine;
   // A company post shows as the page; its admin author stays behind the scenes
   const who = p.company
-    ? { name: p.company.name, href: `/company/${p.company.slug}`, avatar: <CompanyLogo name={p.company.name} src={p.company.logoUrl} size={40} />, sub: "Company page" }
-    : { name: p.author.name, href: profileHref(p.author), avatar: <Avatar name={p.author.name} src={p.author.imageUrl ?? undefined} />, sub: p.author.headline };
+    ? {
+        name: p.company.name,
+        href: `/company/${p.company.slug}`,
+        avatar: <CompanyLogo name={p.company.name} src={p.company.logoUrl} size={40} />,
+        sub: "Company page",
+      }
+    : {
+        name: p.author.name,
+        href: profileHref(p.author),
+        avatar: <Avatar name={p.author.name} src={p.author.imageUrl ?? undefined} />,
+        sub: p.author.headline,
+      };
 
   async function share() {
     const url = `${location.origin}/post/${p.id}`; // public page; members are sent on to the app
     if (navigator.share) {
       await navigator.share({ url, title: `Post by ${who.name}` }).catch(() => {});
     } else {
-      await navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Couldn't copy the link", "error"));
+      await navigator.clipboard.writeText(url).then(
+        () => toast("Link copied"),
+        () => toast("Couldn't copy the link", "error"),
+      );
     }
   }
 
@@ -511,28 +704,53 @@ function PostCard({ post: p, viewerId, openComments, react, repost, follow, edit
       {p.repostedBy && (
         <p className="mb-2 ml-[52px] flex min-w-0 items-center gap-1.5 text-xs text-muted">
           <Icon d={icons.repost} size={12} />
-          {p.repostedBy.id === viewerId ? "You" : <Link href={`/in/${p.repostedBy.id}`} className="min-w-0 truncate hover:underline">{p.repostedBy.name}</Link>} reposted
+          {p.repostedBy.id === viewerId ? (
+            "You"
+          ) : (
+            <Link href={`/in/${p.repostedBy.id}`} className="min-w-0 truncate hover:underline">
+              {p.repostedBy.name}
+            </Link>
+          )}{" "}
+          reposted
         </p>
       )}
       <div className="flex gap-3">
-        <Link href={who.href} aria-label={who.name} className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link
+          href={who.href}
+          aria-label={who.name}
+          className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           {who.avatar}
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <p className="flex items-baseline gap-1 truncate text-sm">
-                <Link href={who.href} className="min-w-0 truncate font-medium hover:underline">{who.name}</Link>
+                <Link href={who.href} className="min-w-0 truncate font-medium hover:underline">
+                  {who.name}
+                </Link>
                 <Link href={`/dashboard/post/${p.id}`} className="shrink-0 text-muted hover:underline">
                   · <Time ms={p.createdAt} />
                 </Link>
-                {p.editedAt && <span className="shrink-0 text-muted" title={new Date(p.editedAt).toLocaleString()} suppressHydrationWarning>· Edited</span>}
+                {p.editedAt && (
+                  <span
+                    className="shrink-0 text-muted"
+                    title={new Date(p.editedAt).toLocaleString()}
+                    suppressHydrationWarning
+                  >
+                    · Edited
+                  </span>
+                )}
               </p>
               {who.sub && <p className="truncate text-xs text-muted">{who.sub}</p>}
             </div>
             <div className="-mt-2 flex shrink-0 items-center gap-1 sm:-mt-1">
               {!mine && !p.following && !p.company && (
-                <button type="button" onClick={() => follow(p.author.id)} className={`${btnGhost} min-h-10 px-2 text-link hover:text-link sm:min-h-0`}>
+                <button
+                  type="button"
+                  onClick={() => follow(p.author.id)}
+                  className={`${btnGhost} min-h-10 px-2 text-link hover:text-link sm:min-h-0`}
+                >
                   <Icon d={icons.plus} size={14} />
                   Follow
                 </button>
@@ -550,7 +768,12 @@ function PostCard({ post: p, viewerId, openComments, react, repost, follow, edit
                     </button>
                   )}
                   {ownEntry && !p.repostedBy && (
-                    <button type="button" role="menuitem" onClick={() => remove(p)} className={`${menuItem} text-danger`}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => remove(p)}
+                      className={`${menuItem} text-danger`}
+                    >
                       <Icon d={icons.trash} size={14} /> Delete post
                     </button>
                   )}
@@ -577,7 +800,9 @@ function PostCard({ post: p, viewerId, openComments, react, repost, follow, edit
                 (openComments ? (
                   <p className="mt-2 whitespace-pre-wrap break-words text-pretty text-sm leading-relaxed">{p.body}</p>
                 ) : (
-                  <Clamp className="mt-2 whitespace-pre-wrap break-words text-pretty text-sm leading-relaxed">{p.body}</Clamp>
+                  <Clamp className="mt-2 whitespace-pre-wrap break-words text-pretty text-sm leading-relaxed">
+                    {p.body}
+                  </Clamp>
                 ))}
               <MediaGrid media={p.media} />
             </>
@@ -587,8 +812,18 @@ function PostCard({ post: p, viewerId, openComments, react, repost, follow, edit
 
       <ReactionSummary counts={p.reactions} total={p.likes} />
       <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center">
-        <ReactionButton reaction={p.reaction} onReact={(k) => react(p, k)} className={cn(iconBtn, "h-11 justify-center")} />
-        <button type="button" aria-label={named("Comment", p.comments)} aria-expanded={showComments} onClick={() => setShowComments((s) => !s)} className={cn(iconBtn, "hover:text-link", showComments && "text-foreground")}>
+        <ReactionButton
+          reaction={p.reaction}
+          onReact={(k) => react(p, k)}
+          className={cn(iconBtn, "h-11 justify-center")}
+        />
+        <button
+          type="button"
+          aria-label={named("Comment", p.comments)}
+          aria-expanded={showComments}
+          onClick={() => setShowComments((s) => !s)}
+          className={cn(iconBtn, "hover:text-link", showComments && "text-foreground")}
+        >
           <Icon d={icons.comment} size={16} />
           <span className="hidden sm:inline">Comment</span>
           {count(p.comments)}
@@ -620,7 +855,11 @@ function PostCard({ post: p, viewerId, openComments, react, repost, follow, edit
 /** Relative time ("3h"), with the full date on hover and for assistive tech. */
 function Time({ ms }: { ms: number }) {
   return (
-    <time dateTime={new Date(ms).toISOString()} title={new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} suppressHydrationWarning>
+    <time
+      dateTime={new Date(ms).toISOString()}
+      title={new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+      suppressHydrationWarning
+    >
       {ago(ms)}
     </time>
   );
@@ -632,7 +871,15 @@ function MediaGrid({ media }: { media: FeedPost["media"] }) {
   if (media.length === 0) return null;
   const src = mediaUrl;
   if (isVideo(media[0].type)) {
-    return <video src={src(media[0].key)} controls playsInline preload="metadata" className="mt-3 max-h-[520px] w-full rounded-xl border border-border bg-black" />;
+    return (
+      <video
+        src={src(media[0].key)}
+        controls
+        playsInline
+        preload="metadata"
+        className="mt-3 max-h-[520px] w-full rounded-xl border border-border bg-black"
+      />
+    );
   }
   const n = media.length;
   return (
@@ -655,7 +902,13 @@ function MediaGrid({ media }: { media: FeedPost["media"] }) {
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
-              <img src={src(m.key)} alt={m.alt ?? ""} loading="lazy" decoding="async" className={`w-full bg-surface object-cover ${tall ? "h-full" : n > 1 ? "aspect-square" : "max-h-[520px]"}`} />
+              <img
+                src={src(m.key)}
+                alt={m.alt ?? ""}
+                loading="lazy"
+                decoding="async"
+                className={`w-full bg-surface object-cover ${tall ? "h-full" : n > 1 ? "aspect-square" : "max-h-[520px]"}`}
+              />
             </a>
           );
         })}
@@ -664,14 +917,28 @@ function MediaGrid({ media }: { media: FeedPost["media"] }) {
         <Modal title={n > 1 ? `Image ${open + 1} of ${n}` : "Image"} wide onClose={() => setOpen(null)}>
           <div className="flex items-center justify-center gap-2 bg-black/40 p-2">
             {n > 1 && (
-              <button type="button" aria-label="Previous image" onClick={() => setOpen((open + n - 1) % n)} className={`${btnGhost} min-h-10 min-w-10 px-2 sm:min-h-0 sm:min-w-0`}>
+              <button
+                type="button"
+                aria-label="Previous image"
+                onClick={() => setOpen((open + n - 1) % n)}
+                className={`${btnGhost} min-h-10 min-w-10 px-2 sm:min-h-0 sm:min-w-0`}
+              >
                 <Icon d={icons.back} size={18} />
               </button>
             )}
             {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated R2 media, served by /api/media */}
-            <img src={src(media[open].key)} alt={media[open].alt ?? ""} className="max-h-[75vh] min-w-0 flex-1 object-contain" />
+            <img
+              src={src(media[open].key)}
+              alt={media[open].alt ?? ""}
+              className="max-h-[75vh] min-w-0 flex-1 object-contain"
+            />
             {n > 1 && (
-              <button type="button" aria-label="Next image" onClick={() => setOpen((open + 1) % n)} className={`${btnGhost} min-h-10 min-w-10 px-2 sm:min-h-0 sm:min-w-0`}>
+              <button
+                type="button"
+                aria-label="Next image"
+                onClick={() => setOpen((open + 1) % n)}
+                className={`${btnGhost} min-h-10 min-w-10 px-2 sm:min-h-0 sm:min-w-0`}
+              >
                 <Icon d={icons.back} size={18} className="rotate-180" />
               </button>
             )}
@@ -691,7 +958,10 @@ function Comments({ postId, count }: { postId: string; count: number }) {
   // (Re)load when opened and whenever the live count changes, so others' comments appear in realtime
   useEffect(() => {
     let live = true;
-    actions.loadComments(postId).then((c) => live && setItems(c), () => live && setError("Couldn't load comments"));
+    actions.loadComments(postId).then(
+      (c) => live && setItems(c),
+      () => live && setError("Couldn't load comments"),
+    );
     return () => {
       live = false;
     };
@@ -729,20 +999,32 @@ function Comments({ postId, count }: { postId: string; count: number }) {
           Reply
         </button>
       </form>
-      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
       {items === null ? (
         <CommentsSkeleton />
       ) : (
         <ul className="space-y-3">
           {items.map((c) => (
             <li key={c.id} className="flex gap-2">
-              <Link href={profileHref(c.author)} aria-label={c.author.name} className="shrink-0 self-start rounded-full">
+              <Link
+                href={profileHref(c.author)}
+                aria-label={c.author.name}
+                className="shrink-0 self-start rounded-full"
+              >
                 <Avatar name={c.author.name} src={c.author.imageUrl ?? undefined} size={28} />
               </Link>
               <div className="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2">
                 <p className="text-xs">
-                  <Link href={profileHref(c.author)} className="break-words font-medium hover:underline">{c.author.name}</Link>{" "}
-                  <span className="text-muted">· <Time ms={c.createdAt} /></span>
+                  <Link href={profileHref(c.author)} className="break-words font-medium hover:underline">
+                    {c.author.name}
+                  </Link>{" "}
+                  <span className="text-muted">
+                    · <Time ms={c.createdAt} />
+                  </span>
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">{c.body}</p>
               </div>

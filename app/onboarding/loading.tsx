@@ -20,7 +20,9 @@ export default function OnboardingLoading() {
         </aside>
         <main className="border-dashed border-border px-4 py-8 sm:py-10 lg:border-x lg:px-6">
           <div className="mb-6 flex items-center gap-2 lg:hidden">
-            {STEPS.map((s, i) => <span key={s} className={`h-1 flex-1 rounded-full ${i === 0 ? "bg-foreground" : "bg-border"}`} />)}
+            {STEPS.map((s, i) => (
+              <span key={s} className={`h-1 flex-1 rounded-full ${i === 0 ? "bg-foreground" : "bg-border"}`} />
+            ))}
           </div>
           <Loading className="space-y-5 border border-border bg-background px-6 pt-6 pb-6 sm:px-8 sm:pt-8">
             <div>
@@ -33,13 +35,18 @@ export default function OnboardingLoading() {
               <FieldSkeleton w="30%" label="text-sm" h="h-10" />
             </div>
             <FieldSkeleton w="35%" label="text-sm" h="h-10" />
-            <div className="flex justify-end border-t border-border pt-5"><Skeleton className="h-10 w-28" /></div>
+            <div className="flex justify-end border-t border-border pt-5">
+              <Skeleton className="h-10 w-28" />
+            </div>
           </Loading>
         </main>
         <aside className="hidden px-8 pt-10 lg:block">
           <ol className="space-y-3 text-sm">
             {STEPS.map((s, i) => (
-              <li key={s} className={`flex items-center gap-2.5 ${i === 0 ? "font-medium text-foreground" : "text-muted"}`}>
+              <li
+                key={s}
+                className={`flex items-center gap-2.5 ${i === 0 ? "font-medium text-foreground" : "text-muted"}`}
+              >
                 <span className={`mx-[4px] size-1.5 rounded-full ${i === 0 ? "bg-foreground" : "bg-border"}`} />
                 {s}
               </li>

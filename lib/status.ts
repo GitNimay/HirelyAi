@@ -7,15 +7,32 @@ const timeout = () => AbortSignal.timeout(5000);
 
 // One cheap, read-only call per dependency. Anything thrown or slower than 5 s counts as down.
 const PROBES: Record<ComponentId, () => Promise<boolean>> = {
-  web: () => env.DB.prepare("SELECT 1").first().then(() => true),
-  auth: () => fetch("https://api.clerk.com/v1/jwks", { headers: { Authorization: `Bearer ${env.CLERK_SECRET_KEY}` }, signal: timeout() }).then(ok),
-  live: () => env.FEED_HUB.getByName("status").deliver([]).then(() => true),
+  web: () =>
+    env.DB.prepare("SELECT 1")
+      .first()
+      .then(() => true),
+  auth: () =>
+    fetch("https://api.clerk.com/v1/jwks", {
+      headers: { Authorization: `Bearer ${env.CLERK_SECRET_KEY}` },
+      signal: timeout(),
+    }).then(ok),
+  live: () =>
+    env.FEED_HUB.getByName("status")
+      .deliver([])
+      .then(() => true),
   media: () => env.MEDIA.head("status-probe").then(() => true),
-  ai: () => fetch(`${env.BEDROCK_BASE_URL}/models`, { headers: { Authorization: `Bearer ${env.BEDROCK_API_KEY}` }, signal: timeout() }).then(ok),
+  ai: () =>
+    fetch(`${env.BEDROCK_BASE_URL}/models`, {
+      headers: { Authorization: `Bearer ${env.BEDROCK_API_KEY}` },
+      signal: timeout(),
+    }).then(ok),
   voice: async () => {
     const auth = `Bearer ${await livekitToken({ video: { roomList: true } })}`;
     const res = await fetch(`${env.LIVEKIT_URL.replace(/^ws/, "http")}/twirp/livekit.RoomService/ListRooms`, {
-      method: "POST", headers: { Authorization: auth, "Content-Type": "application/json" }, body: "{}", signal: timeout(),
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: "{}",
+      signal: timeout(),
     });
     return res.ok;
   },
@@ -31,7 +48,9 @@ export async function checkAll(): Promise<Live> {
   const upsert = env.DB.prepare(
     "INSERT INTO status_checks (component, day, total, failed) VALUES (?, ?, 1, ?) ON CONFLICT (component, day) DO UPDATE SET total = total + 1, failed = failed + excluded.failed",
   );
-  await env.DB.batch(COMPONENTS.map(({ id }) => upsert.bind(id, day, up[id] ? 0 : 1))).catch((e) => console.error("status record", e));
+  await env.DB.batch(COMPONENTS.map(({ id }) => upsert.bind(id, day, up[id] ? 0 : 1))).catch((e) =>
+    console.error("status record", e),
+  );
   return { at: Date.now(), up };
 }
 
@@ -50,7 +69,11 @@ export async function liveStatus(): Promise<Live> {
 
 export async function history() {
   const days = lastDays();
-  const { results } = await env.DB.prepare("SELECT component, day, total, failed FROM status_checks WHERE day >= ?").bind(days[0]).all<Day & { component: string }>();
+  const { results } = await env.DB.prepare("SELECT component, day, total, failed FROM status_checks WHERE day >= ?")
+    .bind(days[0])
+    .all<Day & { component: string }>();
   const by = new Map(results.map((r) => [`${r.component}:${r.day}`, r]));
-  return Object.fromEntries(COMPONENTS.map(({ id }) => [id, days.map((day) => by.get(`${id}:${day}`) ?? { day, total: 0, failed: 0 })])) as Record<ComponentId, Day[]>;
+  return Object.fromEntries(
+    COMPONENTS.map(({ id }) => [id, days.map((day) => by.get(`${id}:${day}`) ?? { day, total: 0, failed: 0 })]),
+  ) as Record<ComponentId, Day[]>;
 }

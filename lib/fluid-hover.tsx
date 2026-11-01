@@ -44,18 +44,33 @@ export function useFluidHover<T extends HTMLElement>(
   useEffect(() => () => void (frame.current !== null && cancelAnimationFrame(frame.current)), []);
 
   // offset* (layout space, relative to the container) so a scale-in on the panel doesn't skew the highlight
-  const show = useCallback((el: HTMLElement | null | undefined) => {
-    const box = container.current;
-    if (!el || !box) return setActive(null);
-    let top = el.offsetTop;
-    let left = el.offsetLeft;
-    for (let p = el.offsetParent as HTMLElement | null; p && p !== box && box.contains(p); p = p.offsetParent as HTMLElement | null) {
-      top += p.offsetTop;
-      left += p.offsetLeft;
-    }
-    const rect = { top, left, width: el.offsetWidth, height: el.offsetHeight };
-    setActive((a) => (a?.el === el && a.rect.top === top && a.rect.left === left && a.rect.width === rect.width && a.rect.height === rect.height ? a : { el, rect }));
-  }, [container]);
+  const show = useCallback(
+    (el: HTMLElement | null | undefined) => {
+      const box = container.current;
+      if (!el || !box) return setActive(null);
+      let top = el.offsetTop;
+      let left = el.offsetLeft;
+      for (
+        let p = el.offsetParent as HTMLElement | null;
+        p && p !== box && box.contains(p);
+        p = p.offsetParent as HTMLElement | null
+      ) {
+        top += p.offsetTop;
+        left += p.offsetLeft;
+      }
+      const rect = { top, left, width: el.offsetWidth, height: el.offsetHeight };
+      setActive((a) =>
+        a?.el === el &&
+        a.rect.top === top &&
+        a.rect.left === left &&
+        a.rect.width === rect.width &&
+        a.rect.height === rect.height
+          ? a
+          : { el, rect },
+      );
+    },
+    [container],
+  );
 
   const clear = useCallback(() => {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
@@ -82,7 +97,13 @@ export function useFluidHover<T extends HTMLElement>(
     },
     onClick: (e: React.MouseEvent) => {
       const t = e.target as Element;
-      if (!gapClick || !active || !t.isConnected || t.closest(`${selector}, input, textarea, select, button, a, [role='button']`)) return;
+      if (
+        !gapClick ||
+        !active ||
+        !t.isConnected ||
+        t.closest(`${selector}, input, textarea, select, button, a, [role='button']`)
+      )
+        return;
       active.el.click();
     },
   };
@@ -91,7 +112,13 @@ export function useFluidHover<T extends HTMLElement>(
 }
 
 /** The springed fill. Reduced motion keeps the fade and drops the travel. */
-export function FluidHoverHighlight({ hover, className }: { hover: ReturnType<typeof useFluidHover>; className?: string }) {
+export function FluidHoverHighlight({
+  hover,
+  className,
+}: {
+  hover: ReturnType<typeof useFluidHover>;
+  className?: string;
+}) {
   const reduce = useReducedMotion() ?? false;
   const r = hover.rect;
   const target = r && { x: r.left, y: r.top, width: r.width, height: r.height };

@@ -16,7 +16,11 @@ import { CodeField } from "./input-otp";
 import { Line, Loading, Skeleton, times } from "./skeleton";
 import { ago, btnDanger, btnGhost, btnOutline, btnPrimary } from "./ui";
 
-type NeedsReverification = { level?: "first_factor" | "second_factor" | "multi_factor"; complete: () => void; cancel: () => void };
+type NeedsReverification = {
+  level?: "first_factor" | "second_factor" | "multi_factor";
+  complete: () => void;
+  cancel: () => void;
+};
 const badge = "rounded-full border border-border px-2 py-0.5 text-xs text-muted";
 const lastActive = (d: Date) => {
   const a = ago(d.getTime());
@@ -64,7 +68,11 @@ export function AccountHeader({ loading }: { loading?: boolean }) {
             <section key={i} className="border-b border-border px-4 py-6 sm:px-5">
               <Line className="text-sm" w={["28%", "24%", "34%", "38%"][i]} />
               <Line className="mt-1 text-sm" w={["80%", "70%", "50%", "45%"][i]} />
-              <div className="mt-4">{times(i === 1 ? 1 : 2, (j) => <SessionRowSkeleton key={j} />)}</div>
+              <div className="mt-4">
+                {times(i === 1 ? 1 : 2, (j) => (
+                  <SessionRowSkeleton key={j} />
+                ))}
+              </div>
             </section>
           ))}
         </Loading>
@@ -75,7 +83,10 @@ export function AccountHeader({ loading }: { loading?: boolean }) {
 
 const SessionRowSkeleton = () => (
   <div className="flex min-h-12 items-center gap-3 border-t border-border py-2 first:border-t-0">
-    <div className="min-w-0 flex-1"><Line className="text-sm" w="40%" /><Line className="text-xs" w="55%" /></div>
+    <div className="min-w-0 flex-1">
+      <Line className="text-sm" w="40%" />
+      <Line className="text-xs" w="55%" />
+    </div>
     <Skeleton className="h-8 w-20" />
   </div>
 );
@@ -105,7 +116,17 @@ function useTask() {
   return { busy, error, go };
 }
 
-function Section({ title, desc, danger, children }: { title: string; desc: string; danger?: boolean; children: ReactNode }) {
+function Section({
+  title,
+  desc,
+  danger,
+  children,
+}: {
+  title: string;
+  desc: string;
+  danger?: boolean;
+  children: ReactNode;
+}) {
   const body = (
     <>
       <h2 className={danger ? "text-sm font-medium text-danger" : "text-sm font-medium"}>{title}</h2>
@@ -132,7 +153,12 @@ function Row({ children, actions }: { children: ReactNode; actions?: ReactNode }
   );
 }
 
-const Alert = ({ text }: { text: string }) => (text ? <p role="alert" className="mt-3 text-sm text-danger">{text}</p> : null);
+const Alert = ({ text }: { text: string }) =>
+  text ? (
+    <p role="alert" className="mt-3 text-sm text-danger">
+      {text}
+    </p>
+  ) : null;
 
 function Emails({ run }: { run: Run }) {
   const { user } = useUser();
@@ -147,18 +173,30 @@ function Emails({ run }: { run: Run }) {
           return (
             <Row
               key={e.id}
-              actions={!primary && (
-                <>
-                  {verified && (
-                    <button type="button" className={btnGhost} disabled={busy} onClick={() => go(() => run(() => user.update({ primaryEmailAddressId: e.id })))}>
-                      Make primary
+              actions={
+                !primary && (
+                  <>
+                    {verified && (
+                      <button
+                        type="button"
+                        className={btnGhost}
+                        disabled={busy}
+                        onClick={() => go(() => run(() => user.update({ primaryEmailAddressId: e.id })))}
+                      >
+                        Make primary
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={btnGhost}
+                      disabled={busy}
+                      onClick={() => go(() => run(() => e.destroy()).then(() => user.reload()))}
+                    >
+                      Remove
                     </button>
-                  )}
-                  <button type="button" className={btnGhost} disabled={busy} onClick={() => go(() => run(() => e.destroy()).then(() => user.reload()))}>
-                    Remove
-                  </button>
-                </>
-              )}
+                  </>
+                )
+              }
             >
               <span className="break-all sm:truncate">{maskEmail(e.emailAddress)}</span>
               {primary && <span className={badge}>Primary</span>}
@@ -201,8 +239,17 @@ function Phones() {
           <Row
             actions={
               <>
-                <button type="button" className={btnGhost} disabled={busy} onClick={() => (setValue(phone), setEditing(true))}>Edit</button>
-                <button type="button" className={btnGhost} disabled={busy} onClick={() => save("")}>Remove</button>
+                <button
+                  type="button"
+                  className={btnGhost}
+                  disabled={busy}
+                  onClick={() => (setValue(phone), setEditing(true))}
+                >
+                  Edit
+                </button>
+                <button type="button" className={btnGhost} disabled={busy} onClick={() => save("")}>
+                  Remove
+                </button>
               </>
             }
           >
@@ -213,18 +260,39 @@ function Phones() {
       {editing ? (
         <form onSubmit={submit} className="mt-4 max-w-sm space-y-3">
           <Field label="Phone number" hint="include country code">
-            <input type="tel" value={value} onChange={(e) => setValue(e.target.value)} placeholder="+91 98765 43210" autoComplete="tel" autoFocus required className={field} />
+            <input
+              type="tel"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="+91 98765 43210"
+              autoComplete="tel"
+              autoFocus
+              required
+              className={field}
+            />
           </Field>
           <Alert text={error} />
           <div className="flex gap-2 [&_button]:min-h-10 sm:[&_button]:min-h-0">
-            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>Save</button>
-            <button type="button" className={btnGhost} disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy}>
+              Save
+            </button>
+            <button type="button" className={btnGhost} disabled={busy} onClick={() => setEditing(false)}>
+              Cancel
+            </button>
           </div>
         </form>
       ) : (
         <>
           <Alert text={error} />
-          {!phone && <button type="button" className={`${btnOutline} mt-3 min-h-10 sm:min-h-0`} onClick={() => (setValue(""), setEditing(true))}>Add phone number</button>}
+          {!phone && (
+            <button
+              type="button"
+              className={`${btnOutline} mt-3 min-h-10 sm:min-h-0`}
+              onClick={() => (setValue(""), setEditing(true))}
+            >
+              Add phone number
+            </button>
+          )}
         </>
       )}
     </Section>
@@ -291,10 +359,20 @@ function AddContact({ run, onVerified }: { run: Run; onVerified: (r: EmailAddres
       )}
       <Alert text={error} />
       <div className="flex gap-2 [&_button]:min-h-10 sm:[&_button]:min-h-0">
-        <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || (step === "code" && code.length !== 6)}>
+        <button
+          aria-busy={busy}
+          type="submit"
+          className={btnPrimary}
+          disabled={busy || (step === "code" && code.length !== 6)}
+        >
           {step === "value" ? "Send code" : "Verify"}
         </button>
-        <button type="button" className={btnGhost} disabled={busy} onClick={() => (pending.current?.destroy().catch(() => {}), reset())}>
+        <button
+          type="button"
+          className={btnGhost}
+          disabled={busy}
+          onClick={() => (pending.current?.destroy().catch(() => {}), reset())}
+        >
           Cancel
         </button>
       </div>
@@ -317,11 +395,21 @@ function Connected({ run }: { run: Run }) {
               key={strategy}
               actions={
                 acct ? (
-                  <button type="button" className={btnGhost} disabled={busy} onClick={() => go(() => run(() => acct.destroy()).then(() => user.reload()))}>
+                  <button
+                    type="button"
+                    className={btnGhost}
+                    disabled={busy}
+                    onClick={() => go(() => run(() => acct.destroy()).then(() => user.reload()))}
+                  >
                     {linked ? "Disconnect" : "Remove"}
                   </button>
                 ) : (
-                  <button type="button" className={btnOutline} disabled={busy} onClick={() => go(() => connect(strategy))}>
+                  <button
+                    type="button"
+                    className={btnOutline}
+                    disabled={busy}
+                    onClick={() => go(() => connect(strategy))}
+                  >
                     Connect
                   </button>
                 )
@@ -329,7 +417,11 @@ function Connected({ run }: { run: Run }) {
             >
               <span className="flex w-5 justify-center">{providerIcons[strategy]}</span>
               <span>{label}</span>
-              {acct && <span className="break-all text-muted sm:truncate">{linked ? (acct.emailAddress ? maskEmail(acct.emailAddress) : acct.username) : "Couldn't connect"}</span>}
+              {acct && (
+                <span className="break-all text-muted sm:truncate">
+                  {linked ? (acct.emailAddress ? maskEmail(acct.emailAddress) : acct.username) : "Couldn't connect"}
+                </span>
+              )}
             </Row>
           );
         })}
@@ -339,7 +431,9 @@ function Connected({ run }: { run: Run }) {
   );
 
   async function connect(strategy: OAuthStrategy) {
-    const acct = (await run(() => user!.createExternalAccount({ strategy, redirectUrl: location.href }))) as { verification: { externalVerificationRedirectURL: URL | null } | null };
+    const acct = (await run(() => user!.createExternalAccount({ strategy, redirectUrl: location.href }))) as {
+      verification: { externalVerificationRedirectURL: URL | null } | null;
+    };
     const to = acct.verification?.externalVerificationRedirectURL;
     if (!to) throw new Error("Couldn't start the connection. Try again.");
     location.assign(to.href);
@@ -360,7 +454,8 @@ function Sessions({ run }: { run: Run }) {
   const others = list?.filter((s) => s.id !== session?.id) ?? [];
   const where = (s: SessionWithActivitiesResource) => {
     const a = s.latestActivity;
-    const device = [a.browserName, a.deviceType || (a.isMobile ? "Mobile" : "")].filter(Boolean).join(" on ") || "Unknown device";
+    const device =
+      [a.browserName, a.deviceType || (a.isMobile ? "Mobile" : "")].filter(Boolean).join(" on ") || "Unknown device";
     const place = [a.city, a.country].filter(Boolean).join(", ");
     return { device, detail: [place, a.ipAddress].filter(Boolean).join(" · ") };
   };
@@ -368,7 +463,11 @@ function Sessions({ run }: { run: Run }) {
   return (
     <Section title="Where you're signed in" desc="Sign out of any device you don't recognize.">
       {!list ? (
-        <Loading label="Loading devices…">{times(2, (i) => <SessionRowSkeleton key={i} />)}</Loading>
+        <Loading label="Loading devices…">
+          {times(2, (i) => (
+            <SessionRowSkeleton key={i} />
+          ))}
+        </Loading>
       ) : (
         <ul>
           {list.map((s) => {
@@ -377,11 +476,18 @@ function Sessions({ run }: { run: Run }) {
             return (
               <Row
                 key={s.id}
-                actions={!current && (
-                  <button type="button" className={btnGhost} disabled={busy} onClick={() => go(() => run(() => s.revoke()).then(load))}>
-                    Sign out
-                  </button>
-                )}
+                actions={
+                  !current && (
+                    <button
+                      type="button"
+                      className={btnGhost}
+                      disabled={busy}
+                      onClick={() => go(() => run(() => s.revoke()).then(load))}
+                    >
+                      Sign out
+                    </button>
+                  )
+                }
               >
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 break-words">
@@ -400,7 +506,12 @@ function Sessions({ run }: { run: Run }) {
         </ul>
       )}
       {others.length > 1 && (
-        <button type="button" className={`${btnOutline} mt-3 min-h-10 sm:min-h-0`} disabled={busy} onClick={() => go(() => run(() => Promise.all(others.map((s) => s.revoke()))).then(load))}>
+        <button
+          type="button"
+          className={`${btnOutline} mt-3 min-h-10 sm:min-h-0`}
+          disabled={busy}
+          onClick={() => go(() => run(() => Promise.all(others.map((s) => s.revoke()))).then(load))}
+        >
           Sign out of all other devices
         </button>
       )}
@@ -418,9 +529,12 @@ function UsageAnalytics() {
     <section className="border-b border-border px-4 py-6 sm:px-5">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
-          <h2 id="analytics-title" className="text-sm font-medium">Usage analytics</h2>
+          <h2 id="analytics-title" className="text-sm font-medium">
+            Usage analytics
+          </h2>
           <p id="analytics-desc" className="mt-1 max-w-prose text-sm text-muted">
-            Share which pages you visit and features you use, linked to your account ID, to help us improve Hire Excellence. Your email, resume and messages are never sent.
+            Share which pages you visit and features you use, linked to your account ID, to help us improve Hire
+            Excellence. Your email, resume and messages are never sent.
           </p>
         </div>
         <button
@@ -433,7 +547,9 @@ function UsageAnalytics() {
           // The visible track is small; the ::after area makes the tap target 40px for touch
           className={`relative mt-0.5 inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border transition-colors outline-none after:absolute after:-inset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none ${on ? "border-foreground bg-foreground" : "border-border bg-surface-hover hover:border-muted"}`}
         >
-          <span className={`size-[18px] rounded-full shadow-sm transition-transform motion-reduce:transition-none ${on ? "translate-x-[18px] bg-background" : "translate-x-0.5 bg-muted"}`} />
+          <span
+            className={`size-[18px] rounded-full shadow-sm transition-transform motion-reduce:transition-none ${on ? "translate-x-[18px] bg-background" : "translate-x-0.5 bg-muted"}`}
+          />
         </button>
       </div>
       <p className="mt-3 flex items-center gap-2 text-xs text-muted" aria-live="polite">
@@ -459,7 +575,11 @@ function DeleteAccount({ run }: { run: Run }) {
   }
 
   return (
-    <Section title="Delete account" desc="Permanently delete your account and everything in it. This can't be undone." danger>
+    <Section
+      title="Delete account"
+      desc="Permanently delete your account and everything in it. This can't be undone."
+      danger
+    >
       <button type="button" className={`${btnOutline} min-h-10 text-danger sm:min-h-0`} onClick={() => setOpen(true)}>
         Delete account
       </button>
@@ -467,10 +587,17 @@ function DeleteAccount({ run }: { run: Run }) {
         <Modal title="Delete account" onClose={() => !busy && (setOpen(false), setTyped(""))}>
           <form onSubmit={confirm} className="space-y-4 p-5">
             <p className="text-sm text-muted">
-              Your profile, posts, comments, connections, job posts and applications will be deleted for good, and you&apos;ll be signed out everywhere.
+              Your profile, posts, comments, connections, job posts and applications will be deleted for good, and
+              you&apos;ll be signed out everywhere.
             </p>
             <Field label="Type DELETE to confirm">
-              <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus autoComplete="off" className={field} />
+              <input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                autoFocus
+                autoComplete="off"
+                className={field}
+              />
             </Field>
             <Alert text={error} />
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end [&_button]:min-h-10 sm:[&_button]:min-h-0">
@@ -495,7 +622,9 @@ function Reverify({ level, complete, cancel, onDone }: NeedsReverification & { o
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const factor = useRef<{ strategy: "email_code"; emailAddressId: string } | { strategy: "phone_code"; phoneNumberId: string } | null>(null);
+  const factor = useRef<
+    { strategy: "email_code"; emailAddressId: string } | { strategy: "phone_code"; phoneNumberId: string } | null
+  >(null);
   const started = useRef(false);
 
   async function start() {
@@ -503,9 +632,14 @@ function Reverify({ level, complete, cancel, onDone }: NeedsReverification & { o
     setError("");
     try {
       const v = await session.startVerification({ level: level ?? "first_factor" });
-      const f = v.supportedFirstFactors?.find((x) => x.strategy === "email_code") ?? v.supportedFirstFactors?.find((x) => x.strategy === "phone_code");
+      const f =
+        v.supportedFirstFactors?.find((x) => x.strategy === "email_code") ??
+        v.supportedFirstFactors?.find((x) => x.strategy === "phone_code");
       if (!f || !("safeIdentifier" in f)) throw new Error("No email or phone to verify with.");
-      factor.current = f.strategy === "email_code" ? { strategy: "email_code", emailAddressId: f.emailAddressId } : { strategy: "phone_code", phoneNumberId: (f as { phoneNumberId: string }).phoneNumberId };
+      factor.current =
+        f.strategy === "email_code"
+          ? { strategy: "email_code", emailAddressId: f.emailAddressId }
+          : { strategy: "phone_code", phoneNumberId: (f as { phoneNumberId: string }).phoneNumberId };
       await session.prepareFirstFactorVerification(factor.current);
       setSentTo(f.safeIdentifier);
     } catch (e) {
@@ -540,17 +674,32 @@ function Reverify({ level, complete, cancel, onDone }: NeedsReverification & { o
     <Modal title="Confirm it's you" onClose={close}>
       <form onSubmit={submit} className="space-y-4 p-5">
         <p className="text-sm text-muted">
-          {sentTo ? <>For your security, enter the 6-digit code we sent to <span className="text-foreground">{sentTo}</span>.</> : "Sending a verification code…"}
+          {sentTo ? (
+            <>
+              For your security, enter the 6-digit code we sent to <span className="text-foreground">{sentTo}</span>.
+            </>
+          ) : (
+            "Sending a verification code…"
+          )}
         </p>
         <CodeField value={code} onChange={setCode} processing={busy} invalid={!!error} />
         <Alert text={error} />
         <div className="flex flex-wrap items-center justify-between gap-3 [&_button]:min-h-10 sm:[&_button]:min-h-0">
-          <button type="button" className="text-sm text-link hover:underline disabled:opacity-60" disabled={busy} onClick={start}>
+          <button
+            type="button"
+            className="text-sm text-link hover:underline disabled:opacity-60"
+            disabled={busy}
+            onClick={start}
+          >
             Resend code
           </button>
           <div className="flex gap-2">
-            <button type="button" className={btnGhost} onClick={close}>Cancel</button>
-            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || code.length !== 6}>Continue</button>
+            <button type="button" className={btnGhost} onClick={close}>
+              Cancel
+            </button>
+            <button aria-busy={busy} type="submit" className={btnPrimary} disabled={busy || code.length !== 6}>
+              Continue
+            </button>
           </div>
         </div>
       </form>

@@ -24,7 +24,11 @@ export default async function AboutTab({ params }: { params: Promise<{ handle: s
   return (
     <div className="space-y-6 px-4 py-5">
       {own && !profile.resumePublic && <ProfileVisibility resumePublic={false} openToWork={profile.openToWork} />}
-      <ResumeSections r={r} companies={companies} experience={own ? <ExperienceManager resume={r} companies={companies} /> : undefined} />
+      <ResumeSections
+        r={r}
+        companies={companies}
+        experience={own ? <ExperienceManager resume={r} companies={companies} /> : undefined}
+      />
     </div>
   );
 }

@@ -3,25 +3,77 @@ import { normalizeWebsite, validHandle } from "./profile-fields.ts";
 import type { Experience } from "./resume-fields.ts";
 
 export const INDUSTRIES = [
-  "Software & IT services", "Internet", "Financial services", "Banking", "Insurance", "Hospitals & health care", "Pharmaceuticals",
-  "Education", "Retail", "E-commerce", "Manufacturing", "Automotive", "Telecommunications", "Media & entertainment", "Marketing & advertising",
-  "Consulting", "Staffing & recruiting", "Real estate", "Construction", "Logistics & supply chain", "Energy", "Food & beverages",
-  "Hospitality", "Government", "Non-profit", "Other",
+  "Software & IT services",
+  "Internet",
+  "Financial services",
+  "Banking",
+  "Insurance",
+  "Hospitals & health care",
+  "Pharmaceuticals",
+  "Education",
+  "Retail",
+  "E-commerce",
+  "Manufacturing",
+  "Automotive",
+  "Telecommunications",
+  "Media & entertainment",
+  "Marketing & advertising",
+  "Consulting",
+  "Staffing & recruiting",
+  "Real estate",
+  "Construction",
+  "Logistics & supply chain",
+  "Energy",
+  "Food & beverages",
+  "Hospitality",
+  "Government",
+  "Non-profit",
+  "Other",
 ];
 export const SIZES = ["1-10", "11-50", "51-200", "201-500", "501-1,000", "1,001-5,000", "5,001-10,000", "10,001+"];
-export const TYPES = ["Public company", "Privately held", "Self-employed", "Partnership", "Government agency", "Non-profit", "Educational"];
+export const TYPES = [
+  "Public company",
+  "Privately held",
+  "Self-employed",
+  "Partnership",
+  "Government agency",
+  "Non-profit",
+  "Educational",
+];
 
 export const LIMITS = { name: 100, tagline: 120, about: 2000, website: 200, hq: 100, specialties: 20, specialty: 40 };
 
 /** Webmail and ISP domains: anyone can get an address there, so they never prove employment. */
 const FREE_MAIL = new Set([
-  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com", "yahoo.co.in", "ymail.com", "icloud.com",
-  "me.com", "mac.com", "aol.com", "proton.me", "protonmail.com", "zoho.com", "zohomail.in", "gmx.com", "mail.com", "yandex.com",
-  "rediffmail.com", "hey.com", "fastmail.com", "tutanota.com",
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "yahoo.com",
+  "yahoo.co.in",
+  "ymail.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "zoho.com",
+  "zohomail.in",
+  "gmx.com",
+  "mail.com",
+  "yandex.com",
+  "rediffmail.com",
+  "hey.com",
+  "fastmail.com",
+  "tutanota.com",
 ]);
 
 // Webmail brands under any country suffix (yahoo.co.uk, hotmail.fr, gmx.de...)
-const FREE_BRAND = /^(gmail|googlemail|yahoo|ymail|rocketmail|hotmail|outlook|live|msn|aol|icloud|proton|protonmail|gmx|yandex|zoho|zohomail|rediffmail|mail|web|qq|163|126|naver|tutanota|tuta|btinternet|orange|t-online|libero|seznam|wp|onet)\.([a-z]{2,3}\.)?[a-z]{2,3}$/;
+const FREE_BRAND =
+  /^(gmail|googlemail|yahoo|ymail|rocketmail|hotmail|outlook|live|msn|aol|icloud|proton|protonmail|gmx|yandex|zoho|zohomail|rediffmail|mail|web|qq|163|126|naver|tutanota|tuta|btinternet|orange|t-online|libero|seznam|wp|onet)\.([a-z]{2,3}\.)?[a-z]{2,3}$/;
 // "co.uk", "com.au", "ac.in": second-level public suffixes. Owning "acme.co.uk" is fine; claiming "co.uk" would cover every .co.uk address.
 const PUBLIC_SUFFIX = /^(co|com|net|org|ac|edu|gov|gen|firm|ind|ltd|plc|ne|or|go|nic|mil|res|info|biz)\.[a-z]{2}$/;
 const freeMail = (host: string) => FREE_MAIL.has(host) || FREE_BRAND.test(host);
@@ -44,15 +96,40 @@ export function onDomain(email: string, domain: string | null) {
 }
 
 export type CompanyInput = {
-  name: string; slug: string; tagline: string; about: string; website: string; industry: string; size: string; type: string;
-  hq: string; founded: string; specialties: string;
+  name: string;
+  slug: string;
+  tagline: string;
+  about: string;
+  website: string;
+  industry: string;
+  size: string;
+  type: string;
+  hq: string;
+  founded: string;
+  specialties: string;
 };
 export type CleanCompany = {
-  name: string; slug: string; tagline: string | null; about: string | null; website: string | null; domain: string | null;
-  industry: string | null; size: string | null; type: string | null; hq: string | null; founded: number | null; specialties: string[];
+  name: string;
+  slug: string;
+  tagline: string | null;
+  about: string | null;
+  website: string | null;
+  domain: string | null;
+  industry: string | null;
+  size: string | null;
+  type: string | null;
+  hq: string | null;
+  founded: number | null;
+  specialties: string[];
 };
 
-const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().replace(/[ \t]+/g, " ").slice(0, max) : "");
+const str = (v: unknown, max: number) =>
+  typeof v === "string"
+    ? v
+        .trim()
+        .replace(/[ \t]+/g, " ")
+        .slice(0, max)
+    : "";
 const pick = (list: string[], v: unknown) => (typeof v === "string" && list.includes(v) ? v : null);
 
 /** Trim, clamp and allowlist a page form. Returns a message to show instead when something is wrong. */
@@ -66,13 +143,29 @@ export function cleanCompany(input: Partial<CompanyInput>, year = new Date().get
   if (website === undefined) return "Enter a valid website, like acme.com";
   if (founded !== null && (founded < 1600 || founded > year)) return "Enter the year the company was founded";
   const seen = new Set<string>();
-  const specialties = str(input.specialties, 2000).split(",").map((s) => s.trim().slice(0, LIMITS.specialty))
-    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase())).slice(0, LIMITS.specialties);
+  const specialties = str(input.specialties, 2000)
+    .split(",")
+    .map((s) => s.trim().slice(0, LIMITS.specialty))
+    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
+    .slice(0, LIMITS.specialties);
   return {
-    name, slug, website, domain: domainOf(website), founded, specialties,
+    name,
+    slug,
+    website,
+    domain: domainOf(website),
+    founded,
+    specialties,
     tagline: str(input.tagline, LIMITS.tagline) || null,
-    about: (typeof input.about === "string" ? input.about.trim().replace(/\n{3,}/g, "\n\n").slice(0, LIMITS.about) : "") || null,
-    industry: pick(INDUSTRIES, input.industry), size: pick(SIZES, input.size), type: pick(TYPES, input.type),
+    about:
+      (typeof input.about === "string"
+        ? input.about
+            .trim()
+            .replace(/\n{3,}/g, "\n\n")
+            .slice(0, LIMITS.about)
+        : "") || null,
+    industry: pick(INDUSTRIES, input.industry),
+    size: pick(SIZES, input.size),
+    type: pick(TYPES, input.type),
     hq: str(input.hq, LIMITS.hq) || null,
   };
 }
@@ -100,7 +193,8 @@ export function memberRows(experience: Experience[]) {
   for (const e of experience) {
     if (!e.companyId) continue;
     const had = rows.get(e.companyId);
-    if (!had || (e.current && !had.current)) rows.set(e.companyId, { companyId: e.companyId, title: e.title, current: e.current });
+    if (!had || (e.current && !had.current))
+      rows.set(e.companyId, { companyId: e.companyId, title: e.title, current: e.current });
   }
   return [...rows.values()];
 }

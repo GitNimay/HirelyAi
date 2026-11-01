@@ -12,7 +12,15 @@ export type FeedEvent =
   | { t: "edit"; id: string; body: string; media: Media[]; editedAt: number }
   | { t: "delete"; id: string }
   // A member edited their profile: everyone showing them (feed, network, profile page) updates in place
-  | { t: "profile"; id: string; name: string; handle: string; headline: string | null; bio: string | null; imageUrl: string | null };
+  | {
+      t: "profile";
+      id: string;
+      name: string;
+      handle: string;
+      headline: string | null;
+      bio: string | null;
+      imageUrl: string | null;
+    };
 
 /** Private network change, sent only to the people involved. `dir` is "out" when the recipient caused it. */
 export type NetEvent = {
@@ -25,8 +33,7 @@ export type NetEvent = {
 
 /** Public job changes: a new listing, or its applicant count / open state. */
 export type JobEvent =
-  | { t: "job"; id: string; posterId: string }
-  | { t: "jobstat"; id: string; applicants: number; closed: boolean };
+  { t: "job"; id: string; posterId: string } | { t: "jobstat"; id: string; applicants: number; closed: boolean };
 
 /** Private: to the poster when someone applies, to the applicant when the poster moves their application. */
 export type AppEvent = { t: "app"; jobId: string; applicantId: string; status: AppStatus };
@@ -59,14 +66,20 @@ export const hubFor = (userId: string) => {
  */
 export function broadcast(event: FeedEvent | JobEvent) {
   const msg = JSON.stringify(event);
-  waitUntil(Promise.allSettled(Array.from({ length: HUB_SHARDS }, (_, i) => env.FEED_HUB.getByName(`hub-${i}`).broadcast(msg))));
+  waitUntil(
+    Promise.allSettled(Array.from({ length: HUB_SHARDS }, (_, i) => env.FEED_HUB.getByName(`hub-${i}`).broadcast(msg))),
+  );
 }
 
 type Private = NetEvent | AppEvent | NotifEvent;
 
 /** Push to one user's open sockets (every tab/device), which all live on that user's hub shard. */
 export function sendTo(userId: string, event: Private) {
-  waitUntil(env.FEED_HUB.getByName(hubFor(userId)).broadcast(JSON.stringify(event), userId).catch(() => {}));
+  waitUntil(
+    env.FEED_HUB.getByName(hubFor(userId))
+      .broadcast(JSON.stringify(event), userId)
+      .catch(() => {}),
+  );
 }
 
 /** Many private pushes (a notification fanned out to followers): one call per hub shard instead of one per recipient. */

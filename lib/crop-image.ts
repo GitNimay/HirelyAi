@@ -14,5 +14,7 @@ export async function cropImage(file: File, w: number, h: number): Promise<Blob>
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(bmp, (w - bmp.width * scale) / 2, (h - bmp.height * scale) / 2, bmp.width * scale, bmp.height * scale);
   bmp.close();
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't process that image"))), "image/jpeg", 0.88));
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't process that image"))), "image/jpeg", 0.88),
+  );
 }

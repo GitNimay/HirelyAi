@@ -15,12 +15,36 @@ export type Person = {
   at: number; // when invited / connected; 0 for suggestions
 };
 export type Counts = { connections: number; following: number; followers: number };
-export type Network = { received: Person[]; sent: Person[]; connections: Person[]; suggestions: Person[]; counts: Counts };
+export type Network = {
+  received: Person[];
+  sent: Person[];
+  connections: Person[];
+  suggestions: Person[];
+  counts: Counts;
+};
 
-type Row = { id: string; name: string; image_url: string | null; headline: string | null; handle: string | null; bio: string | null; mutual: number; follows_you: number; at: number };
+type Row = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  headline: string | null;
+  handle: string | null;
+  bio: string | null;
+  mutual: number;
+  follows_you: number;
+  at: number;
+};
 
 const toPerson = (r: Row): Person => ({
-  id: r.id, name: r.name, imageUrl: r.image_url, headline: r.headline, handle: r.handle, bio: r.bio, mutual: r.mutual, followsYou: !!r.follows_you, at: r.at ?? 0,
+  id: r.id,
+  name: r.name,
+  imageUrl: r.image_url,
+  headline: r.headline,
+  handle: r.handle,
+  bio: r.bio,
+  mutual: r.mutual,
+  followsYou: !!r.follows_you,
+  at: r.at ?? 0,
 });
 
 // ?1 is always the viewer
@@ -64,8 +88,12 @@ const SUGGESTIONS = `
 
 export async function getNetwork(viewerId: string): Promise<Network> {
   const [received, sent, connections, suggestions, counts] = await env.DB.batch<Row | Counts>([
-    env.DB.prepare(`SELECT ${PERSON}, i.created_at AS at FROM invitations i JOIN users u ON u.id = i.from_id WHERE i.to_id = ?1 ORDER BY i.created_at DESC LIMIT 100`).bind(viewerId),
-    env.DB.prepare(`SELECT ${PERSON}, i.created_at AS at FROM invitations i JOIN users u ON u.id = i.to_id WHERE i.from_id = ?1 ORDER BY i.created_at DESC LIMIT 100`).bind(viewerId),
+    env.DB.prepare(
+      `SELECT ${PERSON}, i.created_at AS at FROM invitations i JOIN users u ON u.id = i.from_id WHERE i.to_id = ?1 ORDER BY i.created_at DESC LIMIT 100`,
+    ).bind(viewerId),
+    env.DB.prepare(
+      `SELECT ${PERSON}, i.created_at AS at FROM invitations i JOIN users u ON u.id = i.to_id WHERE i.from_id = ?1 ORDER BY i.created_at DESC LIMIT 100`,
+    ).bind(viewerId),
     // ponytail: first 500 connections only; page this when someone gets there
     env.DB.prepare(CONNECTIONS).bind(viewerId),
     env.DB.prepare(SUGGESTIONS).bind(viewerId),
@@ -84,10 +112,12 @@ export async function getNetwork(viewerId: string): Promise<Network> {
 /** `id` as seen by `viewerId`, plus the viewer's own counts. */
 export async function getPersonAndCounts(viewerId: string, id: string) {
   const [person, counts] = await env.DB.batch<Row | Counts>([
-    env.DB.prepare(`SELECT ${PERSON}, COALESCE(
+    env.DB.prepare(
+      `SELECT ${PERSON}, COALESCE(
         (SELECT created_at FROM connections WHERE user_id = ?1 AND peer_id = u.id),
         (SELECT created_at FROM invitations WHERE (from_id = ?1 AND to_id = u.id) OR (from_id = u.id AND to_id = ?1)), 0) AS at
-      FROM users u WHERE u.id = ?2`).bind(viewerId, id),
+      FROM users u WHERE u.id = ?2`,
+    ).bind(viewerId, id),
     env.DB.prepare(COUNTS).bind(viewerId),
   ]);
   const row = person.results[0] as Row | undefined;
@@ -102,7 +132,9 @@ export async function searchPeople(viewerId: string, query: string) {
     `SELECT ${PERSON}, 0 AS at FROM users u
      WHERE u.id <> ?1 AND (u.name LIKE ?2 ESCAPE '!' OR u.headline LIKE ?2 ESCAPE '!')
      ORDER BY u.name LIKE ?3 ESCAPE '!' DESC, mutual DESC, u.name LIMIT 20`,
-  ).bind(viewerId, `%${q}%`, `${q}%`).all<Row>();
+  )
+    .bind(viewerId, `%${q}%`, `${q}%`)
+    .all<Row>();
   return results.map(toPerson);
 }
 
@@ -145,13 +177,25 @@ export const syncStatements = (u: Profile) => [upsert(u), assign(u)];
  */
 export async function syncDirectory() {
   try {
-    const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY, publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY });
+    const clerk = createClerkClient({
+      secretKey: env.CLERK_SECRET_KEY,
+      publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    });
     const { data } = await clerk.users.getUserList({ limit: 100, orderBy: "-updated_at" });
     // Handles are only (re)assigned for members that lack one, which keeps the batch near one statement per member
-    const { results } = await env.DB.prepare("SELECT id FROM users WHERE id IN (SELECT value FROM json_each(?)) AND handle IS NOT NULL AND joined_at IS NOT NULL")
-      .bind(JSON.stringify(data.map((u) => u.id))).all<{ id: string }>();
+    const { results } = await env.DB.prepare(
+      "SELECT id FROM users WHERE id IN (SELECT value FROM json_each(?)) AND handle IS NOT NULL AND joined_at IS NOT NULL",
+    )
+      .bind(JSON.stringify(data.map((u) => u.id)))
+      .all<{ id: string }>();
     const done = new Set(results.map((r) => r.id));
-    if (data.length) await env.DB.batch(data.flatMap((u) => { const p = profileOf(u); return done.has(p.id) ? [upsert(p)] : [upsert(p), assign(p)]; }));
+    if (data.length)
+      await env.DB.batch(
+        data.flatMap((u) => {
+          const p = profileOf(u);
+          return done.has(p.id) ? [upsert(p)] : [upsert(p), assign(p)];
+        }),
+      );
   } catch (e) {
     console.error("syncDirectory failed", e); // next cron run retries; the app works with what D1 has
   }
@@ -170,7 +214,9 @@ export async function listFollows(viewerId: string, userId: string, dir: FollowD
     `SELECT ${PERSON}, f.created_at AS at, EXISTS (SELECT 1 FROM follows x WHERE x.follower_id = ?1 AND x.followee_id = u.id) AS i_follow
      FROM follows f JOIN users u ON u.id = ${them}
      WHERE ${owner} = ?2 ORDER BY f.created_at DESC LIMIT ${FOLLOW_PAGE} OFFSET ?3`,
-  ).bind(viewerId, userId, offset).all<Row & { i_follow: number }>();
+  )
+    .bind(viewerId, userId, offset)
+    .all<Row & { i_follow: number }>();
   const people: FollowPerson[] = results.map((r) => ({ ...toPerson(r), iFollow: !!r.i_follow }));
   return { people, next: results.length === FOLLOW_PAGE ? String(offset + FOLLOW_PAGE) : null };
 }
