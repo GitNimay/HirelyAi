@@ -57,8 +57,8 @@ export async function checkAll(): Promise<Live> {
   const upsert = env.DB.prepare(
     "INSERT INTO status_checks (component, day, total, failed, ms, ms_count) VALUES (?, ?, 1, ?, ?, ?) ON CONFLICT (component, day) DO UPDATE SET total = total + 1, failed = failed + excluded.failed, ms = ms + excluded.ms, ms_count = ms_count + excluded.ms_count",
   );
-  await env.DB.batch(results.map((r) => upsert.bind(r.id, day, r.up ? 0 : 1, r.ms ?? 0, r.ms != null ? 1 : 0))).catch((e) =>
-    console.error("status record", e),
+  await env.DB.batch(results.map((r) => upsert.bind(r.id, day, r.up ? 0 : 1, r.ms ?? 0, r.ms != null ? 1 : 0))).catch(
+    (e) => console.error("status record", e),
   );
   return { at: Date.now(), up, ms };
 }
@@ -78,12 +78,16 @@ export async function liveStatus(): Promise<Live> {
 
 export async function history() {
   const days = lastDays();
-  const { results } = await env.DB
-    .prepare("SELECT component, day, total, failed, ms, ms_count FROM status_checks WHERE day >= ?")
+  const { results } = await env.DB.prepare(
+    "SELECT component, day, total, failed, ms, ms_count FROM status_checks WHERE day >= ?",
+  )
     .bind(days[0])
     .all<Day & { component: string }>();
   const by = new Map(results.map((r) => [`${r.component}:${r.day}`, r]));
   return Object.fromEntries(
-    COMPONENTS.map(({ id }) => [id, days.map((day) => by.get(`${id}:${day}`) ?? { day, total: 0, failed: 0, ms: 0, ms_count: 0 })]),
+    COMPONENTS.map(({ id }) => [
+      id,
+      days.map((day) => by.get(`${id}:${day}`) ?? { day, total: 0, failed: 0, ms: 0, ms_count: 0 }),
+    ]),
   ) as Record<ComponentId, Day[]>;
 }

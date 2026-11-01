@@ -165,7 +165,9 @@ export default async function StatusPage() {
                 );
               })}
               {issues.length > shown.length && (
-                <li className="text-xs text-muted">Plus {issues.length - shown.length} more days in the last {DAYS}.</li>
+                <li className="text-xs text-muted">
+                  Plus {issues.length - shown.length} more days in the last {DAYS}.
+                </li>
               )}
             </ul>
           ) : (
@@ -179,18 +181,21 @@ export default async function StatusPage() {
             <span>Checked every 15 minutes</span>
           </div>
           <ul className="mt-6 space-y-2.5 text-sm text-muted">
-            <li>Checks run on a schedule and whenever this page is opened — at most once a minute, from the nearest data center.</li>
             <li>
-              A component whose latest check failed reads Down, one with failed checks earlier today reads Degraded, the rest read
-              Operational. Hover a component row for what its check verifies.
+              Checks run on a schedule and whenever this page is opened — at most once a minute, from the nearest data
+              center.
             </li>
             <li>
-              A day bar is green when every check passed, amber while at most one in ten failed, red beyond that, grey when nothing ran.
-              Hover a bar for that day&apos;s counts.
+              A component whose latest check failed reads Down, one with failed checks earlier today reads Degraded, the
+              rest read Operational. Hover a component row for what its check verifies.
             </li>
             <li>
-              Uptime counts every check over the shown window. Response times appear beside each component (its most recent check) and
-              inside a bar&apos;s hover (that day&apos;s average of successful checks).
+              A day bar is green when every check passed, amber while at most one in ten failed, red beyond that, grey
+              when nothing ran. Hover a bar for that day&apos;s counts.
+            </li>
+            <li>
+              Uptime counts every check over the shown window. Response times appear beside each component (its most
+              recent check) and inside a bar&apos;s hover (that day&apos;s average of successful checks).
             </li>
             <li>Dates and day boundaries are UTC; the &quot;Updated&quot; time by the heading is your local time.</li>
             <li>Machines can read the same data at /api/status, refreshed at most once a minute.</li>

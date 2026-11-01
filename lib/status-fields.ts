@@ -42,7 +42,12 @@ export const state = (up: boolean | undefined, today?: Day) =>
 /** Sums a window of days (or several components' windows) — what uptime, failure counts and averages derive from. */
 export function totals(days: Day[]) {
   return days.reduce(
-    (t, d) => ({ total: t.total + d.total, failed: t.failed + d.failed, ms: t.ms + d.ms, ms_count: t.ms_count + d.ms_count }),
+    (t, d) => ({
+      total: t.total + d.total,
+      failed: t.failed + d.failed,
+      ms: t.ms + d.ms,
+      ms_count: t.ms_count + d.ms_count,
+    }),
     { total: 0, failed: 0, ms: 0, ms_count: 0 },
   );
 }
