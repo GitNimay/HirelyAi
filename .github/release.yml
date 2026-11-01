@@ -1,0 +1,17 @@
+# Groups the auto-generated GitHub Release notes (deploy job: `gh release create --generate-notes`) by PR label
+changelog:
+  categories:
+    - title: Features
+      labels: [enhancement]
+    - title: Fixes
+      labels: [bug]
+    - title: Performance
+      labels: [performance]
+    - title: Database migrations
+      labels: ["area: database"]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: CI and tooling
+      labels: ["area: ci", "area: config"]
+    - title: Other changes
+      labels: ["*"]

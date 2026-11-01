@@ -5,6 +5,7 @@ updates:
     schedule: { interval: weekly }
     cooldown: { default-days: 5 } # let fresh releases age before they're proposed (supply-chain safety)
     commit-message: { prefix: deps }
+    labels: [dependencies]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -13,6 +14,7 @@ updates:
     schedule: { interval: weekly }
     cooldown: { default-days: 5 }
     commit-message: { prefix: deps(agent) }
+    labels: [dependencies, "area: interview-agent"]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -21,6 +23,7 @@ updates:
     schedule: { interval: weekly }
     cooldown: { default-days: 5 }
     commit-message: { prefix: ci }
+    labels: [dependencies, "area: ci"]
     groups:
       actions:
         patterns: ["*"]
