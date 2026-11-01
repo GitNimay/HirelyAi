@@ -196,6 +196,41 @@ jobs:
         run: exit 1
       - run: echo "All checks passed"
 
+  # AI review after every check passes: OpenCode (GLM 5.3, free Zen tier) runs alibaba/open-code-review's delegate skill
+  # (.opencode/skills). Advisory only: not in ci-ok.needs, so it never blocks a merge.
+  # Same-repo, non-Dependabot PRs only: forks and Dependabot don't get OPENCODE_API_KEY.
+  ai-review:
+    needs: ci-ok
+    if: ${{ !cancelled() && needs.ci-ok.result == 'success' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write # review comment
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # OCR needs the merge base with the target branch
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm i -g @opencode/cli@2.2.5 @alibaba-group/open-code-review@1.13.3
+      # No GitHub token in this step: the agent runs shell commands on PR content, so it only gets the model key
+      - name: Review
+        run: |
+          opencode run --auto -m 'opencode/glm-5.3-flash-free#high' \
+            "Use the open-code-review-delegate skill to review this pull request in range mode: --from origin/$BASE --to HEAD. Report only real findings, grouped by severity, each with path:line. Write the final review as GitHub markdown to review.md in the repo root, starting with a one-line summary and the coverage stats. Do not modify any other file."
+          test -s review.md
+        env:
+          BASE: ${{ github.base_ref }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      # One comment per PR, updated on every push
+      - run: gh pr comment "$PR" --body-file review.md --edit-last --create-if-none
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+
   # Merge to main = production deploy. Runs only after every check passes on the merge commit.
   deploy:
     needs: ci-ok
