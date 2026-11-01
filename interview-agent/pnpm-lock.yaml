@@ -10,10 +10,10 @@ importers:
     dependencies:
       '@livekit/agents':
         specifier: ^1.9.4
-        version: 1.9.4(@livekit/rtc-node@0.13.35)(@types/node@24.19.0)(typescript@5.9.3)(zod@4.6.7)
+        version: 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@24.19.0)(typescript@5.9.3)(zod@4.6.7)
       '@livekit/rtc-node':
-        specifier: ^0.13.35
-        version: 0.13.35
+        specifier: ^1.2.1
+        version: 1.2.1
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -456,44 +456,44 @@ packages:
   '@livekit/protocol@1.53.1':
     resolution: {integrity: sha512-Kx67RzZL5PhNUtzg7J7CRyCOEKOEyNLh2tKLaGK5FAluKrpIusYAJX8S3o+IYeVwEWGB1gNbfxhIwzAeUC0GNA==}
 
-  '@livekit/rtc-ffi-bindings-darwin-arm64@0.12.73':
-    resolution: {integrity: sha512-gIGftVyO1Jl266AZPRzoL6dxck969dmIiaut3+D1aCZRkDb/gLz98BEGRfOSU3X0LS4QBkmiaYWsjN9ot/zmwg==}
+  '@livekit/rtc-ffi-bindings-darwin-arm64@0.13.1':
+    resolution: {integrity: sha512-SIbQpLHmY5oq0hiUM9UTmlkPVLAm8TbTjnQlMWMqQLLFgmtIx+ayN2kLII5w0KIC68iK4yOjTUAeFMAJFYY5hg==}
     engines: {node: '>= 18'}
     cpu: [arm64]
     os: [darwin]
 
-  '@livekit/rtc-ffi-bindings-darwin-x64@0.12.73':
-    resolution: {integrity: sha512-esPwYCbUnDD/KxBo0YU8awTFglRG7SvOT/sfiP19KChS5SH8TgXc7JwfSvnjRx1PndUqHFzQAbQDcYaeL9PFTg==}
+  '@livekit/rtc-ffi-bindings-darwin-x64@0.13.1':
+    resolution: {integrity: sha512-+gkitypx0mvtbUxlgnokr1wujFMuVW44q6Bev6AozkfCqpSBnO2bFqwJQo4sGY3UNl9Rq6TElcKPQ813LJu1UA==}
     engines: {node: '>= 18'}
     cpu: [x64]
     os: [darwin]
 
-  '@livekit/rtc-ffi-bindings-linux-arm64-gnu@0.12.73':
-    resolution: {integrity: sha512-2YBatXjuaumnaNVqRC63flX5XZTvHcQWRsABw6e2yp+Hlxl3ocjVVyk5PrAsRzCdeyxbHLduqV9ctqGbpTA27Q==}
+  '@livekit/rtc-ffi-bindings-linux-arm64-gnu@0.13.1':
+    resolution: {integrity: sha512-rnWm3ekPXfHvO18CeRahQw4SF+YPiY3eUVHSbDqHPTTO3ohIfOT09qpC1otbaPm5gQYaQPuM0wUpLXDOPhgG0Q==}
     engines: {node: '>= 18'}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@livekit/rtc-ffi-bindings-linux-x64-gnu@0.12.73':
-    resolution: {integrity: sha512-BrP3IyNkcjldeO+SbnF0hX2mipst8aHiBIiGJcQCd8HEjsaabfkYk4Y5uoNsTVMrUSyrNrJte2itAhuxP9FCSA==}
+  '@livekit/rtc-ffi-bindings-linux-x64-gnu@0.13.1':
+    resolution: {integrity: sha512-jp3CQdwb8gjh/sIL4ur6bVQiQARBnJkZp8sbifbXqWqpYX9lXMvEX5KomPCfsQrHfcuNwYHV4OjrXPXvc5+SEw==}
     engines: {node: '>= 18'}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@livekit/rtc-ffi-bindings-win32-x64-msvc@0.12.73':
-    resolution: {integrity: sha512-2RnKXMTnNfvjJ3kbuhE1jqFNAQNmqSrxy3GlEnByY61tbtY14QPFn8X/0lh+Mjst8pZdfxkXvtbRyPt5KYHvMA==}
+  '@livekit/rtc-ffi-bindings-win32-x64-msvc@0.13.1':
+    resolution: {integrity: sha512-GbEfjBixFbxVx4iWr5J65cIVEdRirzcBdWr17eY2R18qTsr4VVr6mzmorUCq/jwysqE+Sl+d1QWR7oBDQPxbjw==}
     engines: {node: '>= 18'}
     cpu: [x64]
     os: [win32]
 
-  '@livekit/rtc-ffi-bindings@0.12.73':
-    resolution: {integrity: sha512-ZxkCQlsfTG7Eqi6KBXulEWJBUxeRVRYqCc795CsmKsGfqmBX5gE5CnTiynN8fFdzSGwApaVogeGSB6JszCf/Xw==}
+  '@livekit/rtc-ffi-bindings@0.13.1':
+    resolution: {integrity: sha512-bcE1N/lr6SNvOKP4eOxBQNuplJMX21Tbe0nyMhV9Cj/wpXCXCjw3eScwyg1R0M32hKvWpoiJDv+EVVmg13Wq1Q==}
     engines: {node: '>= 18'}
 
-  '@livekit/rtc-node@0.13.35':
-    resolution: {integrity: sha512-ZRkVKie0/6sfKX3J4SrEaQeRJ4pdBi4DlweQ61dAvJqvRIf5NoJCX8SVimmJKwvyLYppbqANezzFGJpU2IxalA==}
+  '@livekit/rtc-node@1.2.1':
+    resolution: {integrity: sha512-Hb1JwzADVfEojEGXMz/WylXjeQQWzHDOKUfOq7clrOsMecqif249CBcWJTwhikSlyI56NzhCOnVlK1/Q3grX1A==}
     engines: {node: '>= 18'}
 
   '@livekit/throws-transformer@0.1.8':
@@ -1102,8 +1102,8 @@ packages:
   fast-copy@3.1.0:
     resolution: {integrity: sha512-IuCOCDFM1F/s4LtG7Bjr3yUUwPHybyhqN74xk2cMYoP51vVeErMy8+6HGFchi/+45lW8uzhs6lBeEqks2GWt6A==}
 
-  fast-copy@4.1.1:
-    resolution: {integrity: sha512-A4QTJmuiztpGtr6AMeJts9R4hbj2ZBUwtOaKrG6rw2y7t6+IaJKjz5M3XDs8BUznxDH43FVc6A0y/gWlMl4UtA==}
+  fast-copy@4.3.1:
+    resolution: {integrity: sha512-CRzQaTFOFUs6PuhsAq7lk9Zqr995soJBcFNZlfJS/5keTSl1awREV9dZW4xS2nX4pWbhIIR0xp4h+J8PQxCkvg==}
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -1527,8 +1527,8 @@ packages:
     resolution: {integrity: sha512-oXwn7ICywaZPHmu3epHGU2oJX4nPmKvHvB/bwrJHlGcbEWaVcotkpyVHMKLKmiVryWYByNp0jpgAcXpFJDXJzA==}
     hasBin: true
 
-  pino-pretty@13.1.3:
-    resolution: {integrity: sha512-ttXRkkOz6WWC95KeY9+xxWL6AtImwbyMHrL1mSwqwW9u+vLp/WIElvHvCSDg0xO/Dzrggz1zv3rN5ovTRVowKg==}
+  pino-pretty@13.2.0:
+    resolution: {integrity: sha512-jjghD1ML+Di/WxjJDz6j6Y4FT7hIXOlb8h27AyJ+ohtAXJXH4PS/xkv7si+RCCIW59HMgZsMKTDgzdr0RhuRrg==}
     hasBin: true
 
   pino-std-serializers@6.2.2:
@@ -1561,8 +1561,8 @@ packages:
   process-warning@3.0.0:
     resolution: {integrity: sha512-mqn0kFRl0EoqhnL0GQ0veqFHyIN1yig9RHh/InzORTUiZHFRAur+aMtRkELNwGs9aNwKS6tg/An4NYBPGwvtzQ==}
 
-  process-warning@5.1.0:
-    resolution: {integrity: sha512-jQSaVHsPgtyw60e1rQ/A+/ArPEj/S8pS/vFnyGa/gYFXrKk/6RuDkoqVDQ5NI5MmS01698ltlAk0NoDBNLujRw==}
+  process-warning@5.1.1:
+    resolution: {integrity: sha512-oCkNVj4OKnKEcocVBcDfiIugN1/cE6rgfT3nCtzeqZPA8+rIxMaQ0xXzIkGP8Gj2qUaP1UR7uhJ1VD8lUCpzCg==}
 
   process@0.11.10:
     resolution: {integrity: sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==}
@@ -1609,8 +1609,8 @@ packages:
   secure-json-parse@2.7.0:
     resolution: {integrity: sha512-6aU+Rwsezw7VR8/nyvKTx8QpWH9FrcYiXXlqC4z5d5XQBDRqtbfsRjnwGyqbi3gddNtWHuEk9OANUotL26qKUw==}
 
-  secure-json-parse@4.1.0:
-    resolution: {integrity: sha512-l4KnYfEyqYJxDwlNVyRfO2E4NTHfMKAWdUuA8J0yve2Dz/E/PdBepY03RvyJpssIpRFwJoCD55wA+mEDs6ByWA==}
+  secure-json-parse@4.1.1:
+    resolution: {integrity: sha512-lnd81MQEZKjhW/Gd2TQqdd4XP6QYNdDW/EP+I7nTrFHP9y2LmaGPIHk9xsnzcOiEr1c39c/e84xFgGviQKBTRw==}
 
   semver@7.8.5:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
@@ -1642,6 +1642,9 @@ packages:
 
   sonic-boom@4.2.1:
     resolution: {integrity: sha512-w6AxtubXa2wTXAUsZMMWERrsIRAdrK0Sc+FUytWvYAhBJLyuI4llrMIC1DtlNSdI99EI86KZum2MMq3EAZlF9Q==}
+
+  sonic-boom@5.0.2:
+    resolution: {integrity: sha512-/JEruzo6yhNVhsLblTRchgTQHIt7SsdJP0YyrfWaNKjIOQDfrdZv9gwYraYCAsmKV39/LAdV31FLL5NCDpoL/A==}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -2096,7 +2099,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@livekit/agents@1.9.4(@livekit/rtc-node@0.13.35)(@types/node@24.19.0)(typescript@5.9.3)(zod@4.6.7)':
+  '@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@24.19.0)(typescript@5.9.3)(zod@4.6.7)':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
       '@livekit/av': 10.1.0
@@ -2104,7 +2107,7 @@ snapshots:
       '@livekit/local-inference': 0.2.7
       '@livekit/mutex': 1.1.1
       '@livekit/protocol': 1.53.1
-      '@livekit/rtc-node': 0.13.35
+      '@livekit/rtc-node': 1.2.1
       '@livekit/throws-transformer': 0.1.8(typescript@5.9.3)
       '@livekit/typed-emitter': 3.0.0
       '@opentelemetry/api': 1.10.0
@@ -2239,39 +2242,39 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
-  '@livekit/rtc-ffi-bindings-darwin-arm64@0.12.73':
+  '@livekit/rtc-ffi-bindings-darwin-arm64@0.13.1':
     optional: true
 
-  '@livekit/rtc-ffi-bindings-darwin-x64@0.12.73':
+  '@livekit/rtc-ffi-bindings-darwin-x64@0.13.1':
     optional: true
 
-  '@livekit/rtc-ffi-bindings-linux-arm64-gnu@0.12.73':
+  '@livekit/rtc-ffi-bindings-linux-arm64-gnu@0.13.1':
     optional: true
 
-  '@livekit/rtc-ffi-bindings-linux-x64-gnu@0.12.73':
+  '@livekit/rtc-ffi-bindings-linux-x64-gnu@0.13.1':
     optional: true
 
-  '@livekit/rtc-ffi-bindings-win32-x64-msvc@0.12.73':
+  '@livekit/rtc-ffi-bindings-win32-x64-msvc@0.13.1':
     optional: true
 
-  '@livekit/rtc-ffi-bindings@0.12.73':
+  '@livekit/rtc-ffi-bindings@0.13.1':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
     optionalDependencies:
-      '@livekit/rtc-ffi-bindings-darwin-arm64': 0.12.73
-      '@livekit/rtc-ffi-bindings-darwin-x64': 0.12.73
-      '@livekit/rtc-ffi-bindings-linux-arm64-gnu': 0.12.73
-      '@livekit/rtc-ffi-bindings-linux-x64-gnu': 0.12.73
-      '@livekit/rtc-ffi-bindings-win32-x64-msvc': 0.12.73
+      '@livekit/rtc-ffi-bindings-darwin-arm64': 0.13.1
+      '@livekit/rtc-ffi-bindings-darwin-x64': 0.13.1
+      '@livekit/rtc-ffi-bindings-linux-arm64-gnu': 0.13.1
+      '@livekit/rtc-ffi-bindings-linux-x64-gnu': 0.13.1
+      '@livekit/rtc-ffi-bindings-win32-x64-msvc': 0.13.1
 
-  '@livekit/rtc-node@0.13.35':
+  '@livekit/rtc-node@1.2.1':
     dependencies:
       '@datastructures-js/deque': 1.0.8
       '@livekit/mutex': 1.1.1
-      '@livekit/rtc-ffi-bindings': 0.12.73
+      '@livekit/rtc-ffi-bindings': 0.13.1
       '@livekit/typed-emitter': 3.0.0
       pino: 9.14.0
-      pino-pretty: 13.1.3
+      pino-pretty: 13.2.0
 
   '@livekit/throws-transformer@0.1.8(typescript@5.9.3)':
     dependencies:
@@ -2867,7 +2870,7 @@ snapshots:
 
   fast-copy@3.1.0: {}
 
-  fast-copy@4.1.1: {}
+  fast-copy@4.3.1: {}
 
   fast-deep-equal@3.1.3: {}
 
@@ -3217,11 +3220,11 @@ snapshots:
       sonic-boom: 4.2.1
       strip-json-comments: 3.1.1
 
-  pino-pretty@13.1.3:
+  pino-pretty@13.2.0:
     dependencies:
       colorette: 2.0.20
       dateformat: 4.6.3
-      fast-copy: 4.1.1
+      fast-copy: 4.3.1
       fast-safe-stringify: 2.1.1
       help-me: 5.0.0
       joycon: 3.1.1
@@ -3229,8 +3232,8 @@ snapshots:
       on-exit-leak-free: 2.1.2
       pino-abstract-transport: 3.0.0
       pump: 3.0.4
-      secure-json-parse: 4.1.0
-      sonic-boom: 4.2.1
+      secure-json-parse: 4.1.1
+      sonic-boom: 5.0.2
       strip-json-comments: 5.0.3
 
   pino-std-serializers@6.2.2: {}
@@ -3258,7 +3261,7 @@ snapshots:
       on-exit-leak-free: 2.1.2
       pino-abstract-transport: 2.0.0
       pino-std-serializers: 7.1.0
-      process-warning: 5.1.0
+      process-warning: 5.1.1
       quick-format-unescaped: 4.0.4
       real-require: 0.2.0
       safe-stable-stringify: 2.5.0
@@ -3277,7 +3280,7 @@ snapshots:
 
   process-warning@3.0.0: {}
 
-  process-warning@5.1.0: {}
+  process-warning@5.1.1: {}
 
   process@0.11.10: {}
 
@@ -3336,7 +3339,7 @@ snapshots:
 
   secure-json-parse@2.7.0: {}
 
-  secure-json-parse@4.1.0: {}
+  secure-json-parse@4.1.1: {}
 
   semver@7.8.5: {}
 
@@ -3386,6 +3389,10 @@ snapshots:
       atomic-sleep: 1.0.0
 
   sonic-boom@4.2.1:
+    dependencies:
+      atomic-sleep: 1.0.0
+
+  sonic-boom@5.0.2:
     dependencies:
       atomic-sleep: 1.0.0
 
