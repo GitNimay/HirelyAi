@@ -201,11 +201,14 @@ jobs:
         with:
           fetch-depth: 0 # OCR needs the merge base with the target branch
           persist-credentials: false
-      # Review with the base branch's rules and skills, so a PR can't relax what it is reviewed against
+      # Every file that steers the agent (rules, skills, agent instructions, OpenCode config) comes from the base branch,
+      # or is removed, so a PR can't talk its own review into a PASS. Only the rules file falls back to the PR's copy,
+      # once, for the PR that first adds it.
       - name: Use review config from the base branch
         run: |
-          for p in .github/ai-review-rules.md .opencode .claude/skills; do
-            if git cat-file -e "origin/$BASE:$p" 2>/dev/null; then rm -rf "$p"; git checkout "origin/$BASE" -- "$p"; fi
+          for p in .github/ai-review-rules.md .opencode .claude AGENTS.md CLAUDE.md opencode.json opencode.jsonc; do
+            if git cat-file -e "origin/$BASE:$p" 2>/dev/null; then rm -rf "$p"; git checkout "origin/$BASE" -- "$p"
+            elif [ "$p" != .github/ai-review-rules.md ]; then rm -rf "$p"; fi
           done
         env:
           BASE: ${{ github.base_ref }}
@@ -218,21 +221,51 @@ jobs:
         run: |
           skip() { echo "::warning::$1"; printf 'VERDICT: SKIPPED\n\n> [!WARNING]\n> %s Not blocking this PR.\n' "$1" > review.md; exit 0; }
           [ -n "$OPENCODE_API_KEY" ] || skip "AI review skipped: OPENCODE_API_KEY is not configured."
+          # The exit code is ignored on purpose: a review.md with a verdict counts even if the agent exits non-zero after writing it
           opencode run --auto -m 'opencode/glm-5.3-flash-free#high' \
-            "Review this pull request with the open-code-review-delegate skill in range mode (--from origin/$BASE --to HEAD), passing --background-file .github/ai-review-rules.md to ocr delegate preview. Enforce the project rules in .github/ai-review-rules.md on top of the OCR rules. Report only real findings, each with path:line, under the headings Blocking and Non-blocking. Write the result as GitHub markdown to review.md in the repo root. Its first line must be exactly 'VERDICT: BLOCK' if there is any critical or high severity issue or any violation of a BLOCK rule, otherwise exactly 'VERDICT: PASS'. Follow it with a one-line summary and the coverage stats. Do not modify any other file." \
-            || skip "AI review could not finish (model error or usage limit). Re-run the job to try again."
-          head -1 review.md 2>/dev/null | grep -qE 'VERDICT: (PASS|BLOCK)' || skip "AI review returned no verdict."
+            "Review this pull request with the open-code-review-delegate skill in range mode (--from origin/$BASE --to HEAD), passing --background-file .github/ai-review-rules.md to ocr delegate preview. Enforce the project rules in .github/ai-review-rules.md on top of the OCR rules. Report only real findings, each with path:line, under the headings Blocking and Non-blocking. Write two files in the repo root and modify nothing else. (1) review.md, GitHub markdown: its first line must be exactly 'VERDICT: BLOCK' if there is any critical or high severity issue or any violation of a BLOCK rule, otherwise exactly 'VERDICT: PASS'; then a one-line summary, the coverage stats and the findings. (2) findings.json: a JSON array with one object per finding, {\"path\": repo-relative path, \"line\": line number in the new file, \"severity\": \"critical\"|\"high\"|\"medium\"|\"low\", \"blocking\": true|false, \"body\": the finding and its fix in markdown}; write [] when there are none." \
+            || echo "::warning::opencode exited non-zero"
+          [ -f review.md ] || skip "AI review could not finish (model error or usage limit). Re-run the job to try again."
+          head -1 review.md | tr -d '\r' | grep -qxE 'VERDICT: (PASS|BLOCK)' || skip "AI review returned no verdict."
         env:
           BASE: ${{ github.base_ref }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-      # One comment per PR, updated on every push
-      - run: gh pr comment "$PR" --body-file review.md --edit-last --create-if-none
+      # One summary comment per PR for every verdict (pass, block or skipped), updated on every push
+      - name: Post summary comment
+        run: |
+          sed -e '1s/\r$//' \
+              -e '1s/^VERDICT: PASS$/## ✅ AI review: pass, no blocking issues/' \
+              -e '1s/^VERDICT: BLOCK$/## ❌ AI review: blocked, fix the blocking issues below before merging/' \
+              -e '1s/^VERDICT: SKIPPED$/## ⚠️ AI review: skipped/' review.md > comment.md
+          gh pr comment "$PR" --body-file comment.md --edit-last --create-if-none
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+      # Each finding also goes on its line in "Files changed". Best effort: GitHub rejects lines outside the diff,
+      # and a finding already commented on that line by an earlier run isn't repeated.
+      - name: Comment findings on their lines
+        if: hashFiles('findings.json') != ''
+        continue-on-error: true
+        run: |
+          jq -e 'type == "array"' findings.json > /dev/null || { echo "::warning::findings.json is not a JSON array"; exit 0; }
+          seen=$(gh api --paginate "repos/$REPO/pulls/$PR/comments" --jq '.[] | select(.body | contains("<!-- ai-review -->")) | "\(.path):\(.line)"')
+          jq -c '.[] | select(.path and .line)' findings.json | while read -r f; do
+            key=$(jq -r '"\(.path):\(.line)"' <<< "$f")
+            grep -qxF "$key" <<< "$seen" && continue
+            jq --arg sha "$SHA" '{
+                body: ((if .blocking then "❌ **Blocking**" else "💬 **Non-blocking**" end) + " · \(.severity // "note")\n\n\(.body)\n\n<!-- ai-review -->"),
+                path, line: (.line | tonumber), side: "RIGHT", commit_id: $sha
+              }' <<< "$f" | gh api "repos/$REPO/pulls/$PR/comments" --input - > /dev/null \
+              || echo "::notice::No inline comment for $key (line is outside the diff); it is in the summary comment"
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
       - name: Gate on verdict
         run: |
-          head -1 review.md | grep -q 'VERDICT: BLOCK' || exit 0
+          head -1 review.md | tr -d '\r' | grep -qx 'VERDICT: BLOCK' || exit 0
           if gh pr view "$PR" --json labels --jq '.labels[].name' | grep -qx ai-review-override; then
             echo "::warning::Blocking AI findings overridden by the ai-review-override label"; exit 0
           fi
