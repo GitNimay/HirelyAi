@@ -183,25 +183,14 @@ jobs:
           deny-licenses: GPL-2.0-only, GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
           comment-summary-in-pr: on-failure
 
-  # The one required status check: add jobs above freely without touching the ruleset
-  ci-ok:
-    name: CI OK
-    if: always()
-    needs: [lint, format, typecheck, unit, build, integration, agent, dependency-review]
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    permissions: {}
-    steps:
-      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
-      - run: echo "All checks passed"
-
-  # AI review after every check passes: OpenCode (GLM 5.3, free Zen tier) runs alibaba/open-code-review's delegate skill
-  # (.opencode/skills). Advisory only: not in ci-ok.needs, so it never blocks a merge.
+  # AI review, PRs only (never on the push to main that deploys). Runs once every check above has passed, so a broken
+  # PR spends no model tokens. OpenCode (free Zen GLM 5.3) runs alibaba/open-code-review's delegate skill against
+  # .github/ai-review-rules.md. A BLOCK verdict fails CI OK; the ai-review-override label lets a false positive through.
+  # Fails open: a missing key, model error or rate limit posts a warning and never blocks.
   # Same-repo, non-Dependabot PRs only: forks and Dependabot don't get OPENCODE_API_KEY.
   ai-review:
-    needs: ci-ok
-    if: ${{ !cancelled() && needs.ci-ok.result == 'success' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    needs: [lint, format, typecheck, unit, build, integration, agent, dependency-review]
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -212,6 +201,14 @@ jobs:
         with:
           fetch-depth: 0 # OCR needs the merge base with the target branch
           persist-credentials: false
+      # Review with the base branch's rules and skills, so a PR can't relax what it is reviewed against
+      - name: Use review config from the base branch
+        run: |
+          for p in .github/ai-review-rules.md .opencode .claude/skills; do
+            if git cat-file -e "origin/$BASE:$p" 2>/dev/null; then rm -rf "$p"; git checkout "origin/$BASE" -- "$p"; fi
+          done
+        env:
+          BASE: ${{ github.base_ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
@@ -219,9 +216,12 @@ jobs:
       # No GitHub token in this step: the agent runs shell commands on PR content, so it only gets the model key
       - name: Review
         run: |
+          skip() { echo "::warning::$1"; printf 'VERDICT: SKIPPED\n\n> [!WARNING]\n> %s Not blocking this PR.\n' "$1" > review.md; exit 0; }
+          [ -n "$OPENCODE_API_KEY" ] || skip "AI review skipped: OPENCODE_API_KEY is not configured."
           opencode run --auto -m 'opencode/glm-5.3-flash-free#high' \
-            "Use the open-code-review-delegate skill to review this pull request in range mode: --from origin/$BASE --to HEAD. Report only real findings, grouped by severity, each with path:line. Write the final review as GitHub markdown to review.md in the repo root, starting with a one-line summary and the coverage stats. Do not modify any other file."
-          test -s review.md
+            "Review this pull request with the open-code-review-delegate skill in range mode (--from origin/$BASE --to HEAD), passing --background-file .github/ai-review-rules.md to ocr delegate preview. Enforce the project rules in .github/ai-review-rules.md on top of the OCR rules. Report only real findings, each with path:line, under the headings Blocking and Non-blocking. Write the result as GitHub markdown to review.md in the repo root. Its first line must be exactly 'VERDICT: BLOCK' if there is any critical or high severity issue or any violation of a BLOCK rule, otherwise exactly 'VERDICT: PASS'. Follow it with a one-line summary and the coverage stats. Do not modify any other file." \
+            || skip "AI review could not finish (model error or usage limit). Re-run the job to try again."
+          head -1 review.md 2>/dev/null | grep -qE 'VERDICT: (PASS|BLOCK)' || skip "AI review returned no verdict."
         env:
           BASE: ${{ github.base_ref }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -230,6 +230,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+      - name: Gate on verdict
+        run: |
+          head -1 review.md | grep -q 'VERDICT: BLOCK' || exit 0
+          if gh pr view "$PR" --json labels --jq '.labels[].name' | grep -qx ai-review-override; then
+            echo "::warning::Blocking AI findings overridden by the ai-review-override label"; exit 0
+          fi
+          echo "::error::AI review found blocking issues (see the PR comment). Fix them, or add the ai-review-override label and re-run failed jobs."
+          exit 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+
+  # The one required status check: add jobs above freely without touching the ruleset
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [lint, format, typecheck, unit, build, integration, agent, dependency-review, ai-review]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "All checks passed"
 
   # Merge to main = production deploy. Runs only after every check passes on the merge commit.
   deploy:
