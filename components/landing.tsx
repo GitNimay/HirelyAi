@@ -5,7 +5,7 @@ import { HeroDashboard } from "./hero-dashboard";
 import { HowItWorks } from "./landing-steps";
 import { Wordmark } from "./landing-wordmark";
 import { Reveal, RevealWords } from "./reveal";
-import { FeatureShowcase } from "./landing-features";
+import { FeatureGrid } from "./landing-features";
 import { Icon, btnOutline, btnPrimary, icons } from "./ui";
 
 /* Landing page. Type scale is three sizes (display, text-sm, text-xs) in two weights (normal, medium). */
@@ -133,10 +133,15 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <Reveal i={3} className="w-full"><HeroDashboard /></Reveal>
         </section>
 
-        <section id="features" className={section}>
-          <Heading a="A consistent first round" b="for every applicant." />
-          <Reveal as="p" i={1} className={`${lede} mt-4 max-w-md`}>From application to shortlist, the entire screening stage is managed on a single platform.</Reveal>
-          <Reveal i={2}><FeatureShowcase /></Reveal>
+        <section id="features" className={`${section} grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-center lg:gap-14`}>
+          <div className="lg:order-2">
+            <Heading a="Every step of a hire," b="in one place." />
+            <Reveal as="p" i={1} className={`${lede} mt-4 max-w-md`}>Post a role, screen with a short test, run a voice interview and read a graded report, without switching tools.</Reveal>
+            <Reveal i={2} className="mt-7">
+              <Link href={signedIn ? "/dashboard/jobs/post" : "/sign-up"} className={`${btnPrimary} ${pill}`}>Post a job</Link>
+            </Reveal>
+          </div>
+          <Reveal i={2}><FeatureGrid moreHref={cta.href} /></Reveal>
         </section>
 
         <HowItWorks>
