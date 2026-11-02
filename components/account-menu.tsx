@@ -45,8 +45,8 @@ export function ThemeToggle() {
 }
 
 /**
- * Account settings, theme and log out. In the sidebar it's a drop-up under your name; `compact` is a gear
- * button that drops down, for phones (where the sidebar is hidden) in the top bar or a profile's header.
+ * Account settings, theme and log out. In the sidebar it's a drop-up under your name; `compact` is your
+ * avatar as a button that drops down, for phones (where the sidebar is hidden) in the top bar or a profile's header.
  */
 export function AccountMenu({
   name,
