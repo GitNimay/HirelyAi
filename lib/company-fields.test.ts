@@ -1,79 +1,111 @@
-import assert from "node:assert/strict";
-import { cleanCompany, domainOf, linkExperience, memberRows, onDomain } from "./company-fields.ts";
-import { cleanResume, emptyExperience } from "./resume-fields.ts";
+import { describe, expect, it } from "vitest";
+import { cleanCompany, domainOf, linkExperience, memberRows, onDomain } from "./company-fields";
+import { cleanResume, emptyExperience } from "./resume-fields";
 
-assert.equal(domainOf("https://www.Acme.com/careers"), "acme.com");
-assert.equal(domainOf("https://gmail.com/"), null); // free mail never proves anything
-assert.equal(domainOf(null), null);
-assert.equal(domainOf("https://yahoo.co.uk"), null); // webmail under a country suffix
-assert.equal(domainOf("https://hotmail.fr"), null);
-assert.equal(domainOf("https://co.uk"), null); // a public suffix would match every .co.uk address
-assert.equal(domainOf("https://com.au"), null);
-assert.equal(domainOf("https://acme.co.uk"), "acme.co.uk");
-assert.equal(domainOf("https://mail.acme.com"), "mail.acme.com");
-assert.ok(!onDomain("ada@yahoo.co.uk", "co.uk"));
-assert.ok(onDomain("ada@acme.co.uk", "acme.co.uk"));
+describe("domainOf", () => {
+  it.each([
+    ["https://www.Acme.com/careers", "acme.com"],
+    ["https://acme.co.uk", "acme.co.uk"],
+    ["https://mail.acme.com", "mail.acme.com"],
+  ])("takes %s as %s", (url, domain) => {
+    expect(domainOf(url)).toBe(domain);
+  });
 
-assert.ok(onDomain("Ada@ACME.com", "acme.com"));
-assert.ok(onDomain("ada@eng.acme.com", "acme.com"));
-assert.ok(!onDomain("ada@notacme.com", "acme.com"));
-assert.ok(!onDomain("ada@acme.com.evil.io", "acme.com"));
-assert.ok(!onDomain("ada@gmail.com", "gmail.com"));
-assert.ok(!onDomain("ada@acme.com", null));
-
-const c = cleanCompany(
-  {
-    name: "  Acme   Corp ",
-    slug: "Acme",
-    website: "acme.com",
-    industry: "Internet",
-    size: "huge",
-    founded: "1999",
-    specialties: "AI, ai, Cloud ,",
-  },
-  2026,
-);
-assert.ok(typeof c === "object");
-assert.equal(c.name, "Acme Corp");
-assert.equal(c.slug, "acme");
-assert.equal(c.domain, "acme.com");
-assert.equal(c.industry, "Internet");
-assert.equal(c.size, null); // not in the allowlist
-assert.deepEqual(c.specialties, ["AI", "Cloud"]);
-assert.equal(typeof cleanCompany({ name: "Acme", slug: "a" }), "string");
-assert.equal(typeof cleanCompany({ name: "Acme", slug: "acme", website: "javascript:alert(1)" }), "string");
-assert.equal(typeof cleanCompany({ name: "Acme", slug: "acme", founded: "3000" }, 2026), "string");
-
-// Linking: a known id wins (and takes the page's name), else a unique exact name, else free text
-const x = (company: string, companyId?: string, current = false) => ({
-  ...emptyExperience(),
-  title: "Eng",
-  company,
-  companyId,
-  current,
+  // Free mail and public suffixes would let anyone "verify" as an employee
+  it.each(["https://gmail.com/", "https://yahoo.co.uk", "https://hotmail.fr", "https://co.uk", "https://com.au", null])(
+    "refuses %s",
+    (url) => {
+      expect(domainOf(url)).toBeNull();
+    },
+  );
 });
-const pages = [
-  { id: "a", name: "Acme" },
-  { id: "b", name: "Beta" },
-  { id: "b2", name: "Beta" },
-];
-const linked = linkExperience([x("acme"), x("Old name", "a"), x("Beta"), x("Gamma"), x("Gamma", "gone")], pages);
-assert.deepEqual(
-  linked.map((e) => [e.company, e.companyId]),
-  [
-    ["Acme", "a"],
-    ["Acme", "a"],
-    ["Beta", undefined],
-    ["Gamma", undefined],
-    ["Gamma", undefined],
-  ],
-);
 
-assert.deepEqual(memberRows([x("Acme", "a"), x("Acme", "a", true), x("Gamma")]), [
-  { companyId: "a", title: "Eng", current: true },
-]);
+describe("onDomain", () => {
+  it.each([
+    ["Ada@ACME.com", "acme.com"],
+    ["ada@eng.acme.com", "acme.com"],
+    ["ada@acme.co.uk", "acme.co.uk"],
+  ])("accepts %s on %s", (email, domain) => {
+    expect(onDomain(email, domain)).toBe(true);
+  });
 
-// cleanResume keeps the link, and never adds an empty one
-assert.equal(cleanResume({ experience: [x("Acme", "a")] }).experience[0].companyId, "a");
-assert.ok(!("companyId" in cleanResume({ experience: [x("Acme")] }).experience[0]));
-console.log("company-fields: ok");
+  it.each([
+    ["ada@notacme.com", "acme.com"],
+    ["ada@acme.com.evil.io", "acme.com"],
+    ["ada@gmail.com", "gmail.com"],
+    ["ada@yahoo.co.uk", "co.uk"],
+    ["ada@acme.com", null],
+  ])("rejects %s on %s", (email, domain) => {
+    expect(onDomain(email, domain)).toBe(false);
+  });
+});
+
+describe("cleanCompany", () => {
+  it("normalises the page and drops values outside the allowlists", () => {
+    const c = cleanCompany(
+      {
+        name: "  Acme   Corp ",
+        slug: "Acme",
+        website: "acme.com",
+        industry: "Internet",
+        size: "huge",
+        founded: "1999",
+        specialties: "AI, ai, Cloud ,",
+      },
+      2026,
+    );
+    expect(c).toMatchObject({
+      name: "Acme Corp",
+      slug: "acme",
+      domain: "acme.com",
+      industry: "Internet",
+      size: null,
+      specialties: ["AI", "Cloud"],
+    });
+  });
+
+  it.each([
+    ["a too-short slug", { name: "Acme", slug: "a" }],
+    ["a javascript: website", { name: "Acme", slug: "acme", website: "javascript:alert(1)" }],
+    ["a founding year in the future", { name: "Acme", slug: "acme", founded: "3000" }],
+  ])("returns an error message for %s", (_, input) => {
+    expect(cleanCompany(input, 2026)).toBeTypeOf("string");
+  });
+});
+
+describe("linking experience to pages", () => {
+  const x = (company: string, companyId?: string, current = false) => ({
+    ...emptyExperience(),
+    title: "Eng",
+    company,
+    companyId,
+    current,
+  });
+
+  it("prefers a known id, then a unique exact name, else keeps free text", () => {
+    const pages = [
+      { id: "a", name: "Acme" },
+      { id: "b", name: "Beta" },
+      { id: "b2", name: "Beta" },
+    ];
+    const linked = linkExperience([x("acme"), x("Old name", "a"), x("Beta"), x("Gamma"), x("Gamma", "gone")], pages);
+    expect(linked.map((e) => [e.company, e.companyId])).toEqual([
+      ["Acme", "a"],
+      ["Acme", "a"],
+      ["Beta", undefined],
+      ["Gamma", undefined],
+      ["Gamma", undefined],
+    ]);
+  });
+
+  it("derives one membership per page, current if any role there is current", () => {
+    expect(memberRows([x("Acme", "a"), x("Acme", "a", true), x("Gamma")])).toEqual([
+      { companyId: "a", title: "Eng", current: true },
+    ]);
+  });
+
+  it("survives cleanResume, which never adds an empty link", () => {
+    expect(cleanResume({ experience: [x("Acme", "a")] }).experience[0].companyId).toBe("a");
+    expect(cleanResume({ experience: [x("Acme")] }).experience[0]).not.toHaveProperty("companyId");
+  });
+});

@@ -90,12 +90,25 @@ Add your keys to `.env.local` (Clerk, Bedrock, Resend, LiveKit, Turnstile) and p
 
 ## Scripts
 
-| Command             |                        |
-| ------------------- | ---------------------- |
-| `npm run dev`       | Dev server on :3000    |
-| `npm test`          | Unit tests             |
-| `npm run typecheck` | Type check             |
-| `npm run deploy`    | Build, migrate, deploy |
+| Command                    |                                                 |
+| -------------------------- | ----------------------------------------------- |
+| `npm run dev`              | Dev server on :3000                             |
+| `npm test`                 | All tests (unit + integration)                  |
+| `npm run test:unit`        | Unit tests only (fast, no database)             |
+| `npm run test:integration` | Integration tests against a local D1 and R2     |
+| `npm run test:watch`       | Re-run affected tests on save                   |
+| `npm run test:coverage`    | All tests with a coverage report in `coverage/` |
+| `npm run typecheck`        | Type check                                      |
+| `npm run deploy`           | Build, migrate, deploy                          |
+
+## Tests
+
+[Vitest](https://vitest.dev), in two projects (`vitest.config.ts`):
+
+- **Unit**, next to the code (`lib/*.test.ts`, `app/**/*.test.ts`): pure logic, plus modules whose only outside calls (fetch, Clerk, analytics) are mocked. No database.
+- **Integration** (`tests/integration/`): code that reads or writes D1 and R2 runs against a real local database. A global setup applies every file in `migrations/` with `wrangler d1 migrations apply`, and each test file gets its own copy, so files run in parallel. Tests build their own rows with the factories in `tests/integration/factories.ts` and never depend on each other. Only Clerk, the realtime Durable Object, Bedrock and other external HTTP calls are mocked.
+
+The integration Worker config (`tests/integration/wrangler.jsonc`) has dummy values and no `.dev.vars`, so tests never see real secrets or touch remote resources. CI runs everything with coverage and fails below the floor set in `vitest.config.ts`. The CI `integration` job then smoke-tests the built Worker over HTTP.
 
 ---
 

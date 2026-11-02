@@ -61,7 +61,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
 
-  unit:
+  # Vitest: unit tests (lib/, app/) and integration tests against a real local D1/R2 built from migrations/.
+  # Runs alongside build (it doesn't need it) and fails under the coverage floor in vitest.config.ts.
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -75,7 +77,26 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
+      # github-actions reporter: failures show as annotations on the PR's changed lines
+      - run: npm run test:coverage -- --reporter=default --reporter=github-actions
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f coverage/coverage-summary.json ] || exit 0
+          {
+            echo "### Coverage"
+            echo
+            echo "| | % |"
+            echo "|---|---|"
+            jq -r '.total | to_entries[] | "| \(.key) | \(.value.pct) |"' coverage/coverage-summary.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
 
   build:
     runs-on: ubuntu-latest
@@ -189,7 +210,7 @@ jobs:
   # Fails open: a missing key, model error or rate limit posts a warning and never blocks.
   # Same-repo, non-Dependabot PRs only: forks and Dependabot don't get OPENCODE_API_KEY.
   ai-review:
-    needs: [lint, format, typecheck, unit, build, integration, agent, dependency-review]
+    needs: [lint, format, typecheck, test, build, integration, agent, dependency-review]
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -279,7 +300,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [lint, format, typecheck, unit, build, integration, agent, dependency-review, ai-review]
+    needs: [lint, format, typecheck, test, build, integration, agent, dependency-review, ai-review]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}

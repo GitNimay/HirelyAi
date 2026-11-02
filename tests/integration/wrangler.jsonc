@@ -1,0 +1,28 @@
+// Test-only Worker config for the integration suite. Wrangler reads .dev.vars / .env* next to the config file,
+// and this folder has none, so tests can never pick up a real secret. Only local bindings: nothing remote is touched.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "hire-excellence-test",
+  "compatibility_date": "2026-09-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hire-excellence-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../../migrations",
+    },
+  ],
+  "kv_namespaces": [{ "binding": "CACHE", "id": "00000000000000000000000000000000" }],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "hire-excellence-media-test" }],
+  "queues": { "producers": [{ "binding": "TASKS", "queue": "hire-excellence-tasks-test" }] },
+  "vars": {
+    "APP_URL": "https://test.hire-excellence.local",
+    "TURNSTILE_SECRET": "test-turnstile-secret",
+    "TURNSTILE_HOSTNAMES": "test.hire-excellence.local",
+    "CLERK_SECRET_KEY": "sk_test_integration_dummy",
+    "BEDROCK_BASE_URL": "https://bedrock.test.invalid/v1",
+    "BEDROCK_API_KEY": "test-bedrock-key",
+    "LIVEKIT_URL": "wss://livekit.test.invalid",
+  },
+}
