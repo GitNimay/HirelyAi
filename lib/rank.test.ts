@@ -1,6 +1,5 @@
-// Run: node --experimental-strip-types lib/rank.test.ts
-import assert from "node:assert/strict";
-import { rank, type Candidate } from "./rank.ts";
+import { describe, expect, it } from "vitest";
+import { rank, type Candidate } from "./rank";
 
 const now = Date.UTC(2026, 0, 1);
 const H = 3_600_000;
@@ -15,31 +14,36 @@ const post = (id: string, author: string, ageH: number, likes = 0, extra: Partia
   reposts: 0,
   ...extra,
 });
+const order = (c: Candidate[], aff = new Map<string, number>()) => rank(c, "me", aff, now).map((p) => p.entryId);
 
-// Newer beats older at equal engagement
-assert.deepEqual(
-  rank([post("old", "a", 10), post("new", "b", 1)], "me", new Map(), now).map((p) => p.entryId),
-  ["new", "old"],
-);
+describe("rank", () => {
+  it("puts newer before older at equal engagement", () => {
+    expect(order([post("old", "a", 10), post("new", "b", 1)])).toEqual(["new", "old"]);
+  });
 
-// Affinity: an author I interact with outranks a stranger's slightly newer post
-assert.equal(
-  rank([post("stranger", "b", 1), post("friend", "a", 2)], "me", new Map([["a", 20]]), now)[0].entryId,
-  "friend",
-);
+  it("lets an author I interact with outrank a stranger's slightly newer post", () => {
+    expect(order([post("stranger", "b", 1), post("friend", "a", 2)], new Map([["a", 20]]))[0]).toBe("friend");
+  });
 
-// Engagement: a popular post beats a quiet one of the same age
-assert.equal(rank([post("quiet", "a", 3), post("viral", "b", 3, 500)], "me", new Map(), now)[0].entryId, "viral");
+  it("puts a popular post above a quiet one of the same age", () => {
+    expect(order([post("quiet", "a", 3), post("viral", "b", 3, 500)])[0]).toBe("viral");
+  });
 
-// Dedupe: original + repost of the same post collapse to one entry
-const repost = post("r1", "c", 0.5, 0, { targetId: "p1", targetAuthor: "a" });
-assert.equal(rank([post("p1", "a", 2), repost], "me", new Map(), now).length, 1);
+  it("collapses an original and its repost into one entry", () => {
+    const repost = post("r1", "c", 0.5, 0, { targetId: "p1", targetAuthor: "a" });
+    expect(order([post("p1", "a", 2), repost])).toHaveLength(1);
+  });
 
-// Diversity: 3 posts from one author don't all come before another author's equal post
-const flood = [post("a1", "a", 1), post("a2", "a", 1.01), post("a3", "a", 1.02), post("b1", "b", 1.03)];
-assert.ok(rank(flood, "me", new Map(), now).findIndex((p) => p.entryId === "b1") < 3);
+  it("keeps one author from flooding the top", () => {
+    const flood = [post("a1", "a", 1), post("a2", "a", 1.01), post("a3", "a", 1.02), post("b1", "b", 1.03)];
+    expect(order(flood).indexOf("b1")).toBeLessThan(3);
+  });
 
-// My own fresh post is pinned first for me
-assert.equal(rank([post("viral", "b", 0.2, 900), post("mine", "me", 0.5)], "me", new Map(), now)[0].entryId, "mine");
+  it("pins my own fresh post first for me", () => {
+    expect(order([post("viral", "b", 0.2, 900), post("mine", "me", 0.5)])[0]).toBe("mine");
+  });
 
-console.log("rank: ok");
+  it("returns an empty list for no candidates", () => {
+    expect(order([])).toEqual([]);
+  });
+});

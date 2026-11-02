@@ -1,38 +1,62 @@
-import assert from "node:assert/strict";
-import { avgMs, lastDays, state, tone, totals, uptime } from "./status-fields.ts";
+import { describe, expect, it } from "vitest";
+import { avgMs, lastDays, state, tone, totals, uptime, type Day } from "./status-fields";
 
-assert.equal(tone(undefined), "none");
-assert.equal(tone({ day: "", total: 96, failed: 0, ms: 0, ms_count: 0 }), "up");
-assert.equal(tone({ day: "", total: 96, failed: 2, ms: 0, ms_count: 0 }), "degraded");
-assert.equal(tone({ day: "", total: 96, failed: 40, ms: 0, ms_count: 0 }), "down");
-assert.equal(uptime([]), null);
-assert.equal(uptime([{ day: "", total: 10000, failed: 0, ms: 0, ms_count: 0 }]), "100%");
-assert.equal(uptime([{ day: "", total: 100000, failed: 4, ms: 0, ms_count: 0 }]), "99.99%");
+const day = (total: number, failed = 0, ms = 0, ms_count = 0): Day => ({ day: "", total, failed, ms, ms_count });
 
-// totals sums every field across a window (works per component or across components)
-assert.deepEqual(totals([]), { total: 0, failed: 0, ms: 0, ms_count: 0 });
-assert.deepEqual(
-  totals([
-    { day: "", total: 96, failed: 1, ms: 100, ms_count: 95 },
-    { day: "", total: 96, failed: 0, ms: 202, ms_count: 96 },
-  ]),
-  { total: 192, failed: 1, ms: 302, ms_count: 191 },
-);
+describe("tone", () => {
+  it.each([
+    [undefined, "none"],
+    [day(96), "up"],
+    [day(96, 2), "degraded"],
+    [day(96, 40), "down"],
+  ])("colours %j as %s", (d, expected) => {
+    expect(tone(d)).toBe(expected);
+  });
+});
 
-// average latency comes from a day's successful checks only
-assert.equal(avgMs({ day: "", total: 3, failed: 1, ms: 301, ms_count: 2 }), 151);
-assert.equal(avgMs({ day: "", total: 96, failed: 0, ms: 0, ms_count: 0 }), undefined);
-assert.equal(avgMs(undefined), undefined);
+describe("uptime", () => {
+  it("is null without data and rounds to two decimals", () => {
+    expect(uptime([])).toBeNull();
+    expect(uptime([day(10000)])).toBe("100%");
+    expect(uptime([day(100000, 4)])).toBe("99.99%");
+  });
+});
 
-// current state: the probe's result wins, then any failure recorded today
-assert.equal(state(false), "down");
-assert.equal(state(false, { day: "", total: 1, failed: 0, ms: 0, ms_count: 0 }), "down");
-assert.equal(state(true, { day: "", total: 1, failed: 1, ms: 0, ms_count: 0 }), "degraded");
-assert.equal(state(true), "up");
-assert.equal(state(true, { day: "", total: 1, failed: 0, ms: 0, ms_count: 0 }), "up");
+describe("totals", () => {
+  it("sums every field across days", () => {
+    expect(totals([])).toEqual({ total: 0, failed: 0, ms: 0, ms_count: 0 });
+    expect(totals([day(96, 1, 100, 95), day(96, 0, 202, 96)])).toEqual({
+      total: 192,
+      failed: 1,
+      ms: 302,
+      ms_count: 191,
+    });
+  });
+});
 
-const d = lastDays(Date.UTC(2026, 9, 10, 12));
-assert.equal(d.length, 90);
-assert.equal(d.at(-1), "2026-10-10");
-assert.equal(d[0], "2026-07-13");
-console.log("status-fields ok");
+describe("avgMs", () => {
+  it("averages only successful checks", () => {
+    expect(avgMs(day(3, 1, 301, 2))).toBe(151);
+    expect(avgMs(day(96))).toBeUndefined();
+    expect(avgMs(undefined)).toBeUndefined();
+  });
+});
+
+describe("state", () => {
+  it("lets the live probe win, then any failure recorded today", () => {
+    expect(state(false)).toBe("down");
+    expect(state(false, day(1))).toBe("down");
+    expect(state(true, day(1, 1))).toBe("degraded");
+    expect(state(true)).toBe("up");
+    expect(state(true, day(1))).toBe("up");
+  });
+});
+
+describe("lastDays", () => {
+  it("returns 90 UTC days ending today", () => {
+    const d = lastDays(Date.UTC(2026, 9, 10, 12));
+    expect(d).toHaveLength(90);
+    expect(d.at(-1)).toBe("2026-10-10");
+    expect(d[0]).toBe("2026-07-13");
+  });
+});

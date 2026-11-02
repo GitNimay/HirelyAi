@@ -9,12 +9,16 @@
     "deploy": "npm run build && wrangler d1 migrations apply hire-excellence-db --remote && wrangler deploy",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types lib/rank.test.ts && node --experimental-strip-types lib/job-fields.test.ts && node --experimental-strip-types lib/notification-format.test.ts && node --experimental-strip-types lib/profile-fields.test.ts && node --experimental-strip-types lib/media.test.ts && node --experimental-strip-types lib/resume-fields.test.ts && node --experimental-strip-types lib/interview-fields.test.ts && node --experimental-strip-types lib/company-fields.test.ts && node --experimental-strip-types lib/prose.test.ts && node --experimental-strip-types lib/reactions.test.ts && node --experimental-strip-types lib/status-fields.test.ts && node --experimental-strip-types lib/changelog-fields.test.ts",
+    "test": "vitest run",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply hire-excellence-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply hire-excellence-db --remote",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@clerk/backend": "^3.26.4",
@@ -45,12 +49,14 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitejs/plugin-rsc": "^0.5.35",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "prettier": "3.9.10",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^8.3.5",
+    "vitest": "^4.1.12",
     "wrangler": "^4.148.0"
   },
   "type": "module",
