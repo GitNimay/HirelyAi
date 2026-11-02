@@ -30,15 +30,16 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   return (
     <>
       {/* Phone top bar: the sidebar (logo, Post, account) is hidden below sm, so these live here */}
-      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur sm:hidden">
+      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background/80 px-4 backdrop-blur sm:hidden">
         <Link
           href="/dashboard"
           aria-label="Hire Excellence home"
-          className="-ml-2 flex size-10 items-center justify-center"
+          className="flex min-w-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Logo size={24} faint={false} />
+          <Logo size={26} faint={false} />
+          <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
         </Link>
-        <div className="-mr-2 flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <PostButton compact viewer={{ id: userId, name, imageUrl: me?.imageUrl }} />
           <AccountMenu compact name={name} email={email} imageUrl={me?.imageUrl} />
         </div>
