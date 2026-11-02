@@ -527,7 +527,7 @@ export function Composer({
   const canPost = !busy && (body.trim().length > 0 || media.items.length > 0);
 
   return (
-    <section data-tour="composer" className="flex gap-3 border-b border-border p-4">
+    <section data-tour="composer" className="flex gap-3 border-b border-border p-4 max-sm:px-4 max-sm:py-3">
       {company ? (
         <CompanyLogo name={company.name} src={company.logoUrl} size={40} />
       ) : (
@@ -544,7 +544,7 @@ export function Composer({
           onBlur={() => setFocused(false)}
           placeholder={company ? `Post as ${company.name}` : "Share an update or opportunity"}
           aria-label="Write a post"
-          className="w-full resize-none bg-transparent pt-2 text-sm leading-relaxed placeholder:text-muted outline-none"
+          className="w-full resize-none bg-transparent pt-2 text-sm leading-relaxed placeholder:text-muted outline-none max-sm:pt-2.5 max-sm:[field-sizing:content]"
         />
         <MediaPreviews draft={media} disabled={busy} />
         {media.error && (
@@ -552,7 +552,7 @@ export function Composer({
             {media.error}
           </p>
         )}
-        <div className="mt-2 flex items-center justify-between">
+        <div className="mt-2 flex items-center justify-between max-sm:-ml-2">
           <MediaButtons draft={media} disabled={busy} />
           <div className="flex items-center gap-3">
             {focused && canPost && (
@@ -566,7 +566,10 @@ export function Composer({
               type="button"
               disabled={!canPost}
               onClick={submit}
-              className={`${btnPrimary} min-h-10 px-4 sm:min-h-0`}
+              className={cn(
+                btnPrimary,
+                "min-h-10 px-4 sm:min-h-0 max-sm:h-8 max-sm:min-h-8 max-sm:rounded-full max-sm:px-4",
+              )}
             >
               Post
             </button>
@@ -700,7 +703,7 @@ function PostCard({
   const named = (label: string, n: number) => (n > 0 ? `${label}, ${n}` : label);
 
   return (
-    <article className="border-b border-border p-4">
+    <article className="border-b border-border p-4 max-sm:px-4 max-sm:pt-3 max-sm:pb-1">
       {p.repostedBy && (
         <p className="mb-2 ml-[52px] flex min-w-0 items-center gap-1.5 text-xs text-muted">
           <Icon d={icons.repost} size={12} />
@@ -749,7 +752,7 @@ function PostCard({
                 <button
                   type="button"
                   onClick={() => follow(p.author.id)}
-                  className={`${btnGhost} min-h-10 px-2 text-link hover:text-link sm:min-h-0`}
+                  className={`${btnGhost} min-h-10 px-2 text-link hover:text-link sm:min-h-0 max-sm:!h-8 max-sm:min-h-8 max-sm:mt-0.5 max-sm:px-1.5`}
                 >
                   <Icon d={icons.plus} size={14} />
                   Follow
@@ -811,7 +814,7 @@ function PostCard({
       </div>
 
       <ReactionSummary counts={p.reactions} total={p.likes} />
-      <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center">
+      <div className="mt-3 grid grid-cols-4 border-t border-border [&>button]:h-11 [&>button]:justify-center max-sm:mt-2">
         <ReactionButton
           reaction={p.reaction}
           onReact={(k) => react(p, k)}
