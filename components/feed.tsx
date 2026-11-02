@@ -544,7 +544,7 @@ export function Composer({
           onBlur={() => setFocused(false)}
           placeholder={company ? `Post as ${company.name}` : "Share an update or opportunity"}
           aria-label="Write a post"
-          className="w-full resize-none bg-transparent pt-2 text-sm leading-relaxed placeholder:text-muted outline-none max-sm:pt-2.5"
+          className="w-full resize-none bg-transparent pt-2 text-sm leading-relaxed placeholder:text-muted outline-none max-sm:pt-2.5 max-sm:[field-sizing:content]"
         />
         <MediaPreviews draft={media} disabled={busy} />
         {media.error && (
@@ -752,7 +752,7 @@ function PostCard({
                 <button
                   type="button"
                   onClick={() => follow(p.author.id)}
-                  className={`${btnGhost} min-h-10 px-2 text-link hover:text-link sm:min-h-0 max-sm:!h-8 max-sm:min-h-8 max-sm:px-1.5`}
+                  className={`${btnGhost} min-h-10 px-2 text-link hover:text-link sm:min-h-0 max-sm:!h-8 max-sm:min-h-8 max-sm:mt-0.5 max-sm:px-1.5`}
                 >
                   <Icon d={icons.plus} size={14} />
                   Follow
