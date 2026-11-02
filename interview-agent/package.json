@@ -28,7 +28,7 @@
     "prettier": "3.9.10",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "dependencies": {
     "@livekit/agents": "^1.9.4",
@@ -38,7 +38,9 @@
   },
   "pnpm": {
     "overrides": {
-      "vite": "8.3.5"
+      "vite": "8.3.5",
+      "glob@^13": "14.0.3",
+      "minimatch@^10": "11.0.3"
     }
   },
   "packageManager": "pnpm@10.34.1"
