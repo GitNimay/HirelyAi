@@ -46,7 +46,10 @@ export async function checkAll(): Promise<Live> {
   const results = await Promise.all(
     COMPONENTS.map(async ({ id }) => {
       const started = performance.now();
-      const up = await PROBES[id]().catch(() => false);
+      // .then() so a probe that throws before returning a promise (e.g. a missing binding) also counts as down
+      const up = await Promise.resolve()
+        .then(PROBES[id])
+        .catch(() => false);
       // Only successful checks carry latency: a timeout is a failure, not a slow success
       return { id, up, ms: up ? Math.round(performance.now() - started) : null };
     }),

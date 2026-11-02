@@ -1,18 +1,18 @@
-import assert from "node:assert/strict";
-import { cleanFilters } from "./job-fields.ts";
+import { describe, expect, it } from "vitest";
+import { cleanFilters } from "./job-fields";
 
-// Unknown values and prototype keys are dropped; strings are trimmed and capped
-assert.deepEqual(
-  cleanFilters({ q: "  react ", workplace: "remote", type: "toString", level: "ceo", posted: "week", loc: "   " }),
-  {
-    q: "react",
-    loc: undefined,
-    workplace: "remote",
-    type: undefined,
-    level: undefined,
-    posted: "week",
-  },
-);
-assert.equal(cleanFilters({ q: "x".repeat(500) }).q?.length, 100);
-assert.deepEqual(Object.values(cleanFilters({ q: ["a"], workplace: 1 })).filter(Boolean), []);
-console.log("job-fields: ok");
+describe("cleanFilters", () => {
+  it("drops unknown values and prototype keys, and trims strings", () => {
+    expect(
+      cleanFilters({ q: "  react ", workplace: "remote", type: "toString", level: "ceo", posted: "week", loc: "   " }),
+    ).toEqual({ q: "react", loc: undefined, workplace: "remote", type: undefined, level: undefined, posted: "week" });
+  });
+
+  it("caps the search text at 100 characters", () => {
+    expect(cleanFilters({ q: "x".repeat(500) }).q).toHaveLength(100);
+  });
+
+  it("ignores values of the wrong type", () => {
+    expect(Object.values(cleanFilters({ q: ["a"], workplace: 1 })).filter(Boolean)).toEqual([]);
+  });
+});

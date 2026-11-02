@@ -1,34 +1,59 @@
-import assert from "node:assert/strict";
-import {
-  cleanHandle,
-  maskEmail,
-  maskPhone,
-  normalizeWebsite,
-  shortUrl,
-  slugify,
-  validHandle,
-} from "./profile-fields.ts";
+import { describe, expect, it } from "vitest";
+import { cleanHandle, maskEmail, maskPhone, normalizeWebsite, shortUrl, slugify, validHandle } from "./profile-fields";
 
-assert.equal(slugify("Nimesh Kulkarni"), "nimesh-kulkarni");
-assert.equal(slugify("  José  Álvarez! "), "jose-alvarez");
-assert.equal(slugify("李雷"), "member");
-assert.equal(slugify("Al"), "al-member");
-assert.ok(validHandle(slugify("A".repeat(80))));
+describe("slugify", () => {
+  it.each([
+    ["Nimesh Kulkarni", "nimesh-kulkarni"],
+    ["  José  Álvarez! ", "jose-alvarez"],
+    ["李雷", "member"],
+    ["Al", "al-member"],
+  ])("turns %j into %j", (name, slug) => {
+    expect(slugify(name)).toBe(slug);
+  });
 
-assert.equal(cleanHandle("  @Ada-L "), "ada-l");
-assert.ok(validHandle("ada-lovelace") && validHandle("a1b"));
-for (const bad of ["ab", "-ada", "ada-", "ada--l", "Ada", "ada_l", "a".repeat(31), "ada.l"])
-  assert.ok(!validHandle(bad), bad);
+  it("always produces a valid handle, even from a very long name", () => {
+    expect(validHandle(slugify("A".repeat(80)))).toBe(true);
+  });
+});
 
-// Only real web addresses survive; javascript: and friends are rejected
-assert.equal(normalizeWebsite("example.com/me"), "https://example.com/me");
-assert.equal(normalizeWebsite("  "), null);
-for (const bad of ["javascript:alert(1)", "ftp://example.com", "localhost", "not a url"])
-  assert.equal(normalizeWebsite(bad), undefined, bad);
-assert.equal(shortUrl("https://example.com/"), "example.com");
-assert.equal(maskEmail("nimesh.kulkarni@gmail.com"), "nimesh.k*******@gmail.com");
-assert.equal(maskEmail("a@b.co"), "a@b.co");
-assert.equal(maskEmail(""), "");
-assert.equal(maskPhone("+91 98765 43210"), "+91 9876* *****");
-assert.equal(maskPhone(""), "");
-console.log("profile-fields: ok");
+describe("handles", () => {
+  it("cleans @, case and spaces", () => {
+    expect(cleanHandle("  @Ada-L ")).toBe("ada-l");
+  });
+
+  it.each(["ada-lovelace", "a1b"])("accepts %j", (handle) => {
+    expect(validHandle(handle)).toBe(true);
+  });
+
+  it.each(["ab", "-ada", "ada-", "ada--l", "Ada", "ada_l", "a".repeat(31), "ada.l"])("rejects %j", (handle) => {
+    expect(validHandle(handle)).toBe(false);
+  });
+});
+
+describe("websites", () => {
+  it("adds https and keeps the path", () => {
+    expect(normalizeWebsite("example.com/me")).toBe("https://example.com/me");
+    expect(shortUrl("https://example.com/")).toBe("example.com");
+  });
+
+  it("treats blank as cleared", () => {
+    expect(normalizeWebsite("  ")).toBeNull();
+  });
+
+  it.each(["javascript:alert(1)", "ftp://example.com", "localhost", "not a url"])("rejects %j", (bad) => {
+    expect(normalizeWebsite(bad)).toBeUndefined();
+  });
+});
+
+describe("masking", () => {
+  it("hides most of an email but keeps it recognisable", () => {
+    expect(maskEmail("nimesh.kulkarni@gmail.com")).toBe("nimesh.k*******@gmail.com");
+    expect(maskEmail("a@b.co")).toBe("a@b.co");
+    expect(maskEmail("")).toBe("");
+  });
+
+  it("hides the end of a phone number", () => {
+    expect(maskPhone("+91 98765 43210")).toBe("+91 9876* *****");
+    expect(maskPhone("")).toBe("");
+  });
+});
