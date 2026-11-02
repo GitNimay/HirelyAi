@@ -3,7 +3,6 @@ import { ThemeToggle } from "./account-menu";
 import { Logo } from "./auth";
 import { HeroDashboard } from "./hero-dashboard";
 import { HowItWorks } from "./landing-steps";
-import { Wordmark } from "./landing-wordmark";
 import { Reveal, RevealWords } from "./reveal";
 import { FeatureGrid } from "./landing-features";
 import { Icon, btnOutline, btnPrimary, icons } from "./ui";
@@ -435,9 +434,6 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               <path d={github} />
             </svg>
           </a>
-        </div>
-        <div aria-hidden className="-mx-4 border-t border-border px-4 py-8 sm:-mx-8 sm:px-8 sm:py-12">
-          <Wordmark />
         </div>
       </footer>
     </div>
