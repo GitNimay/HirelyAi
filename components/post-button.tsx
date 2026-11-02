@@ -24,7 +24,7 @@ export function PostButton({
           onClick={() => setOpen(true)}
           aria-label="Create a post"
           title="Post"
-          className={cn(btnPrimary, "h-8 max-sm:h-8 rounded-full px-3 text-[13px] gap-1")}
+          className={cn(btnPrimary, "h-8 max-sm:h-8 rounded-full px-3 gap-1")}
         >
           <Icon d={icons.plus} size={16} />
           <span>Post</span>

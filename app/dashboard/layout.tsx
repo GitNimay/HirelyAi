@@ -37,7 +37,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           className="flex min-w-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Logo size={26} faint={false} />
-          <span className="text-[15px] font-semibold tracking-tight">Hire Excellence</span>
+          <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
         </Link>
         <div className="flex shrink-0 items-center gap-2">
           <PostButton compact viewer={{ id: userId, name, imageUrl: me?.imageUrl }} />
