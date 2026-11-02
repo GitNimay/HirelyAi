@@ -69,13 +69,13 @@ export function AccountMenu({
         onOpen={() => setTheme((document.documentElement.dataset.theme as Theme | undefined) ?? "system")}
         className={
           compact
-            ? "flex size-10 items-center justify-center rounded-md text-muted transition-colors outline-none hover:bg-surface light:hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            ? "flex size-9 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
             : "flex w-full items-center justify-center gap-3 rounded-md p-2 text-left transition-colors outline-none hover:bg-surface light:hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring xl:justify-start xl:px-3"
         }
         panelClassName={compact ? "right-0 top-full mt-2 w-60" : "bottom-full left-0 mb-2 w-60"}
         button={
           compact ? (
-            <Icon d={gear} size={18} />
+            <Avatar name={name} src={imageUrl} size={32} />
           ) : (
             <>
               <Avatar name={name} src={imageUrl} size={32} />
