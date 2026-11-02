@@ -418,7 +418,7 @@ export function Interview({
   return (
     <StepFrame
       title={KINDS[view.kind]}
-      steps={STEPS[view.kind]}
+      steps={STEPS[view.kind as keyof typeof STEPS]}
       current={INDEX[step]}
       stepKey={step}
       action={
@@ -433,7 +433,7 @@ export function Interview({
   );
 }
 
-function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Profile>; onDone: () => void }) {
+export function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Profile>; onDone: () => void }) {
   const [p, setP] = useState<Record<string, string>>({
     years: "0",
     notice: "30d",
@@ -545,7 +545,7 @@ function Details({ slug, initial, onDone }: { slug: string; initial: Partial<Pro
 }
 
 /** Live input level from the chosen mic, plus a device picker. `children` gets whether they may start: we heard them, or a quiet mic had 10 s. */
-function MicCheck({
+export function MicCheck({
   deviceId,
   onDevice,
   onError,

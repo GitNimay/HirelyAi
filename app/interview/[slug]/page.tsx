@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { AiInterview } from "@/components/ai-interview";
 import { Interview } from "@/components/interview";
 import { ACTION } from "@/lib/human";
 import { candidateView } from "@/lib/interview";
@@ -11,5 +12,6 @@ export default async function InterviewPage({ params }: { params: Promise<{ slug
   const { slug } = await params;
   const view = await candidateView(slug, (await cookies()).get("iv")?.value);
   if (!view) notFound();
+  if (view.kind === "ai") return <AiInterview view={view} />;
   return <Interview view={view} turnstile={{ sitekey: env.TURNSTILE_SITEKEY, action: ACTION }} />;
 }

@@ -21,6 +21,9 @@ import {
   type MyJobsTab,
 } from "@/lib/job-fields";
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
+import { RECOMMENDATIONS, type AiReport } from "@/lib/evaluator";
+import type { RoleConfig } from "@/lib/harness";
+import { AiConfigEditor } from "./ai-config";
 import {
   DIFFICULTY,
   FITS,
@@ -704,8 +707,14 @@ export function JobFacts({ job: j, h: H = "h3" }: { job: Facts; h?: "h2" | "h3" 
     j.interview && {
       icon: j.interview.kind === "mcq" ? icons.file : icons.mic,
       label: "Hiring process",
-      value: `${j.interview.kind === "mcq" ? "MCQ test" : "AI voice interview"} · ${screeningFacts(j.interview.kind, j.interview.questions)}`,
-      sub: `Applicants take it online before ${dateTime(j.interview.deadline)}. The link and password are emailed on applying.`,
+      value:
+        j.interview.kind === "ai"
+          ? `AI interview · ${j.interview.minutes} min: resume, coding and system design`
+          : `${j.interview.kind === "mcq" ? "MCQ test" : "AI voice interview"} · ${screeningFacts(j.interview.kind, j.interview.questions)}`,
+      sub:
+        j.interview.kind === "ai"
+          ? `Applicants take it online before ${dateTime(j.interview.deadline)}, with camera and screen sharing. Each applicant gets a personal link by email.`
+          : `Applicants take it online before ${dateTime(j.interview.deadline)}. The link and password are emailed on applying.`,
     },
   ].filter((f) => !!f);
   return (
@@ -1236,7 +1245,7 @@ export function PostJobForm({
 }: {
   companies: { id: string; name: string }[];
   initialCompany?: string;
-  job?: Job & { questions: string[] | Mcq[] };
+  job?: Job & { questions: string[] | Mcq[]; aiConfig?: RoleConfig | null; started?: boolean };
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -1412,12 +1421,13 @@ export function PostJobForm({
             title="Screening"
             hint="Optional. Applicants get a link and password by email and take it online before the deadline. Pick one."
           >
-            <div role="radiogroup" aria-label="Screening" className="grid gap-2 sm:grid-cols-3">
+            <div role="radiogroup" aria-label="Screening" className="grid gap-2 sm:grid-cols-2">
               {(
                 [
                   ["none", "None", "Applications only"],
                   ["voice", "AI voice interview", `${INTERVIEW.seconds / 60}-min spoken Q&A, AI graded`],
                   ["mcq", "MCQ test", "Timed, auto-graded"],
+                  ["ai", "AI interview", "Live technical interview: resume, coding, system design"],
                 ] as const
               ).map(([id, label, sub]) => (
                 <label
@@ -1443,6 +1453,13 @@ export function PostJobForm({
               ))}
             </div>
             {screening === "mcq" && <McqEditor initial={job?.interview ? (job.questions as Mcq[]) : []} />}
+            {screening === "ai" && (
+              <AiConfigEditor
+                initial={job?.aiConfig ?? null}
+                questions={job?.interview ? (job.questions as string[]) : []}
+                locked={!!job?.started}
+              />
+            )}
             {screening === "voice" && (
               <>
                 <Field label="Questions" hint={`one per line, up to ${INTERVIEW.maxQuestions}`}>
@@ -1532,6 +1549,9 @@ const dateTime = (ms: number) => new Date(ms).toLocaleString(undefined, { dateSt
 function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["interview"]>; mine: boolean }) {
   const [copied, setCopied] = useState("");
   const link = iv.slug ? `${typeof location === "undefined" ? "" : location.origin}/interview/${iv.slug}` : "";
+  const ai = iv.kind === "ai";
+  // AI interview: each applicant's own link (their session token); there is no shared password
+  const start = ai ? (iv.password ? `/interview/${iv.slug}/enter?t=${iv.password}` : "") : `/interview/${iv.slug}`;
   const [now] = useState(Date.now);
   const closed = iv.deadline <= now;
   const finished = iv.status === "processing" || iv.status === "done" || iv.status === "failed";
@@ -1546,7 +1566,7 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
         <div className="min-w-0">
           <p className="font-medium">{KINDS[iv.kind]}</p>
           <p className="text-xs text-muted" suppressHydrationWarning>
-            {screeningFacts(iv.kind, iv.questions)} · {closed ? "Closed" : "Open until"} {dateTime(iv.deadline)}
+            {screeningFacts(iv.kind, iv.questions, iv.minutes)} · {closed ? "Closed" : "Open until"} {dateTime(iv.deadline)}
           </p>
         </div>
         {!mine &&
@@ -1557,14 +1577,15 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
             </span>
           ) : (
             !closed &&
-            iv.slug && (
-              <a href={`/interview/${iv.slug}`} target="_blank" rel="noopener" className={`${btnPrimary} h-10 sm:h-8`}>
+            iv.slug &&
+            start && (
+              <a href={start} target="_blank" rel="noopener" className={`${btnPrimary} h-10 sm:h-8`}>
                 {iv.kind === "mcq" ? "Start test" : "Start interview"}
               </a>
             )
           ))}
       </div>
-      {iv.slug && iv.password && (mine || (!finished && !closed)) && (
+      {!ai && iv.slug && iv.password && (mine || (!finished && !closed)) && (
         <dl className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
           {mine && (
             <>
@@ -1586,7 +1607,9 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
       )}
       {mine && (
         <p className="text-xs text-muted">
-          Every applicant is emailed the link and password when they apply. Results show under Applicants.
+          {ai
+            ? "Every applicant is emailed a personal interview link when they apply. Reports show under Applicants."
+            : "Every applicant is emailed the link and password when they apply. Results show under Applicants."}
         </p>
       )}
     </section>
@@ -1741,6 +1764,8 @@ export function ApplicantInterview({
 
       {r.kind === "mcq" ? (
         <McqResult r={r} />
+      ) : r.kind === "ai" ? (
+        <AiSummary r={r} jobId={jobId} applicantId={applicantId} />
       ) : (
         <>
           <FormSection
@@ -1840,6 +1865,50 @@ export function ApplicantInterview({
         </>
       )}
     </>
+  );
+}
+
+/** AI interview on the applicant page: the headline numbers and the way into the full report (replay, evidence). */
+function AiSummary({ r, jobId, applicantId }: { r: InterviewResult; jobId: string; applicantId: string }) {
+  const ai = (r.report as AiReport | null)?.ai;
+  const claims = r.ai?.plan?.claims ?? [];
+  const results = r.ai?.state?.claims ?? {};
+  return (
+    <FormSection title="AI interview" hint={r.startedAt ? `Taken ${dateTime(r.startedAt)}` : undefined}>
+      <div className="space-y-4 text-sm">
+        {ai ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-3xl font-medium tabular-nums">
+              {ai.overall?.toFixed(1) ?? "–"}
+              <span className="text-sm font-normal text-muted">/5</span>
+            </p>
+            {ai.recommendation && (
+              <p className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-xs font-medium">{RECOMMENDATIONS[ai.recommendation]}</p>
+            )}
+            {ai.integrity.level !== "none" && (
+              <p className={`text-xs font-medium ${ai.integrity.level === "high" ? "text-danger" : "text-muted"}`}>Integrity: {ai.integrity.level}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-muted">{IV_STATUS[r.status]}</p>
+        )}
+        {r.report?.summary && <p className="leading-relaxed text-foreground/90">{r.report.summary}</p>}
+        {claims.length > 0 && (
+          <p className="text-xs text-muted">
+            Resume claims: {(["verified", "vague", "contradicted", "not_reached"] as const)
+              .map((s) => [s, claims.filter((c) => (results[c.id]?.status ?? (r.status === "done" ? "not_reached" : "")) === s).length] as const)
+              .filter(([, n]) => n)
+              .map(([s, n]) => `${n} ${s.replace("_", " ")}`)
+              .join(" · ") || "not probed yet"}
+          </p>
+        )}
+        {r.status !== "verified" && r.status !== "onboarded" && (
+          <Link href={`/dashboard/report/${jobId}/${applicantId}`} className={`${btnPrimary} h-10 sm:h-8`}>
+            Open full report
+          </Link>
+        )}
+      </div>
+    </FormSection>
   );
 }
 

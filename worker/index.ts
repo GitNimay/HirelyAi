@@ -4,6 +4,7 @@ import app from "vinext/server/app-router-entry";
 import { capture } from "../lib/analytics";
 import { writePendingReleases } from "../lib/changelog";
 import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../lib/human";
+import { aiSessionFor, enterAi, planSession, sweepRecordings } from "../lib/ai-interview";
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/interview";
 import { cleanTranscript } from "../lib/interview-fields";
 import { syncDirectory } from "../lib/network";
@@ -13,26 +14,28 @@ import { hubFor } from "../lib/realtime";
 import { enqueue, type Task } from "../lib/tasks";
 
 // Baseline for every app response; a route's own value (e.g. the media route's CSP) wins.
-// Microphone stays allowed for the voice interview page.
+// Microphone, camera, screen capture and full screen stay allowed (same origin) for the interview pages.
 const SECURITY_HEADERS: Record<string, string> = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), geolocation=(), payment=(), microphone=(self)",
+  "Permissions-Policy": "camera=(self), geolocation=(), payment=(), microphone=(self), display-capture=(self), fullscreen=(self)",
   // Enforced: directives no feature needs, so they can't break anything
   "Content-Security-Policy": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
   // Full policy in report-only first: violations show in the browser console. Promote to the enforced header once a week
   // of normal use (sign-in with each provider, Turnstile, uploads, the voice interview) shows none.
   "Content-Security-Policy-Report-Only": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://clerk.n1m35h.in https://challenges.cloudflare.com",
-    "style-src 'self' 'unsafe-inline'",
+    // jsdelivr: the AI interview's code editor (Monaco) loads from it
+    "script-src 'self' 'unsafe-inline' https://clerk.n1m35h.in https://challenges.cloudflare.com https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
     "img-src 'self' data: blob: https://img.clerk.com https://clerk.n1m35h.in",
-    "font-src 'self'",
-    "connect-src 'self' https://clerk.n1m35h.in https://challenges.cloudflare.com https://*.livekit.cloud wss://*.livekit.cloud",
+    "font-src 'self' data: https://cdn.jsdelivr.net https://esm.sh https://unpkg.com",
+    // jsdelivr + storage.googleapis.com: the AI interview's editor and in-browser face detector (MediaPipe model)
+    "connect-src 'self' https://clerk.n1m35h.in https://challenges.cloudflare.com https://*.livekit.cloud wss://*.livekit.cloud https://cdn.jsdelivr.net https://storage.googleapis.com",
     "frame-src https://challenges.cloudflare.com",
-    "worker-src 'self' blob:",
+    "worker-src 'self' blob: https://cdn.jsdelivr.net",
     "media-src 'self' blob:",
     "form-action 'self'",
   ].join("; "),
@@ -48,6 +51,8 @@ async function runTask(task: Task, attempts: number) {
   switch (task.t) {
     case "evaluate":
       return evaluate(task.sessionId, attempts >= 4);
+    case "plan":
+      return planSession(task.sessionId, attempts >= 4);
     case "invite":
       return sendInvite(task.jobId, task.to);
     case "notify":
@@ -56,6 +61,58 @@ async function runTask(task: Task, attempts: number) {
 }
 
 /** Holds feed WebSockets (hibernatable, so idle sockets cost nothing) and fans out FeedEvents. */
+export { InterviewRoom } from "./interview-room";
+
+const ivCookie = (request: Request) => /(?:^|;\s*)iv=([^;]+)/.exec(request.headers.get("Cookie") ?? "")?.[1];
+const REC_MAX = 25 * 1024 * 1024; // one recording chunk (10 s of low-bitrate video is ~1 MB)
+
+/**
+ * AI interview routes, all under /interview/<slug>/ so the candidate's `iv` cookie (path-scoped) comes along:
+ * enter  — the emailed per-candidate link: sets the cookie, then a clean redirect
+ * room   — the interview WebSocket, handed to the session's InterviewRoom Durable Object
+ * rec    — recording chunks (camera and screen) into R2
+ * warm   — pre-opens the voice connection during the overview, so the interviewer joins right after Start
+ */
+async function interviewRoute(request: Request, env: Env, url: URL, slug: string, action: string) {
+  if (action === "enter" && request.method === "GET") {
+    const id = await enterAi(slug, url.searchParams.get("t") ?? "");
+    const headers = new Headers({ Location: `/interview/${slug}`, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+    if (id) headers.append("Set-Cookie", `iv=${id}; Path=/interview/${slug}; Max-Age=${30 * 86_400}; HttpOnly; Secure; SameSite=Lax`);
+    return new Response(null, { status: 302, headers });
+  }
+  // Same-origin only: browsers don't apply CORS to WebSockets, and uploads carry the session cookie
+  if (request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
+  const s = await aiSessionFor(slug, ivCookie(request)).catch(() => null);
+  if (!s) return new Response("Unauthorized", { status: 401 });
+  if (action === "room") {
+    if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected WebSocket", { status: 426 });
+    const forward = new Request(request);
+    forward.headers.set("X-Session-Id", s.id);
+    return env.INTERVIEW_ROOM.getByName(s.id).fetch(forward);
+  }
+  if (action === "warm" && request.method === "POST") {
+    // Best effort: the room pre-opens the voice connection while the candidate reads the overview
+    if (s.status === "onboarded" || s.status === "live") await env.INTERVIEW_ROOM.getByName(s.id).warm().catch(() => {});
+    return new Response(null, { status: 204 });
+  }
+  if (action === "rec" && request.method === "POST") {
+    if (s.status !== "live" && s.status !== "processing") return new Response(null, { status: 409 });
+    const track = url.searchParams.get("track");
+    const segment = url.searchParams.get("segment") ?? "";
+    const seq = Number(url.searchParams.get("seq"));
+    if ((track !== "cam" && track !== "screen") || !/^\d{10,15}$/.test(segment) || !Number.isInteger(seq) || seq < 0 || seq > 100_000)
+      return new Response("Bad chunk", { status: 400 });
+    if (Number(request.headers.get("Content-Length") ?? 0) > REC_MAX) return new Response("Too large", { status: 413 });
+    const body = await request.arrayBuffer(); // R2 needs a known length
+    if (!body.byteLength || body.byteLength > REC_MAX) return new Response("Bad chunk", { status: 400 });
+    await env.MEDIA.put(`iv/${s.id}/rec/${track}/${segment}/${String(seq).padStart(6, "0")}.webm`, body, {
+      httpMetadata: { contentType: request.headers.get("Content-Type")?.startsWith("video/") ? request.headers.get("Content-Type")! : "video/webm" },
+    });
+    return new Response(null, { status: 204 });
+  }
+  return new Response("Not found", { status: 404 });
+}
+
 export class FeedHub extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -126,6 +183,8 @@ export default {
       forward.headers.set("X-User-Id", userId);
       return env.FEED_HUB.getByName(hubFor(userId)).fetch(forward);
     }
+    const iv = /^\/interview\/([a-z0-9]{6,20})\/(enter|room|rec|warm)$/.exec(url.pathname);
+    if (iv) return interviewRoute(request, env, url, iv[1], iv[2]);
     // The interview agent (LiveKit Cloud) posts the transcript here when a call ends; grading runs after we answer
     if (url.pathname === "/api/interview/complete" && request.method === "POST") {
       if (
@@ -198,7 +257,7 @@ export default {
       for (const msg of batch.messages) {
         const t = msg.body;
         const ref =
-          t.t === "evaluate"
+          t.t === "evaluate" || t.t === "plan"
             ? { sessionId: t.sessionId }
             : t.t === "invite"
               ? { jobId: t.jobId }
@@ -228,6 +287,7 @@ export default {
     ctx.waitUntil(syncDirectory());
     ctx.waitUntil(checkAll()); // the status page's history
     ctx.waitUntil(writePendingReleases()); // /changelog entries for new deploys
+    ctx.waitUntil(sweepRecordings()); // AI interview recordings past the retention window
     await closeExpired();
   },
 } satisfies ExportedHandler<Env, Task>;

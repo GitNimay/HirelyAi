@@ -7,6 +7,7 @@ import type { Spec } from "./notifications";
  */
 export type Task =
   | { t: "evaluate"; sessionId: string } // AI grading of a finished voice interview (Bedrock, can take a minute)
+  | { t: "plan"; sessionId: string } // AI interview: resume → claims + interview plan, when they apply (Bedrock)
   | { t: "invite"; jobId: string; to: string } // interview invite email to a new applicant
   | { t: "notify"; to: string[]; spec: Spec }; // write notifications and push them live
 

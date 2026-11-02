@@ -10,7 +10,7 @@ export const MCQ = {
   topicChars: 120,
   summaryChars: 600,
 };
-export const KINDS = { voice: "Voice interview", mcq: "MCQ test" } as const;
+export const KINDS = { voice: "Voice interview", mcq: "MCQ test", ai: "AI interview" } as const;
 export const DIFFICULTY = { easy: "Easy", medium: "Medium", hard: "Hard" } as const;
 
 export type Kind = keyof typeof KINDS;
@@ -23,9 +23,11 @@ export type McqReview = Mcq & { picked: number };
 /** Test length: a minute a question. */
 export const mcqSeconds = (n: number) => n * MCQ.secondsPerQuestion;
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
-/** "3 questions · 5 min" for either kind. */
-export const screeningFacts = (kind: Kind, questions: number) =>
-  `${plural(questions, "question")} · ${(kind === "mcq" ? mcqSeconds(questions) : INTERVIEW.seconds) / 60} min`;
+/** "3 questions · 5 min" (voice, MCQ) or "Resume, coding and design · 63 min" (AI interview: `minutes` from its config). */
+export const screeningFacts = (kind: Kind, questions: number, minutes = 0) =>
+  kind === "ai"
+    ? `Live interview with an AI interviewer · ${minutes} min`
+    : `${plural(questions, "question")} · ${(kind === "mcq" ? mcqSeconds(questions) : INTERVIEW.seconds) / 60} min`;
 
 export const NOTICE = {
   now: "Immediately",

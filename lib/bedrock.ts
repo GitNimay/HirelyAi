@@ -8,18 +8,19 @@ import { capture } from "./analytics";
  * `task` names the call in PostHog's LLM analytics (cost, latency, failures per feature).
  */
 export async function bedrockJson(
-  task: "resume" | "questions" | "grading" | "changelog",
+  task: "resume" | "questions" | "grading" | "changelog" | "plan" | "summary" | "vision" | "evaluation",
   system: string,
-  user: string,
+  user: string | unknown[], // text, or OpenAI content parts (text + image_url) for vision models
   maxTokens: number,
   temperature = 0,
+  model: string = env.BEDROCK_MODEL, // cheaper models for small jobs (lib/ai-interview.ts FAST)
 ): Promise<{ ok: false; reason: "busy" | "unparseable" } | { ok: true; value: unknown }> {
   const t0 = Date.now();
   const res = await fetch(`${env.BEDROCK_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${env.BEDROCK_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: env.BEDROCK_MODEL,
+      model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -37,7 +38,7 @@ export async function bedrockJson(
       $ai_trace_id: crypto.randomUUID(),
       $ai_span_name: task,
       $ai_provider: "bedrock",
-      $ai_model: env.BEDROCK_MODEL,
+      $ai_model: model,
       $ai_base_url: env.BEDROCK_BASE_URL,
       $ai_latency: (Date.now() - t0) / 1000,
       $ai_max_tokens: maxTokens,

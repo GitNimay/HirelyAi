@@ -18,11 +18,14 @@
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "eval": "vitest run --config vitest.eval.config.ts"
   },
   "dependencies": {
     "@clerk/backend": "^3.26.4",
     "@clerk/nextjs": "^7.9.22",
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@monaco-editor/react": "^4.7.0",
     "clsx": "^2.1.1",
     "fflate": "0.8.3",
     "gsap": "^3.15.0",
