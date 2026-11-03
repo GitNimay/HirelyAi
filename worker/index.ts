@@ -65,7 +65,9 @@ async function runTask(task: Task, attempts: number) {
 export { InterviewRoom } from "./ai-interview-room";
 
 const ivCookie = (request: Request) => /(?:^|;\s*)iv=([^;]+)/.exec(request.headers.get("Cookie") ?? "")?.[1];
-const REC_MAX = 25 * 1024 * 1024; // one recording chunk (10 s of low-bitrate video is ~1 MB)
+const REC_MAX = 5 * 1024 * 1024; // one recording chunk (10 s at the 250-300 kbps the room records is ~0.4 MB)
+const REC_SEQ_MAX = 720; // chunks per segment: two hours of 10 s chunks
+const REC_WINDOW_MS = 24 * 3600_000; // segment ids are the browser clock: within a day of ours (skewed clocks still pass)
 
 /**
  * AI interview routes, all under /interview/<slug>/ so the candidate's `iv` cookie (path-scoped) comes along:
@@ -115,11 +117,16 @@ async function interviewRoute(request: Request, env: Env, url: URL, slug: string
     if (
       (track !== "cam" && track !== "screen") ||
       !/^\d{10,15}$/.test(segment) ||
+      Math.abs(Date.now() - Number(segment)) > REC_WINDOW_MS ||
       !Number.isInteger(seq) ||
       seq < 0 ||
-      seq > 100_000
+      seq > REC_SEQ_MAX
     )
       return new Response("Bad chunk", { status: 400 });
+    // Two tracks at one chunk per 10 s is ~12 a minute; the shared write limit (60/min per session) bounds what a
+    // forged client can push into R2
+    if (!(await env.WRITE_LIMIT.limit({ key: `rec:${s.id}` })).success)
+      return new Response("Slow down", { status: 429 });
     if (Number(request.headers.get("Content-Length") ?? 0) > REC_MAX) return new Response("Too large", { status: 413 });
     const body = await request.arrayBuffer(); // R2 needs a known length
     if (!body.byteLength || body.byteLength > REC_MAX) return new Response("Bad chunk", { status: 400 });
