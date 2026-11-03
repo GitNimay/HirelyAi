@@ -217,7 +217,8 @@ const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().repla
 const tidy = (v: unknown, max: number) =>
   clip(
     str(v, 2000)
-      .replace(/\s*\((?:[urbn]\d+(?:\s*[-–,]\s*[urbn]?\d+)*(?:,\s*)?)+\)/g, "")
+      // One id, then any number of "separator id": no nested quantifiers, so no catastrophic backtracking
+      .replace(/\s*\(\s*[urbn]\d+(?:\s*[-–,]\s*[urbn]?\d+)*\s*,?\s*\)/g, "")
       .replace(/\s+([.,;])/g, "$1")
       .trim(),
     max,
