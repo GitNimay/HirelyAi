@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jsonObject } from "./bedrock";
+import { jsonObject } from "../bedrock";
 import { cleanSignature, generatedAsk, readReply, withSolution } from "./problem-gen";
 import { starters } from "./starters";
 

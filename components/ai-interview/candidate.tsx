@@ -5,23 +5,24 @@ import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { memo, useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { ThinkingOrb } from "thinking-orbs";
-import type { CandidateView } from "@/lib/interview";
-import { LIMITS, PHASES, phaseLabel, type PhaseId } from "@/lib/harness";
+import type { CandidateView } from "@/lib/screening/interview";
+import { LIMITS, PHASES, phaseLabel, type PhaseId } from "@/lib/ai-interview/harness";
 import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
-import type { PublicProblem, RunResult, Language } from "@/lib/workspace";
-import { Details, MicCheck } from "./interview";
-import { ask } from "./kit";
-import { Alert, Head, primary, StepFrame, ThemeToggle } from "./onboarding";
-import { Logo } from "./auth";
-import { btnGhost, Icon, icons } from "./ui";
+import type { PublicProblem, RunResult, Language } from "@/lib/ai-interview/workspace";
+import { Details } from "../screening/interview";
+import { MicCheck } from "../screening/voice";
+import { ask } from "../kit";
+import { Alert, Head, primary, StepFrame, ThemeToggle } from "../onboarding";
+import { Logo } from "../auth";
+import { btnGhost, Icon, icons } from "../ui";
 
 // Heavy and only needed in their rounds: loaded when the round starts
 // memo: captions and agent state update the room many times a second; the workspaces' props rarely change
-const CodeWorkspace = dynamic(() => import("./ai-workspace").then((m) => memo(m.CodeWorkspace)), {
+const CodeWorkspace = dynamic(() => import("./workspace").then((m) => memo(m.CodeWorkspace)), {
   ssr: false,
   loading: () => <Loading what="editor" />,
 });
-const Whiteboard = dynamic(() => import("./ai-workspace").then((m) => memo(m.Whiteboard)), {
+const Whiteboard = dynamic(() => import("./workspace").then((m) => memo(m.Whiteboard)), {
   ssr: false,
   loading: () => <Loading what="whiteboard" />,
 });
@@ -812,7 +813,7 @@ function Room({
   useEffect(() => {
     if (!everReady) return;
     const warm = () => {
-      void import("./ai-workspace").catch(() => {});
+      void import("./workspace").catch(() => {});
       void import("@monaco-editor/react").then((m) => m.loader.init()).catch(() => {});
     };
     const t = setTimeout(

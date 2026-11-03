@@ -2,7 +2,7 @@
 
 Read by the `ai-review` CI job. CI loads it from the base branch, so a PR can't relax the rules it is reviewed against.
 
-Stack: vinext (Next.js 16 on Cloudflare Workers via `@cloudflare/vite-plugin`), Clerk v7, D1, R2, KV, Queues, Durable Objects and PostHog. The root uses npm and `interview-agent/` uses pnpm.
+Stack: vinext (Next.js 16 on Cloudflare Workers via `@cloudflare/vite-plugin`), Clerk v7, D1, R2, KV, Queues, Durable Objects and PostHog. The root uses npm and `voice-agent/` (the LiveKit voice screening agent) uses pnpm.
 
 ## BLOCK: the PR must not merge
 

@@ -320,9 +320,15 @@ describe("workspace helpers", () => {
 });
 
 describe("hidden tests stay on the server", () => {
-  // Anything a client component imports must not reach lib/problem-bank.ts or lib/problem-gen.ts (hidden tests, hint ladders)
-  const clientSafe = ["lib/harness.ts", "lib/workspace.ts", "lib/evaluator.ts", "lib/interview-fields.ts"];
-  const clientFiles = readdirSync("components")
+  // Anything a client component imports must not reach problem-bank.ts or problem-gen.ts (hidden tests, hint ladders)
+  const clientSafe = [
+    "lib/ai-interview/harness.ts",
+    "lib/ai-interview/workspace.ts",
+    "lib/ai-interview/evaluator.ts",
+    "lib/screening/fields.ts",
+  ];
+  const clientFiles = readdirSync("components", { recursive: true })
+    .map(String)
     .filter((f) => f.endsWith(".tsx"))
     .map((f) => join("components", f));
 

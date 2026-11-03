@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
-import { evaluateAi } from "./ai-interview";
-import { bedrockJson } from "./bedrock";
-import { esc, layout, MONO, MUTED, p } from "./email";
-import { Fail } from "./guard";
+import { evaluateAi } from "../ai-interview/session";
+import { bedrockJson } from "../bedrock";
+import { esc, layout, MONO, MUTED, p } from "../email";
+import { Fail } from "../guard";
 import {
   callKeyterms,
   cleanAnswers,
@@ -23,10 +23,10 @@ import {
   type McqReview,
   type Profile,
   type Report,
-} from "./interview-fields";
-import type { Job } from "./jobs";
-import { getResume } from "./resume";
-import { cleanResume, fmtRange, STATUSES, type Resume } from "./resume-fields";
+} from "./fields";
+import type { Job } from "../jobs";
+import { getResume } from "../resume";
+import { cleanResume, fmtRange, STATUSES, type Resume } from "../resume-fields";
 import {
   capMinutes,
   cleanConfig,
@@ -35,9 +35,9 @@ import {
   type HarnessState,
   type Plan,
   type RoleConfig,
-} from "./harness";
-import { sendTo } from "./realtime";
-import { enqueue } from "./tasks";
+} from "../ai-interview/harness";
+import { sendTo } from "../realtime";
+import { enqueue } from "../tasks";
 
 export type SessionStatus = "verified" | "onboarded" | "live" | "processing" | "done" | "failed";
 

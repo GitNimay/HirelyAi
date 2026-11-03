@@ -20,10 +20,10 @@ import {
   type JobFilters,
   type MyJobsTab,
 } from "@/lib/job-fields";
-import type { InterviewResult, SessionStatus } from "@/lib/interview";
-import { RECOMMENDATIONS, type AiReport } from "@/lib/evaluator";
-import { levelForJob, type RoleConfig } from "@/lib/harness";
-import { AiConfigEditor } from "./ai-config";
+import type { InterviewResult, SessionStatus } from "@/lib/screening/interview";
+import { RECOMMENDATIONS, type AiReport } from "@/lib/ai-interview/evaluator";
+import { levelForJob, type RoleConfig } from "@/lib/ai-interview/harness";
+import { AiConfigEditor } from "./ai-interview/config";
 import {
   DIFFICULTY,
   FITS,
@@ -35,7 +35,7 @@ import {
   type Fit,
   type Kind,
   type Mcq,
-} from "@/lib/interview-fields";
+} from "@/lib/screening/fields";
 import type { Applicant, Job, JobPage, PublicJob } from "@/lib/jobs";
 import { parseInline, parseProse } from "@/lib/prose";
 import { ask, Clamp, leaveIfClean, Menu, Modal, Select, Tabs, toast, useUnsavedGuard } from "./kit";

@@ -13,7 +13,7 @@ export async function bedrockJson(
   user: string | unknown[], // text, or OpenAI content parts (text + image_url) for vision models
   maxTokens: number,
   temperature = 0,
-  model: string = env.BEDROCK_MODEL, // cheaper models for small jobs (lib/ai-interview.ts FAST)
+  model: string = env.BEDROCK_MODEL, // cheaper models for small jobs (lib/ai-interview/session.ts FAST)
   extract: (text: string) => unknown = jsonObject, // how to read the reply; throws when it can't
 ): Promise<{ ok: false; reason: "busy" | "unparseable" } | { ok: true; value: unknown }> {
   const t0 = Date.now();

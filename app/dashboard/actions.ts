@@ -4,9 +4,21 @@ import { env, waitUntil } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
 import { track } from "@/lib/analytics";
 import { aiWriter, Fail, failed, text, viewer, writer } from "@/lib/guard";
-import { createAiSession, decide, deleteRecordingsFor, deleteSessionFiles, dismissFlag } from "@/lib/ai-interview";
-import { generateMcq, insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
-import type { Kind } from "@/lib/interview-fields";
+import {
+  createAiSession,
+  decide,
+  deleteRecordingsFor,
+  deleteSessionFiles,
+  dismissFlag,
+} from "@/lib/ai-interview/session";
+import {
+  generateMcq,
+  insertInterview,
+  interviewResult,
+  parseInterview,
+  retryEvaluation,
+} from "@/lib/screening/interview";
+import type { Kind } from "@/lib/screening/fields";
 import {
   cleanFilters,
   JOB_TYPES,

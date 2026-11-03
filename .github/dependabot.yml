@@ -11,11 +11,11 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
   - package-ecosystem: npm
-    directory: /interview-agent
+    directory: /voice-agent
     schedule: { interval: monthly }
     cooldown: { default-days: 5 }
     commit-message: { prefix: deps(agent) }
-    labels: [dependencies, "area: interview-agent"]
+    labels: [dependencies, "area: voice-agent"]
     groups:
       minor-and-patch:
         update-types: [minor, patch]

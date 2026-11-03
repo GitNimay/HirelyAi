@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { cleanAiReport, evalInput, EVALUATOR, integrityOf } from "@/lib/evaluator";
+import { cleanAiReport, evalInput, EVALUATOR, integrityOf } from "@/lib/ai-interview/evaluator";
 import {
   advance,
   BOOKKEEPER,
@@ -11,7 +11,7 @@ import {
   run,
   type IvEvent,
   type Plan,
-} from "@/lib/harness";
+} from "@/lib/ai-interview/harness";
 
 /**
  * Replay evals: recorded (or hand-written) interviews run through the production evaluator prompt on the real model,

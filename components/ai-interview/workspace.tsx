@@ -4,11 +4,17 @@ import "@excalidraw/excalidraw/index.css";
 import { Excalidraw, exportToBlob } from "@excalidraw/excalidraw";
 import Editor from "@monaco-editor/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { LANGUAGES, type BoardElement, type Language, type PublicProblem, type RunResult } from "@/lib/workspace";
-import type { RoomSocket } from "./ai-interview";
-import { ask, Select } from "./kit";
-import { primary } from "./onboarding";
-import { Icon, icons } from "./ui";
+import {
+  LANGUAGES,
+  type BoardElement,
+  type Language,
+  type PublicProblem,
+  type RunResult,
+} from "@/lib/ai-interview/workspace";
+import type { RoomSocket } from "./candidate";
+import { ask, Select } from "../kit";
+import { primary } from "../onboarding";
+import { Icon, icons } from "../ui";
 
 // Follows the site theme (data-theme on <html>, else the OS)
 const dark = () => {

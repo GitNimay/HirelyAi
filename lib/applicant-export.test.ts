@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { toCsv, toDocx, toPdf, type Completed } from "./applicant-export";
-import { cleanReport } from "./interview-fields";
+import { cleanReport } from "./screening/fields";
 import { cleanResume } from "./resume-fields";
 
 // The DB side (completedApplicants) is covered through the export route in tests/integration

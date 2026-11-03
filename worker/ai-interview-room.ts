@@ -10,7 +10,7 @@ import {
   roomContext,
   textTurn,
   type RoomContext,
-} from "../lib/ai-interview";
+} from "../lib/ai-interview/session";
 import {
   advance,
   applyBookkeeping,
@@ -42,10 +42,10 @@ import {
   type PhaseId,
   type ToolName,
   type Wake,
-} from "../lib/harness";
-import type { Line } from "../lib/interview-fields";
-import { runSuite } from "../lib/sandbox";
-import { starters } from "../lib/starters";
+} from "../lib/ai-interview/harness";
+import type { Line } from "../lib/screening/fields";
+import { runSuite } from "../lib/ai-interview/sandbox";
+import { starters } from "../lib/ai-interview/starters";
 import {
   diffLines,
   LANGUAGES,
@@ -58,7 +58,7 @@ import {
   type Problem,
   type RunResult,
   type Scene,
-} from "../lib/workspace";
+} from "../lib/ai-interview/workspace";
 
 const PHONIC = "https://api.phonic.ai/v1/sts/ws";
 const VOICE = "eleanor"; // female, no regional accent, "grounded, patient, reassuring" per Phonic
@@ -102,7 +102,7 @@ type Saved = {
 
 /**
  * One AI interview session. The candidate's browser holds one WebSocket here (mic PCM in, interviewer PCM and
- * room events out); this object holds the Phonic speech-to-speech socket and runs the harness (lib/harness.ts):
+ * room events out); this object holds the Phonic speech-to-speech socket and runs the harness (lib/ai-interview/harness.ts):
  * phase clock, phase-scoped tools, wake triggers, memory, checkpoints and the event log. Tool calls never pass
  * through the browser, so the candidate can't forge them.
  *

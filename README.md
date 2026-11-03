@@ -74,7 +74,7 @@ sequenceDiagram
     B-->>A: Report and score
 ```
 
-The app mints a LiveKit token whose room config dispatches [interview-agent](interview-agent/README.md) with the job, candidate and questions as metadata. The agent runs the call (5-minute hard limit) on LiveKit Inference: AssemblyAI streaming STT, Gemma 4 31B, Inworld TTS, no extra keys. When the call ends it POSTs the transcript to `/api/interview/complete`, a queue grades it with Bedrock, and the poster gets the report.
+The app mints a LiveKit token whose room config dispatches [the voice agent](voice-agent/README.md) (registered with LiveKit as `interview-agent`) with the job, candidate and questions as metadata. The agent runs the call (5-minute hard limit) on LiveKit Inference: AssemblyAI streaming STT, Gemma 4 31B, Inworld TTS, no extra keys. When the call ends it POSTs the transcript to `/api/interview/complete`, a queue grades it with Bedrock, and the poster gets the report.
 
 ## Getting started
 

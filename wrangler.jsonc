@@ -26,7 +26,7 @@
     // PostHog project key: public by design (the browser bundle carries it too), it can only send events
     "POSTHOG_KEY": "phc_rTtErsBvXcrQRyKTx4KWsFNZjoZX74twxaqLNMbUK8Rv",
     "POSTHOG_HOST": "https://us.i.posthog.com",
-    // AI interview coding round (lib/sandbox.ts): Judge0's free public instance. Swap for the RapidAPI free tier
+    // AI interview coding round (lib/ai-interview/sandbox.ts): Judge0's free public instance. Swap for the RapidAPI free tier
     // (set the JUDGE0_KEY secret) or a self-hosted Judge0 without code changes.
     "JUDGE0_URL": "https://ce.judge0.com",
   },
@@ -41,7 +41,7 @@
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "hire-excellence-media" }],
   // Read-mostly cache (lib/profile.ts: the signed-in member's Clerk fields). Free tier allows ~1k writes/day: never write per request.
   "kv_namespaces": [{ "binding": "CACHE", "id": "129f69d9798e4a38a7c9e2d36d9ee34e" }],
-  // INTERVIEW_ROOM: one per AI interview session (worker/interview-room.ts): holds the Phonic socket and runs the harness
+  // INTERVIEW_ROOM: one per AI interview session (worker/ai-interview-room.ts): holds the Phonic socket and runs the harness
   "durable_objects": {
     "bindings": [
       { "name": "FEED_HUB", "class_name": "FeedHub" },

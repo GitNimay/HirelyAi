@@ -4,15 +4,15 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { decideInterview, removeRecordings, retryInterview, reviewFlag } from "@/app/dashboard/actions";
-import type { AiReportData } from "@/lib/ai-interview";
-import { RECOMMENDATIONS, type Evidence } from "@/lib/evaluator";
-import { phaseLabel, type IvEvent, type PhaseId } from "@/lib/harness";
-import type { Language, RunResult } from "@/lib/workspace";
-import { ask } from "./kit";
-import { Avatar, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
+import type { AiReportData } from "@/lib/ai-interview/session";
+import { RECOMMENDATIONS, type Evidence } from "@/lib/ai-interview/evaluator";
+import { phaseLabel, type IvEvent, type PhaseId } from "@/lib/ai-interview/harness";
+import type { Language, RunResult } from "@/lib/ai-interview/workspace";
+import { ask } from "../kit";
+import { Avatar, btnGhost, btnOutline, btnPrimary, Icon, icons } from "../ui";
 
-const CodeView = dynamic(() => import("./ai-workspace").then((m) => m.CodeView), { ssr: false });
-const BoardView = dynamic(() => import("./ai-workspace").then((m) => m.BoardView), { ssr: false });
+const CodeView = dynamic(() => import("./workspace").then((m) => m.CodeView), { ssr: false });
+const BoardView = dynamic(() => import("./workspace").then((m) => m.BoardView), { ssr: false });
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));

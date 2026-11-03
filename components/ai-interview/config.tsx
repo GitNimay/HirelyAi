@@ -18,8 +18,8 @@ import {
   type PhaseId,
   type RoleConfig,
   type Timing,
-} from "@/lib/harness";
-import { btnGhost, Icon, icons } from "./ui";
+} from "@/lib/ai-interview/harness";
+import { btnGhost, Icon, icons } from "../ui";
 
 const field =
   "h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors focus-visible:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring sm:h-9";

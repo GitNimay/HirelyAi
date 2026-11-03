@@ -4,9 +4,9 @@ import app from "vinext/server/app-router-entry";
 import { capture } from "../lib/analytics";
 import { writePendingReleases } from "../lib/changelog";
 import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../lib/human";
-import { aiSessionFor, enterAi, planSession, sweepRecordings } from "../lib/ai-interview";
-import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/interview";
-import { cleanTranscript } from "../lib/interview-fields";
+import { aiSessionFor, enterAi, planSession, sweepRecordings } from "../lib/ai-interview/session";
+import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/screening/interview";
+import { cleanTranscript } from "../lib/screening/fields";
 import { syncDirectory } from "../lib/network";
 import { checkAll } from "../lib/status";
 import { deliverNotifications } from "../lib/notifications";
@@ -62,7 +62,7 @@ async function runTask(task: Task, attempts: number) {
 }
 
 /** Holds feed WebSockets (hibernatable, so idle sockets cost nothing) and fans out FeedEvents. */
-export { InterviewRoom } from "./interview-room";
+export { InterviewRoom } from "./ai-interview-room";
 
 const ivCookie = (request: Request) => /(?:^|;\s*)iv=([^;]+)/.exec(request.headers.get("Cookie") ?? "")?.[1];
 const REC_MAX = 25 * 1024 * 1024; // one recording chunk (10 s of low-bitrate video is ~1 MB)

@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { livekitToken } from "./interview";
+import { livekitToken } from "./screening/interview";
 import { COMPONENTS, lastDays, type ComponentId, type Day } from "./status-fields";
 
 const ok = (res: Response) => res.ok;

@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
-import { cleanConfig, LIMITS as LIMITS_IV } from "./harness";
-import type { SessionStatus } from "./interview";
-import type { Fit, Kind, Mcq } from "./interview-fields";
+import { cleanConfig, LIMITS as LIMITS_IV } from "./ai-interview/harness";
+import type { SessionStatus } from "./screening/interview";
+import type { Fit, Kind, Mcq } from "./screening/fields";
 import { getResume } from "./resume";
 import { cleanResume, type Resume } from "./resume-fields";
 import type { AppStatus, JobFilters, JobType, Level, MyJobsTab, Workplace } from "./job-fields";

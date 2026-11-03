@@ -14,9 +14,9 @@ import {
   readEvents,
   recordingSegments,
   roomContext,
-} from "@/lib/ai-interview";
-import { advance, defaultConfig, initState, run } from "@/lib/harness";
-import { candidateView, insertInterview, interviewResult, parseInterview } from "@/lib/interview";
+} from "@/lib/ai-interview/session";
+import { advance, defaultConfig, initState, run } from "@/lib/ai-interview/harness";
+import { candidateView, insertInterview, interviewResult, parseInterview } from "@/lib/screening/interview";
 import { getJob } from "@/lib/jobs";
 import { job, row, user } from "./factories";
 

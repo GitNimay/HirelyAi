@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
-import { recordingChunks } from "@/lib/ai-interview";
+import { recordingChunks } from "@/lib/ai-interview/session";
 
 /**
  * One recording segment of an AI interview (camera or screen), for the job's poster. The browser uploaded it as

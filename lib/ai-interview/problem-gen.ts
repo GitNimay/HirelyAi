@@ -4,7 +4,7 @@
  * We never trust its test outputs: the reference runs in the sandbox to compute every expected output, and it must
  * reproduce the examples the model wrote by hand, or the problem is thrown away. SERVER ONLY (hidden tests).
  */
-import { bedrockJson, jsonObject } from "./bedrock";
+import { bedrockJson, jsonObject } from "../bedrock";
 import { fallbackProblems } from "./problem-bank";
 import { runRaw, runSuite } from "./sandbox";
 import { starters, type Read, type Signature } from "./starters";

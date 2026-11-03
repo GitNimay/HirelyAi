@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { notFound } from "next/navigation";
-import { AiReportView } from "@/components/ai-report";
-import { aiReport } from "@/lib/ai-interview";
+import { AiReportView } from "@/components/ai-interview/report";
+import { aiReport } from "@/lib/ai-interview/session";
 
 export const metadata = { title: "Interview report | Hire Excellence" };
 

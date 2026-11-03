@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
-import { bedrockJson } from "./bedrock";
-import { Fail } from "./guard";
+import { bedrockJson } from "../bedrock";
+import { Fail } from "../guard";
 import { cleanAiReport, evalInput, EVALUATOR, integrityOf, type AiReport } from "./evaluator";
 import {
   bookkeepInput,
@@ -20,12 +20,12 @@ import {
 } from "./harness";
 import { fallbackProblems } from "./problem-bank";
 import { planProblems } from "./problem-gen";
-import { cleanTranscript, type Line, type Profile } from "./interview-fields";
-import { LEVELS, WORKPLACES } from "./job-fields";
-import { sendTo } from "./realtime";
-import { cleanResume, fmtRange, type Resume } from "./resume-fields";
+import { cleanTranscript, type Line, type Profile } from "../screening/fields";
+import { LEVELS, WORKPLACES } from "../job-fields";
+import { sendTo } from "../realtime";
+import { cleanResume, fmtRange, type Resume } from "../resume-fields";
 import type { Language } from "./workspace";
-import { enqueue } from "./tasks";
+import { enqueue } from "../tasks";
 
 /** Small, frequent jobs (claims, summaries) run on the cheapest capable model; grading keeps BEDROCK_MODEL. */
 export const FAST = "openai.gpt-oss-20b";

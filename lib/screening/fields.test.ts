@@ -10,7 +10,7 @@ import {
   gradeMcq,
   resumeYears,
   screeningFacts,
-} from "./interview-fields";
+} from "./fields";
 
 describe("cleanQuestions", () => {
   it("takes one per line, drops blanks and keeps at most five", () => {

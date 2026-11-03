@@ -3,7 +3,7 @@
  * validated report, and the deterministic parts (overall score, recommendation, integrity level). No I/O, so the
  * replay eval script (scripts/replay-eval.ts) and the tests run exactly what production runs.
  */
-import { fitFor, type Fit, type Report } from "./interview-fields";
+import { fitFor, type Fit, type Report } from "../screening/fields";
 import {
   BARS,
   LEVELS,
