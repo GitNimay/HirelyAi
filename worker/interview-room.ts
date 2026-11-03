@@ -1,29 +1,35 @@
+import { Buffer } from "node:buffer";
 import { DurableObject } from "cloudflare:workers";
 import { capture } from "../lib/analytics";
 import {
+  bookkeep,
   checkpoint,
   describeBoard,
   finishAi,
   markLive,
   roomContext,
-  summarize,
   textTurn,
   type RoomContext,
 } from "../lib/ai-interview";
 import {
   advance,
+  applyBookkeeping,
   applyTool,
   canWake,
   enumsFor,
   heard,
   initState,
   isOver,
+  confirmAnswer,
+  CONFIRM_MS,
+  openConfirm,
   pause,
   PHASES,
   phaseBrief,
   phaseOf,
   phonicTool,
   run,
+  skipIntent,
   systemPrompt,
   tick,
   timeLeft,
@@ -46,6 +52,7 @@ import {
   publicProblem,
   sceneChange,
   sceneOf,
+  sceneText,
   type BoardElement,
   type Language,
   type Problem,
@@ -54,20 +61,32 @@ import {
 } from "../lib/workspace";
 
 const PHONIC = "https://api.phonic.ai/v1/sts/ws";
-const VOICE = "nolan"; // male, "confident, direct, professional" per Phonic: suits an interviewer
+const VOICE = "eleanor"; // female, no regional accent, "grounded, patient, reassuring" per Phonic
 const GRACE_MS = 5 * 60_000; // a dropped candidate can rejoin within this, with the clock paused
+const KEEP_VOICE_MS = 30_000; // a brief drop (tab flip, network blip) keeps the conversation: no re-greeting on rejoin
 const IDLE_MS = 60_000; // coding/design: no speech and no edits for this long wakes the agent
 const FLUSH_MS = 15_000; // event log → R2
-const SUMMARY_EVERY = 16; // transcript lines between rolling-summary refreshes
-const MAX_PHONIC_FAILURES = 3; // then the room falls back to text chat
+const BOOKKEEP_EVERY = 8; // transcript lines between background bookkeeping passes
+const PERSIST_MS = 3_000; // state checkpoints are batched to at most one per this
+// Voice resilience: a dropped Phonic socket is first resumed (same conversation, Phonic holds it ~30 s), then
+// replaced; text chat is the last resort, and the room keeps trying to bring voice back from there
+const BACKOFF_MS = [500, 1000, 2000, 4000, 5000];
+const MAX_PHONIC_FAILURES = BACKOFF_MS.length; // consecutive, without the interviewer ever getting ready
+const HANDSHAKE_MS = 30_000; // a WebSocket upgrade slower than this counts as a failure
+const READY_MS = 20_000; // config sent, but no ready_to_start_conversation within this
+const RESUME_MS = 8_000; // reconnect_conv_id sent, but no conversation_reconnected within this
+const FAILING_MS = 60_000; // ...or failing for longer than this
+const RECOVER_MS = 45_000; // from text chat, try voice again this often
+const OVERTIME_MS = 30_000; // a forced phase change waits up to this for the candidate to finish speaking or drawing
+const BOARD_SETTLE_MS = 12_000; // whiteboard: ask about the sketch only after they stop drawing for this long
 const WARM_MS = 45_000; // a pre-opened Phonic socket is used within this, else dropped
 // Voice standby (cost): Phonic bills per open minute, and coding/design are mostly silent work. After this long with
 // nobody speaking, the conversation closes and the room listens for speech itself; it reconnects (pre-warmed) the
 // moment the candidate talks, replaying the buffered audio so their first words aren't lost.
 const STANDBY_MS = 90_000;
-const PREROLL_FRAMES = 75; // 1.5 s of 20 ms frames kept while in standby
+const PREROLL_FRAMES = 38; // ~1.5 s of 40 ms mic frames kept while in standby
 const SPEECH_RMS = 900; // PCM16 RMS that counts as speech (the mic has noise suppression on)
-const SPEECH_FRAMES = 5; // consecutive loud frames (100 ms) before waking
+const SPEECH_FRAMES = 3; // consecutive loud 40 ms frames (120 ms) before waking
 
 type Saved = {
   sessionId: string;
@@ -110,7 +129,7 @@ export class InterviewRoom extends DurableObject<Env> {
   paused: string | null = null; // proctoring pause reason
   ending = false;
   snapshots = new Map<string, (png: string | null) => void>();
-  silence = new Uint8Array(640); // 20 ms of 16 kHz PCM16, sent while proctoring has the room paused
+  silence = new Uint8Array(1280); // 40 ms of 16 kHz PCM16, sent while proctoring has the room paused
 
   // ── Connection ────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -155,17 +174,36 @@ export class InterviewRoom extends DurableObject<Env> {
     this.log({ at: now, type: "session", what: fresh ? "connected" : "resumed" });
     if (fresh) this.log({ at: now, type: "phase", from: null, to: phaseOf(this.s.state), reason: "start" });
     // PostHog (ids only): funnel, drop-offs, reconnects, voice fallbacks, why interviews end
-    capture(room.id, fresh ? "interview started" : "interview rejoined", { kind: "ai", $process_person_profile: false });
+    capture(room.id, fresh ? "interview started" : "interview rejoined", {
+      kind: "ai",
+      $process_person_profile: false,
+    });
     this.lastActivity = now;
+    clearTimeout(this.dropTimer);
     await this.prepare(phaseOf(this.s.state));
     this.restoreWorkspace();
     this.timer ??= setInterval(() => void this.onTick().catch((e) => this.fail("tick", e)), 1000);
-    if (this.s.fallback) return this.send({ t: "fallback" }), this.syncClock();
+    if (this.s.fallback) return (this.send({ t: "fallback" }), this.syncClock());
+    // A brief drop: the conversation is still open, so carry on in it (no new greeting, nothing to re-brief)
+    if (this.phonic && this.ready) {
+      this.syncClock();
+      this.send({ t: "stage", stage: "ready" });
+      this.send({ t: "state", agent: "listening" });
+      this.wake(
+        "reconnect",
+        "Harness: the candidate's connection dropped for a moment and they're back. Welcome them back in one short sentence and continue where you left off.",
+      );
+      return;
+    }
+    // Anything left over from before the drop (a standby, a half-open socket) starts clean
+    this.standby = false;
+    this.closePhonic();
     // The clock waits for the interviewer: it starts (or resumes) when Phonic is ready, not when the browser connects
     this.syncClock();
     this.send({ t: "stage", stage: "joining" });
     await this.connectPhonic(fresh ? "start" : "reconnect");
   }
+  dropTimer: ReturnType<typeof setTimeout> | undefined;
 
   async onDisconnect() {
     this.client = null;
@@ -173,9 +211,10 @@ export class InterviewRoom extends DurableObject<Env> {
     const now = Date.now();
     this.syncClock();
     this.log({ at: now, type: "session", what: "disconnected" });
-    this.closePhonic();
     this.stopTimer();
-    await this.save();
+    // Keep the voice conversation open briefly: most drops are a tab flip or a network blip and rejoin in seconds
+    this.dropTimer = setTimeout(() => !this.client && this.closePhonic(), KEEP_VOICE_MS);
+    await this.persist();
     await this.flush();
     // Hold the session for the grace period; the alarm ends it if they don't come back
     await this.ctx.storage.setAlarm(now + GRACE_MS);
@@ -187,29 +226,83 @@ export class InterviewRoom extends DurableObject<Env> {
     if (!this.s) return;
     this.room ??= await roomContext(this.s.sessionId);
     if (!this.room) return;
-    this.log({ at: Date.now(), type: "session", what: "ended", detail: "abandoned: didn't rejoin within the grace period" });
+    this.log({
+      at: Date.now(),
+      type: "session",
+      what: "ended",
+      detail: "abandoned: didn't rejoin within the grace period",
+    });
     await this.finish("abandoned");
   }
 
   // ── Phonic ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  async connectPhonic(why: "start" | "reconnect" | "retry" | "resume") {
-    const room = this.room!;
+  /**
+   * Opens the voice conversation. After an abnormal drop it first resumes the same Phonic conversation
+   * (reconnect_conv_id: no new greeting, its context intact); otherwise, or if that fails, it starts a new one primed
+   * with the rolling summary. Every attempt has a deadline, so a hung handshake can't stall the interview.
+   */
+  async connectPhonic(why: "start" | "reconnect" | "retry" | "resume" | "recover") {
     const s = this.s!;
     const phase = phaseOf(s.state);
-    if (!phase) return;
-    this.ready = false;
-    this.connectStarted = Date.now();
-    // A socket pre-opened while the candidate read the overview (warm()) skips the slow handshake
-    const warm = this.warmed;
-    this.warmed = null;
-    const ws = warm && Date.now() - warm.at < WARM_MS ? warm.ws : await this.openPhonic();
-    if (!ws) return this.onPhonicFailure("upgrade failed");
-    if (ws !== warm?.ws) warm?.ws.close(1000, "stale");
+    if (!phase || this.connecting) return;
+    this.connecting = true;
+    try {
+      this.ready = false;
+      this.connectStarted = Date.now();
+      const resumeId = this.resumeConv;
+      this.resumeConv = null;
+      if (resumeId) {
+        const ws = await this.openPhonic(resumeId);
+        if (ws && this.client && !this.ending) {
+          this.attach(ws);
+          this.log({ at: Date.now(), type: "session", what: "resumed", detail: "voice: same conversation" });
+          this.deadline(ws, RESUME_MS, "resume timed out");
+          return;
+        }
+        ws?.close(1000, "unused");
+      }
+      // A socket pre-opened while the candidate read the overview (warm()) skips the slow handshake
+      const warm = this.warmed;
+      this.warmed = null;
+      const ws = warm && Date.now() - warm.at < WARM_MS ? warm.ws : await this.openPhonic();
+      if (ws !== warm?.ws) warm?.ws.close(1000, "stale");
+      if (!ws) return void this.onPhonicFailure("upgrade failed");
+      if (!this.client || this.ending) return void ws.close(1000, "unused");
+      this.attach(ws);
+      this.sendConfig(ws, phase, this.everReady || why === "reconnect" ? why : "start");
+      this.deadline(ws, READY_MS, "not ready in time");
+    } finally {
+      this.connecting = false;
+    }
+  }
+  connecting = false;
+  everReady = false; // the interviewer has been live at least once in this object's life
+  resumeConv: string | null = null; // the Phonic conversation to resume after an abnormal close
+  convId: string | null = null;
+
+  attach(ws: WebSocket) {
     this.phonic = ws;
     ws.addEventListener("message", (e) => void this.onPhonic(ws, e.data).catch((err) => this.fail("phonic", err)));
     ws.addEventListener("close", (e) => this.phonic === ws && this.onPhonicClosed(e.code, e.reason));
     ws.addEventListener("error", () => this.phonic === ws && this.onPhonicClosed(1006, "error"));
+  }
+
+  /** The conversation must be ready within `ms`, or the attempt counts as a failure and the next one starts. */
+  deadline(ws: WebSocket, ms: number, why: string) {
+    setTimeout(() => {
+      if (this.phonic !== ws || this.ready) return;
+      this.phonic = null;
+      try {
+        ws.close(1000, why);
+      } catch {}
+      this.log({ at: Date.now(), type: "session", what: "error", detail: `phonic ${why}` });
+      void this.onPhonicFailure(why);
+    }, ms);
+  }
+
+  sendConfig(ws: WebSocket, phase: PhaseId, why: string) {
+    const room = this.room!;
     ws.send(
       JSON.stringify({
         type: "config",
@@ -231,21 +324,37 @@ export class InterviewRoom extends DurableObject<Env> {
       }),
     );
     if (why === "reconnect" || why === "retry")
-      this.pendingWake = { why: "reconnect", text: "Harness: the connection was restored. Welcome them back in one sentence and continue where you left off." };
+      this.pendingWake = {
+        why: "reconnect",
+        text: "Harness: the connection was restored. Welcome them back in one sentence and continue where you left off.",
+      };
+    if (why === "recover")
+      this.pendingWake = {
+        why: "reconnect",
+        text: "Harness: voice is working again after a text-chat stretch. Tell them in one sentence that you can continue by voice, then continue where you left off.",
+      };
   }
   pendingWake: { why: Wake; text: string } | null = null;
   connectStarted = 0;
   warmed: { ws: WebSocket; at: number } | null = null;
 
-  /** The WebSocket handshake with Phonic (no config yet: nothing is billed or said until config is sent). */
-  async openPhonic() {
+  /**
+   * The WebSocket handshake with Phonic (no config yet: nothing is billed or said until config is sent), or a resume
+   * of an existing conversation. Null on failure or after HANDSHAKE_MS.
+   */
+  async openPhonic(resumeId?: string) {
     const t0 = Date.now();
-    const res = await fetch(PHONIC, {
-      headers: { Upgrade: "websocket", Authorization: `Bearer ${this.env.PHONIC_API_KEY}` },
-    }).catch((e) => (console.error("phonic connect", String(e)), null));
+    const url = resumeId ? `${PHONIC}?reconnect_conv_id=${encodeURIComponent(resumeId)}` : PHONIC;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const res = await Promise.race([
+      fetch(url, { headers: { Upgrade: "websocket", Authorization: `Bearer ${this.env.PHONIC_API_KEY}` } }),
+      new Promise<null>((r) => (timer = setTimeout(() => r(null), HANDSHAKE_MS))),
+    ])
+      .catch((e) => (console.error("phonic connect", String(e)), null))
+      .finally(() => clearTimeout(timer));
     const ws = res?.webSocket;
     if (!ws) {
-      console.error("phonic upgrade failed", res?.status, await res?.text().catch(() => ""));
+      console.error("phonic upgrade failed", res?.status ?? "timeout", await res?.text().catch(() => ""));
       return null;
     }
     ws.accept();
@@ -284,7 +393,10 @@ export class InterviewRoom extends DurableObject<Env> {
   promptCtx() {
     const r = this.room!;
     const s = this.s!;
-    const recent = s.transcript.slice(-8).map((l) => `${l.role === "agent" ? "You" : "Candidate"}: ${l.text}`).join("\n");
+    const recent = s.transcript
+      .slice(-8)
+      .map((l) => `${l.role === "agent" ? "You" : "Candidate"}: ${l.text}`)
+      .join("\n");
     return {
       job: r.job,
       candidate: r.candidate,
@@ -292,6 +404,7 @@ export class InterviewRoom extends DurableObject<Env> {
       config: r.config,
       summary: [s.summary, recent && `Most recent lines:\n${recent}`].filter(Boolean).join("\n\n"),
       problem: this.problem(s.state.assigned.problem) ?? r.plan.problems?.[0],
+      faq: r.faq,
     };
   }
 
@@ -303,9 +416,12 @@ export class InterviewRoom extends DurableObject<Env> {
   /** Puts a problem in the candidate's editor with fresh starter code. */
   showProblem(p: Problem) {
     const s = this.s!;
-    s.state = { ...s.state, assigned: { ...s.state.assigned, problem: p.id, tried: [...(s.state.assigned.tried ?? []), p.id] } };
+    s.state = {
+      ...s.state,
+      assigned: { ...s.state.assigned, problem: p.id, tried: [...(s.state.assigned.tried ?? []), p.id] },
+    };
     s.code = { language: s.code?.language ?? "python", code: starters(p.signature)[s.code?.language ?? "python"] };
-    this.lastCodeRead = "";
+    this.lastCodeRead = s.code.code; // the agent knows the starter: only the candidate's changes are news
     this.log({ at: Date.now(), type: "assign", what: "problem", id: p.id });
     this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
   }
@@ -314,8 +430,8 @@ export class InterviewRoom extends DurableObject<Env> {
   async prepare(phase: PhaseId | null) {
     const first = this.room!.plan.problems?.[0];
     if (phase === "coding" && first && !this.s!.state.assigned.problem) this.showProblem(first);
-    // Leaving the Experience round closes a whiteboard the agent left open
-    if (phase !== "resume" && this.s!.whiteboard?.open) this.closeWhiteboard();
+    // Leaving the technical round closes a whiteboard the agent left open
+    if (phase !== "technical" && this.s!.whiteboard?.open) this.closeWhiteboard();
   }
 
   closeWhiteboard() {
@@ -327,7 +443,10 @@ export class InterviewRoom extends DurableObject<Env> {
   /** Re-briefs the agent for a new phase: that phase's tools, then its private brief. */
   brief(phase: PhaseId) {
     this.sendPhonic({ type: "update_tools_subset", tools: this.phaseTools(phase) });
-    this.sendPhonic({ type: "add_system_message", system_message: phaseBrief(phase, this.promptCtx(), this.s!.state, Date.now()) });
+    this.sendPhonic({
+      type: "add_system_message",
+      system_message: phaseBrief(phase, this.promptCtx(), this.s!.state, Date.now()),
+    });
   }
 
   sendPhonic(msg: object) {
@@ -352,27 +471,44 @@ export class InterviewRoom extends DurableObject<Env> {
     this.ready = false;
     this.syncClock(); // voice is down: the candidate isn't losing time while it reconnects
     if (this.ending || !this.client || this.s?.fallback) return;
-    // Phonic ends a conversation on its own after long silences or errors: the interview isn't over, start a new one
-    this.log({ at: Date.now(), type: "session", what: "error", detail: `phonic closed ${code} ${reason}`.slice(0, 200) });
+    // Phonic ends a conversation on its own after long silences or errors: the interview isn't over. A network-level
+    // drop can resume the same conversation; anything else starts a new one
+    this.log({
+      at: Date.now(),
+      type: "session",
+      what: "error",
+      detail: `phonic closed ${code} ${reason}`.slice(0, 200),
+    });
+    if (this.convId && (code === 1006 || code === 1012 || (code === 1001 && /restart/i.test(reason))))
+      this.resumeConv = this.convId;
     void this.onPhonicFailure(`closed ${code}`);
   }
 
   async onPhonicFailure(detail: string) {
+    if (this.ending || !this.client) return;
+    // Trying to bring voice back from text chat: stay in chat quietly and try again later
+    if (this.s!.fallback) return;
     this.phonicFailures++;
-    if (this.phonicFailures >= MAX_PHONIC_FAILURES) {
-      // Speech provider failure: carry on as a text chat in the room
+    this.failingSince ||= Date.now();
+    if (this.phonicFailures > MAX_PHONIC_FAILURES || Date.now() - this.failingSince > FAILING_MS) {
+      // Voice has failed for a while: carry on as a text chat in the room, and keep trying to bring voice back
       this.s!.fallback = true;
+      this.lastRecover = Date.now();
       this.log({ at: Date.now(), type: "session", what: "fallback", detail });
       capture(this.room!.id, "interview voice fallback", { kind: "ai", detail, $process_person_profile: false });
       this.send({ t: "fallback" });
       this.syncClock();
-      await this.textReply("The voice connection failed, so the interview continues by text. Tell the candidate in one sentence and continue.");
+      await this.textReply(
+        "The voice connection failed, so the interview continues by text for now. Tell the candidate in one sentence and continue.",
+      );
       return;
     }
     this.send({ t: "stage", stage: "reconnecting", attempt: this.phonicFailures });
-    await new Promise((r) => setTimeout(r, 1000 * this.phonicFailures));
-    if (this.client && !this.ending) await this.connectPhonic("retry");
+    await new Promise((r) => setTimeout(r, BACKOFF_MS[this.phonicFailures - 1]));
+    if (this.client && !this.ending && !this.phonic) await this.connectPhonic("retry");
   }
+  lastRecover = 0;
+  failingSince = 0; // first failure since the interviewer was last ready
 
   async onPhonic(ws: WebSocket, data: string | ArrayBuffer) {
     if (this.phonic !== ws || typeof data !== "string") return;
@@ -380,29 +516,15 @@ export class InterviewRoom extends DurableObject<Env> {
     const now = Date.now();
     switch (m.type) {
       case "ready_to_start_conversation":
-        console.log(JSON.stringify({ msg: "interviewer ready", ms: Date.now() - this.connectStarted }));
-        this.ready = true;
-        this.phonicFailures = 0;
-        this.syncClock();
-        this.send({ t: "stage", stage: "ready" });
-        this.send({ t: "state", agent: "listening" });
-        for (const f of this.preroll.splice(0)) this.sendAudio(f); // what they said while the conversation resumed
-        this.lastSpeech = now;
-        if (this.pendingWake) {
-          // Already counted against the wake budget when it was raised: deliver it straight away
-          this.queuedReply = this.pendingWake.text;
-          this.pendingWake = null;
-          this.flushReply();
-        }
-        return;
+      case "conversation_reconnected":
+        return this.onReady(m.type);
       case "conversation_created":
-        return this.log({ at: now, type: "session", what: "connected", detail: `phonic ${String(m.conversation_id)}` });
+        this.convId = String(m.conversation_id);
+        return this.log({ at: now, type: "session", what: "connected", detail: `phonic ${this.convId}` });
       case "audio_chunk": {
         if (m.audio && this.client && !this.paused) {
-          const bin = atob(m.audio as string);
-          const bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          this.client.send(bytes);
+          // Native base64 (nodejs_compat): ~50 frames/s each way, so the hot path stays well inside the CPU budget
+          this.client.send(Buffer.from(m.audio as string, "base64"));
         }
         if (m.text) {
           this.agentText += m.text as string;
@@ -430,6 +552,7 @@ export class InterviewRoom extends DurableObject<Env> {
         this.candidateSpeaking = true;
         this.queuedReply = null; // their turn gets its own reply; the harness note is already in context
         this.lastActivity = now;
+        this.pushWorkspace(); // so the reply to what they're saying sees their latest code or sketch
         return this.send({ t: "you", speaking: true });
       case "user_finished_speaking":
         this.lastSpeech = now;
@@ -440,7 +563,10 @@ export class InterviewRoom extends DurableObject<Env> {
         return this.send({ t: "state", agent: "thinking" });
       case "input_text":
         this.send({ t: "cap", who: "you", text: String(m.text ?? "") });
-        if (this.s && String(m.text ?? "").trim()) this.s.state = heard(this.s.state);
+        if (this.s && String(m.text ?? "").trim()) {
+          this.s.state = heard(this.s.state);
+          await this.onCandidateLine(String(m.text), now);
+        }
         return this.utter("candidate", String(m.text ?? ""), now);
       case "tool_call":
         return this.onToolCall(String(m.tool_call_id), String(m.tool_name), m.parameters);
@@ -458,23 +584,125 @@ export class InterviewRoom extends DurableObject<Env> {
     }
   }
 
-  /** One finished utterance: transcript, event log, checkpoint, and a rolling summary refresh every so often. */
+  /** The interviewer is live: a new conversation accepted its config, or a dropped one resumed. */
+  onReady(how: string) {
+    const s = this.s!;
+    const now = Date.now();
+    console.log(JSON.stringify({ msg: "interviewer ready", how, ms: now - this.connectStarted }));
+    this.ready = true;
+    this.everReady = true;
+    this.phonicFailures = 0;
+    this.failingSince = 0;
+    if (s.fallback) {
+      // Voice is back after a text-chat stretch
+      s.fallback = false;
+      this.log({ at: now, type: "session", what: "resumed", detail: "voice restored" });
+      this.send({ t: "voice" });
+    }
+    this.syncClock();
+    this.send({ t: "stage", stage: "ready" });
+    this.send({ t: "state", agent: "listening" });
+    for (const f of this.preroll.splice(0)) this.sendAudio(f); // what they said while the conversation resumed
+    this.lastSpeech = now;
+    // A resumed conversation already knows everything; a new one gets the reconnect note (raised before, counted then)
+    if (this.pendingWake && how !== "conversation_reconnected") {
+      this.queuedReply = this.pendingWake.text;
+      this.flushReply();
+    }
+    this.pendingWake = null;
+  }
+
+  /**
+   * Keeps the agent in sync with the candidate's workspace without tool calls: when they start speaking, the code or
+   * whiteboard changes since the agent last saw them are added to its context, so its reply can refer to them.
+   */
+  pushWorkspace() {
+    const s = this.s!;
+    if (phaseOf(s.state) === "coding" && s.code && s.code.code !== this.lastCodeRead) {
+      const diff = diffLines(this.lastCodeRead, s.code.code);
+      this.lastCodeRead = s.code.code;
+      const body =
+        diff.length < 2500 ? `changes since you last saw it:\n${diff}` : `full code:\n${s.code.code.slice(0, 6000)}`;
+      this.sendPhonic({
+        type: "add_system_message",
+        system_message: `Harness: the candidate's ${LANGUAGES[s.code.language].label} code now, ${untrusted("code", body)}`,
+      });
+    }
+    if (s.whiteboard?.open) this.pushBoard();
+  }
+
+  pushBoard() {
+    const scene = JSON.stringify(this.scene);
+    if (scene === this.lastBoardPush) return;
+    this.lastBoardPush = scene;
+    this.boardPending = false;
+    this.sendPhonic({
+      type: "add_system_message",
+      system_message: `Harness: the whiteboard now: ${this.scene.elements.length ? untrusted("whiteboard", sceneText(this.scene).slice(0, 3000)) : "empty"}`,
+    });
+  }
+  lastBoardPush = "";
+  boardPending = false; // the sketch changed and the agent hasn't seen it
+  boardChangedAt = 0;
+
+  /** One finished utterance: transcript, event log, a batched checkpoint, and background bookkeeping every few lines. */
   async utter(role: Line["role"], text: string, at: number, interrupted = false) {
     const t = text.trim();
     if (!t) return;
     const s = this.s!;
     s.transcript.push({ role, text: t });
     this.log({ at, type: "utterance", role, text: t, ...(interrupted && { interrupted }) });
-    await checkpoint(this.room!.id, s.state, s.transcript);
-    if (s.transcript.length - s.summarized >= SUMMARY_EVERY) void this.refreshSummary();
+    this.persistSoon();
+    if (s.transcript.length - s.summarized >= BOOKKEEP_EVERY) void this.bookkeep();
   }
 
-  async refreshSummary() {
+  /**
+   * Runs the bookkeeper on the lines it hasn't seen: summary for the prompts, evidence for the evaluator. In parallel
+   * with the conversation, one pass at a time (lines that arrive meanwhile go in the next pass).
+   */
+  bookkeep(): Promise<void> {
+    if (this.bookkeeping) return this.bookkeeping;
     const s = this.s!;
+    const room = this.room!;
+    const from = s.summarized;
     const upto = s.transcript.length;
-    const next = await summarize(s.summary, s.transcript.slice(s.summarized, upto));
-    s.summary = next;
-    s.summarized = upto;
+    const phase = phaseOf(s.state) ?? "wrapup";
+    if (upto <= from) return Promise.resolve();
+    this.bookkeeping = bookkeep({
+      previous: s.summary,
+      lines: s.transcript.slice(from, upto),
+      claims: room.plan.claims,
+      rubric: room.config.rubric,
+    })
+      .then((b) => {
+        s.summary = b.summary;
+        s.summarized = upto;
+        s.state = applyBookkeeping(s.state, b, phase, Date.now());
+        this.persistSoon();
+      })
+      .catch((e) => this.fail("bookkeeping", e))
+      .finally(() => (this.bookkeeping = null));
+    return this.bookkeeping;
+  }
+  bookkeeping: Promise<void> | null = null;
+
+  /** State checkpoints (D1 for the report, DO storage for a restart), batched so tool calls and lines never wait on them. */
+  persistSoon() {
+    this.persistTimer ??= setTimeout(() => void this.persist().catch((e) => this.fail("persist", e)), PERSIST_MS);
+  }
+  persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async persist() {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = null;
+    const s = this.s;
+    if (!s || this.ending) return;
+    // allowUnconfirmed: a storage write would otherwise hold back every outgoing message (the interviewer's audio)
+    // until it is durable; a checkpoint every few seconds isn't worth an audible hiccup
+    await Promise.all([
+      checkpoint(this.room!.id, s.state, s.transcript),
+      this.ctx.storage.put("saved", s, { allowUnconfirmed: true }),
+    ]);
   }
 
   // ── Tools ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -500,23 +728,11 @@ export class InterviewRoom extends DurableObject<Env> {
     this.log({ at: now, type: "tool_call", id, name, args: params });
     const v = validateCall(s.state, name, params, enumsFor(room.config, room.plan));
     let result: unknown;
-    let effect: "advance" | "end" | undefined;
+    let effect: "advance" | "switch" | "end" | undefined;
     if (!v.ok) result = { error: v.error };
     else if (WORKSPACE_TOOLS.includes(v.name)) result = await this.workspaceTool(v.name, v.args);
     else {
-      const out = applyTool(
-        s.state,
-        v.name,
-        v.args,
-        {
-          plan: room.plan,
-          rubric: room.config.rubric,
-          role: { title: room.job.title, company: room.job.company, level: room.job.level },
-          profile: room.candidate,
-          faq: room.faq,
-        },
-        now,
-      );
+      const out = applyTool(s.state, v.name, v.args, { plan: room.plan }, now);
       s.state = out.state;
       result = out.result;
       effect = out.effect;
@@ -525,26 +741,89 @@ export class InterviewRoom extends DurableObject<Env> {
     // tool result tells it to follow them (no extra generate_reply: it's already mid-turn and would talk twice)
     if (effect === "advance") {
       const to = await this.transition("approved");
-      if (to) result = { approved: true, now_in_phase: PHASES[to].label, next: "Follow the Harness brief for this phase now." };
+      if (to)
+        result = {
+          approved: true,
+          now_in_phase: PHASES[to].label,
+          next: "Say one short transition sentence, then follow the Harness brief for this phase.",
+        };
     }
+    if (effect === "switch") result = this.switchProblem(String(v.ok && v.args.reason));
     this.log({ at: Date.now(), type: "tool_result", id, name, result });
-    await checkpoint(room.id, s.state, s.transcript);
+    this.persistSoon();
     if (effect === "end") setTimeout(() => void this.endAfterGoodbye(), 0);
     return result;
+  }
+
+  /** Puts the next backup problem on screen and re-briefs the agent with its hints. */
+  switchProblem(reason: string) {
+    const s = this.s!;
+    const tried = s.state.assigned.tried ?? [];
+    const next = this.room!.plan.problems?.find((p) => !tried.includes(p.id));
+    if (!next) return { error: "No backup problem left. Simplify the current one with a hint instead." };
+    this.showProblem(next);
+    this.log({ at: Date.now(), type: "session", what: "resumed", detail: `problem switched: ${reason.slice(0, 120)}` });
+    this.sendPhonic({
+      type: "add_system_message",
+      system_message: phaseBrief("coding", this.promptCtx(), s.state, Date.now()),
+    });
+    return {
+      ok: true,
+      title: next.title,
+      statement: next.statement,
+      note: "The new problem is on their screen with fresh starter code. Introduce it in one or two sentences.",
+    };
+  }
+
+  /**
+   * Skips and problem switches are the candidate's call, confirmed first, and never left to the agent noticing (or
+   * arguing): a request opens a confirmation and the agent asks; a clear yes is carried out here, a clear no cancels it.
+   * Anything less clear stays with the agent (its request_phase_transition / switch_problem is approved after an answer).
+   */
+  async onCandidateLine(text: string, now: number) {
+    const s = this.s!;
+    const c = s.state.confirm;
+    if (c && now - c.at < CONFIRM_MS && s.state.heard > c.heard) {
+      // heard > c.heard: a line after the request (the request itself was counted when the confirmation opened)
+      const answer = confirmAnswer(text);
+      if (answer === "no") {
+        s.state = { ...s.state, confirm: null };
+        this.log({ at: now, type: "session", what: "confirm", detail: `${c.action} declined` });
+        return;
+      }
+      if (answer === "yes") {
+        s.state = { ...s.state, confirm: null };
+        this.log({ at: now, type: "session", what: "confirm", detail: `${c.action} confirmed` });
+        if (c.action === "switch") {
+          const r = this.switchProblem("the candidate asked for a different problem");
+          if ("ok" in r)
+            this.wake(
+              "phase",
+              `Harness: the candidate confirmed, and a new problem, "${r.title}", is on their screen. Acknowledge in a few words and introduce it in one or two sentences.`,
+            );
+          return;
+        }
+        const to = await this.transition("approved");
+        if (to)
+          this.wake(
+            "phase",
+            `Harness: the candidate confirmed, so the interview has moved on to the ${PHASES[to].label} phase. Acknowledge in a few words, then begin it.`,
+          );
+        return;
+      }
+    }
+    const intent = skipIntent(text, phaseOf(s.state));
+    const open = intent && openConfirm(s.state, intent, now);
+    if (!open) return;
+    s.state = open.state;
+    this.log({ at: now, type: "session", what: "confirm", detail: `${intent} requested` });
+    this.sendPhonic({ type: "add_system_message", system_message: open.note });
   }
 
   async workspaceTool(name: ToolName, a: Record<string, string | number>): Promise<unknown> {
     const s = this.s!;
     const now = Date.now();
     switch (name) {
-      case "switch_problem": {
-        const tried = s.state.assigned.tried ?? [];
-        const next = this.room!.plan.problems?.find((p) => !tried.includes(p.id));
-        if (!next) return { error: "No backup problem left. Simplify the current one with a hint instead." };
-        this.showProblem(next);
-        this.log({ at: now, type: "session", what: "resumed", detail: `problem switched: ${String(a.reason).slice(0, 120)}` });
-        return { ok: true, title: next.title, statement: next.statement, note: "The new problem is on their screen with fresh starter code. Introduce it in one sentence." };
-      }
       case "read_editor": {
         if (!s.code) return { error: "No problem assigned yet." };
         const diff = diffLines(this.lastCodeRead, s.code.code);
@@ -561,13 +840,23 @@ export class InterviewRoom extends DurableObject<Env> {
         const r = await this.execute("agent", suite);
         if (typeof r === "string") return { error: r };
         // The agent learns which kinds of hidden cases fail (names), never their inputs or expected outputs
-        return { passed: r.passed, total: r.total, status: r.status, failing: r.cases.filter((c) => !c.passed).map((c) => c.name), runtime_s: r.time, memory_kb: r.memory, error: r.error ? untrusted("error", r.error.slice(0, 800)) : "" };
+        return {
+          passed: r.passed,
+          total: r.total,
+          status: r.status,
+          failing: r.cases.filter((c) => !c.passed).map((c) => c.name),
+          runtime_s: r.time,
+          memory_kb: r.memory,
+          error: r.error ? untrusted("error", r.error.slice(0, 800)) : "",
+        };
       }
-      case "get_run_history":
-        return { runs: s.state.runs.map((r) => ({ by: r.by, suite: r.suite, passed: r.passed, total: r.total, status: r.status, seconds_ago: Math.round((now - r.at) / 1000) })) };
       case "open_whiteboard": {
         const topic = String(a.topic);
-        const requirements = String(a.requirements).split(/[;\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 5);
+        const requirements = String(a.requirements)
+          .split(/[;\n]/)
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .slice(0, 5);
         s.state = { ...s.state, assigned: { ...s.state.assigned, design: topic } };
         // A new question starts on a clean board; reopening the same one keeps the sketch
         if (s.whiteboard?.topic !== topic) {
@@ -576,22 +865,27 @@ export class InterviewRoom extends DurableObject<Env> {
         }
         s.whiteboard = { topic, requirements, open: true };
         this.log({ at: now, type: "assign", what: "design", id: topic });
-        this.send({ t: "design", design: { id: topic, title: topic, prompt: "", requirements }, elements: s.board?.raw ?? [] });
+        this.send({
+          t: "design",
+          design: { id: topic, title: topic, prompt: "", requirements },
+          elements: s.board?.raw ?? [],
+        });
         return { ok: true, note: "The whiteboard is open on their screen with this question." };
       }
       case "close_whiteboard":
         this.closeWhiteboard();
         return { ok: true };
-      case "read_whiteboard":
-        return this.scene.elements.length
-          ? { scene: untrusted("whiteboard", JSON.stringify(this.scene)) }
-          : { scene: "The whiteboard is empty." };
-      case "snapshot_whiteboard": {
-        if (!this.scene.elements.length) return { description: "The whiteboard is empty." };
+      case "read_whiteboard": {
+        if (!this.scene.elements.length && !s.board?.elements.length) return { scene: "The whiteboard is empty." };
+        this.lastBoardPush = JSON.stringify(this.scene);
+        this.boardPending = false;
+        const scene = untrusted("whiteboard", sceneText(this.scene).slice(0, 3000));
+        // Freehand strokes don't show up in the structure: describe the image as well
+        const freehand = s.board?.elements.some((e) => e.type === "freedraw");
+        if (!freehand) return { scene };
         const png = await this.requestSnapshot();
-        if (!png) return { error: "Couldn't capture the whiteboard. Use read_whiteboard instead." };
-        const description = await describeBoard(png);
-        return description ? { description: untrusted("whiteboard_image", description) } : { error: "Image description unavailable. Use read_whiteboard." };
+        const description = png ? await describeBoard(png) : "";
+        return description ? { scene, drawing: untrusted("whiteboard_image", description) } : { scene };
       }
       default:
         return { error: `Unknown workspace tool ${name}` };
@@ -612,7 +906,10 @@ export class InterviewRoom extends DurableObject<Env> {
       return "Execution unavailable right now: continue the discussion verbally.";
     }
     const at = Date.now();
-    s.state = { ...s.state, runs: [...s.state.runs, { at, by, suite, passed: r.passed, total: r.total, status: r.status }].slice(-50) };
+    s.state = {
+      ...s.state,
+      runs: [...s.state.runs, { at, by, suite, passed: r.passed, total: r.total, status: r.status }].slice(-50),
+    };
     this.log({ at, type: "run", by, language, result: r });
     this.send({ t: "run", result: r });
     return r;
@@ -634,26 +931,68 @@ export class InterviewRoom extends DurableObject<Env> {
     if (!s || this.ending) return;
     const now = Date.now();
     const due = tick(s.state, now);
-    if (due === "warn") {
-      s.state = { ...s.state, warned: true };
-      const phase = phaseOf(s.state)!;
-      this.log({ at: now, type: "warning", phase });
-      const left = Math.ceil(timeLeft(s.state, now).phase / 60);
-      if (this.s?.fallback) return;
-      this.sendPhonic({ type: "add_system_message", system_message: `Harness: about ${left} minute${left === 1 ? "" : "s"} left in the ${PHASES[phase].label} phase. Start wrapping it up.` });
+    if (due === "warn") this.warnTime(now);
+    if (due === "force" || due === "wrap") {
+      // Never cut the candidate off mid-sentence or mid-sketch: the move waits (up to OVERTIME_MS) for a pause, and
+      // the overrun comes out of the next phase
+      this.forceDue ??= now;
+      const busy =
+        this.candidateSpeaking ||
+        this.agentSpeaking ||
+        this.toolsInFlight > 0 ||
+        (!!s.whiteboard?.open && now - this.boardChangedAt < 8_000);
+      // "wrap" (flexible timing near its limit) goes straight to the wrap-up, whatever phase is running
+      if (!busy || now - this.forceDue >= OVERTIME_MS) return void (await this.transition("forced", due === "wrap"));
     }
-    if (due === "force") return void (await this.transition("forced"));
     this.flushReply();
+    // Whiteboard: once they've stopped drawing for a moment, the agent sees the sketch and can ask about it
+    if (
+      s.whiteboard?.open &&
+      this.boardPending &&
+      now - this.boardChangedAt > BOARD_SETTLE_MS &&
+      !this.candidateSpeaking &&
+      !this.agentSpeaking
+    ) {
+      const change = this.boardChange;
+      this.pushBoard();
+      this.wake(
+        "board",
+        `Harness: the candidate paused drawing. Latest change: ${untrusted("whiteboard_change", change || "edits")}. Ask one specific question about what they drew, by name, or let them continue if they said they're still working.`,
+      );
+    }
+    // From text chat, keep trying to bring voice back
+    if (s.fallback && this.client && !this.phonic && !this.connecting && now - this.lastRecover > RECOVER_MS) {
+      this.lastRecover = now;
+      void this.connectPhonic("recover");
+    }
     // Silent work: coding, or sketching on the whiteboard
     const working = phaseOf(s.state) === "coding" || !!s.whiteboard?.open;
     // Idle nudges back off (1, 2, 4 min…) so a thinking candidate isn't nagged; speaking resets the ladder
-    if (working && s.state.since !== null && !this.agentSpeaking && !this.candidateSpeaking && now - this.lastActivity > IDLE_MS * 2 ** this.nudges) {
+    if (
+      working &&
+      s.state.since !== null &&
+      !this.agentSpeaking &&
+      !this.candidateSpeaking &&
+      now - this.lastActivity > IDLE_MS * 2 ** this.nudges
+    ) {
       this.lastActivity = now;
       this.nudges++;
-      this.wake("idle", "Harness: the candidate hasn't spoken or changed anything for a minute. Check in briefly: ask what they're thinking. Offer the next hint level only if they say they're stuck.");
+      this.wake(
+        "idle",
+        "Harness: the candidate hasn't spoken or changed anything for a minute. Check in briefly: ask what they're thinking. Offer the next hint level only if they say they're stuck.",
+      );
     }
     const quiet = now - this.lastSpeech; // typing is silent work: only speech keeps the conversation open
-    if (working && this.ready && !this.paused && !this.agentSpeaking && !this.candidateSpeaking && !this.toolsInFlight && !this.queuedReply && quiet > STANDBY_MS)
+    if (
+      working &&
+      this.ready &&
+      !this.paused &&
+      !this.agentSpeaking &&
+      !this.candidateSpeaking &&
+      !this.toolsInFlight &&
+      !this.queuedReply &&
+      quiet > STANDBY_MS
+    )
       this.enterStandby();
     if (this.standby && !this.warmed) void this.warm();
     if (now % 5000 < 1000) this.sendClock();
@@ -661,28 +1000,76 @@ export class InterviewRoom extends DurableObject<Env> {
   }
 
   /** Moves to the next phase (approved by the harness, or forced by the clock) and re-briefs the agent. Returns the new phase. */
-  async transition(reason: "approved" | "forced"): Promise<PhaseId | null> {
+  async transition(reason: "approved" | "forced", toWrapup = false): Promise<PhaseId | null> {
     const s = this.s!;
     const room = this.room!;
     const from = phaseOf(s.state);
     if (!from) return null;
     const now = Date.now();
-    s.state = advance(s.state, now, room.plan.claims.map((c) => c.id));
+    this.forceDue = null;
+    // One step, or (flexible timing out of time) every step to the last phase; each logged for the timeline
+    do {
+      const was = phaseOf(s.state);
+      s.state = advance(
+        s.state,
+        now,
+        room.plan.claims.map((c) => c.id),
+      );
+      this.log({ at: now, type: "phase", from: was, to: phaseOf(s.state), reason });
+    } while (toWrapup && !isOver(s.state) && s.state.index < s.state.phases.length - 1);
     const to = phaseOf(s.state);
-    this.log({ at: now, type: "phase", from, to, reason });
     this.sendClock();
-    if (!to || isOver(s.state)) return void (await this.finish("completed")), null;
+    if (!to || isOver(s.state)) return (void (await this.finish("completed")), null);
     await this.prepare(to);
-    await checkpoint(room.id, s.state, s.transcript);
-    void this.refreshSummary();
+    this.persistSoon();
+    void this.bookkeep();
     if (s.fallback) {
-      void this.textReply(`${phaseBrief(to, this.promptCtx(), s.state, now)}\nSay one natural transition sentence and begin.`);
+      void this.textReply(
+        `${phaseBrief(to, this.promptCtx(), s.state, now)}\nSay one natural transition sentence and begin.`,
+      );
       return to;
     }
     this.brief(to);
     if (reason === "forced")
-      this.wake("phase", `Harness: time is up for ${PHASES[from].label}. Say one short transition sentence and start ${PHASES[to].label}.`);
+      this.wake(
+        "phase",
+        `Harness: time is up for ${PHASES[from].label}. Say one short transition sentence and start ${PHASES[to].label}.`,
+      );
     return to;
+  }
+
+  forceDue: number | null = null;
+  boardChange = "";
+
+  /**
+   * Time is nearly up in this phase: the agent tells the candidate at the next natural pause. The note goes into its
+   * context right away (so its next reply mentions it even if the candidate is mid-answer), and a wake makes it say
+   * so if nobody is talking (silent coding or drawing).
+   */
+  warnTime(now: number) {
+    const s = this.s!;
+    const phase = phaseOf(s.state)!;
+    this.log({ at: now, type: "warning", phase });
+    if (s.state.limit) {
+      // Flexible timing: one heads-up that the interview is nearly at its limit
+      s.state = { ...s.state, capWarned: true };
+      const note = `Harness: the interview is close to its time limit: wrap-up starts in about two minutes. At the next natural pause (never cut them off), tell the candidate in one short sentence that we have a couple of minutes left before we wrap up, and bring this part to a close.`;
+      if (s.fallback) return void this.textReply(note);
+      this.sendPhonic({ type: "add_system_message", system_message: note });
+      return this.wake(
+        "warning",
+        "Harness: tell the candidate about the time now, in one short sentence, then continue.",
+      );
+    }
+    s.state = { ...s.state, warned: true };
+    const secs = timeLeft(s.state, now).phase;
+    const left =
+      secs >= 90 ? `about ${Math.round(secs / 60)} minutes` : secs > 50 ? "about a minute" : "less than a minute";
+    const last = s.state.index === s.state.phases.length - 1;
+    const note = `Harness: ${left} left in the ${PHASES[phase].label} phase${last ? ", the last one" : ""}. At the next natural pause (never cut them off), tell the candidate in one short sentence, e.g. "We have ${left} left for this part," and steer toward finishing it${phase === "coding" ? ": ask them to explain where they are and the complexity of their approach" : ""}.`;
+    if (s.fallback) return void this.textReply(note);
+    this.sendPhonic({ type: "add_system_message", system_message: note });
+    this.wake("warning", "Harness: tell the candidate about the time now, in one short sentence, then continue.");
   }
 
   /**
@@ -736,15 +1123,17 @@ export class InterviewRoom extends DurableObject<Env> {
       phaseLeft: t.phase,
       totalLeft: t.total,
       running: s.state.since !== null,
+      flexible: !!s.state.limit,
     });
   }
 
   // ── Browser messages ──────────────────────────────────────────────────────────────────────────────────────────────
 
   sendAudio(frame: Uint8Array) {
-    let bin = "";
-    for (let i = 0; i < frame.length; i++) bin += String.fromCharCode(frame[i]);
-    this.sendPhonic({ type: "audio_chunk", audio: btoa(bin) });
+    this.sendPhonic({
+      type: "audio_chunk",
+      audio: Buffer.from(frame.buffer, frame.byteOffset, frame.byteLength).toString("base64"),
+    });
   }
 
   // ── Voice standby ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -818,7 +1207,15 @@ export class InterviewRoom extends DurableObject<Env> {
         this.lastActivity = now;
         const r = await this.execute("candidate", "visible");
         if (typeof r !== "string" && r.passed < r.total)
-          this.wake("run", `Harness: the candidate just ran the visible tests: ${r.passed}/${r.total} passed (${r.status}). Failing: ${r.cases.filter((c) => !c.passed).map((c) => c.name).join(", ")}. If they seem stuck, ask a question that helps them find the bug themselves; don't point at the fix.`);
+          this.wake(
+            "run",
+            `Harness: the candidate just ran the visible tests: ${r.passed}/${r.total} passed (${r.status}). Failing: ${r.cases
+              .filter((c) => !c.passed)
+              .map((c) => c.name)
+              .join(
+                ", ",
+              )}. If they seem stuck, ask a question that helps them find the bug themselves; don't point at the fix.`,
+          );
         return;
       }
       case "board": {
@@ -830,7 +1227,12 @@ export class InterviewRoom extends DurableObject<Env> {
         s.board = { elements, raw: (m.raw as unknown[]).slice(0, 500) };
         this.lastActivity = now;
         this.log({ at: now, type: "board", elements: s.board.raw, change });
-        if (change) this.wake("board", `Harness: the candidate changed the whiteboard: ${untrusted("whiteboard_change", change)}. If it's a good moment (they've paused), ask about it specifically; otherwise let them keep drawing.`);
+        this.boardChangedAt = now;
+        // Not a wake yet: interrupting someone mid-sketch is the worst moment. onTick asks once they've paused
+        if (change) {
+          this.boardPending = true;
+          this.boardChange = change.slice(0, 600);
+        }
         return;
       }
       case "snapshot":
@@ -838,7 +1240,12 @@ export class InterviewRoom extends DurableObject<Env> {
       case "paste":
         return this.log({ at: now, type: "paste", chars: Math.max(0, Math.round(Number(m.chars) || 0)) });
       case "integrity":
-        return this.onIntegrity(String(m.signal).slice(0, 40), m.detail ? String(m.detail).slice(0, 200) : undefined, !!m.hard, !!m.cleared);
+        return this.onIntegrity(
+          String(m.signal).slice(0, 40),
+          m.detail ? String(m.detail).slice(0, 200) : undefined,
+          !!m.hard,
+          !!m.cleared,
+        );
       case "chat":
         if (!s.fallback || typeof m.text !== "string" || !m.text.trim()) return;
         this.lastActivity = now;
@@ -872,7 +1279,10 @@ export class InterviewRoom extends DurableObject<Env> {
       this.log({ at: now, type: "session", what: "resumed", detail: signal });
       this.send({ t: "resumed" });
       this.sendClock();
-      this.wake("integrity", "Harness: the interview was paused briefly by proctoring and has resumed. Say one short sentence to continue where you left off; don't accuse the candidate.");
+      this.wake(
+        "integrity",
+        "Harness: the interview was paused briefly by proctoring and has resumed. Say one short sentence to continue where you left off; don't accuse the candidate.",
+      );
     }
   }
 
@@ -909,23 +1319,43 @@ export class InterviewRoom extends DurableObject<Env> {
   }
 
   async finish(reason: string) {
-    if (this.ending || !this.s || !this.room) return;
-    this.ending = true;
+    if (this.ending || this.finishing || !this.s || !this.room) return;
+    this.finishing = true; // ending is set once the last bookkeeping pass is in
     const s = this.s;
-    const now = Date.now();
     this.stopTimer();
+    this.closePhonic(); // nothing more is said; the goodbye has played
+    // Last bookkeeping pass over the closing lines, so the evaluator gets their evidence too (bounded: it's best effort)
+    await Promise.race([this.bookkeep().then(() => this.bookkeep()), new Promise((r) => setTimeout(r, 20_000))]);
+    this.ending = true;
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    const now = Date.now();
     // Close the clock on whatever phase was running, and mark unprobed claims
     while (!isOver(s.state) && phaseOf(s.state) !== null) {
       const from = phaseOf(s.state);
-      s.state = advance(s.state, now, this.room.plan.claims.map((c) => c.id));
+      s.state = advance(
+        s.state,
+        now,
+        this.room.plan.claims.map((c) => c.id),
+      );
       this.log({ at: now, type: "phase", from, to: phaseOf(s.state), reason: "end" });
     }
     // Final hidden-test run on the last code, so the evaluator has it even if the agent never ran them
-    if (s.state.assigned.problem && s.code && !s.state.runs.some((r) => r.suite === "hidden" && r.at > (this.lastCodeAt ?? 0))) {
+    if (
+      s.state.assigned.problem &&
+      s.code &&
+      !s.state.runs.some((r) => r.suite === "hidden" && r.at > (this.lastCodeAt ?? 0))
+    ) {
       const p = this.problem(s.state.assigned.problem);
-      if (p) {
+      // Untouched starter code has nothing to test
+      if (p && s.code.code.trim() !== starters(p.signature)[s.code.language].trim()) {
         const r = await runSuite(s.code.language, s.code.code, p.hidden, "hidden");
-        this.log({ at: Date.now(), type: "run", by: "agent", language: s.code.language, result: { ...r, final: true } });
+        this.log({
+          at: Date.now(),
+          type: "run",
+          by: "agent",
+          language: s.code.language,
+          result: { ...r, final: true },
+        });
       }
     }
     this.log({ at: Date.now(), type: "session", what: "ended", detail: reason });
@@ -933,7 +1363,13 @@ export class InterviewRoom extends DurableObject<Env> {
     await this.flush();
     await this.env.MEDIA.put(
       `iv/${this.room.id}/final.json`,
-      JSON.stringify({ code: s.code, board: s.board?.raw ?? null, scene: this.scene, state: s.state, summary: s.summary }),
+      JSON.stringify({
+        code: s.code,
+        board: s.board?.raw ?? null,
+        scene: this.scene,
+        state: s.state,
+        summary: s.summary,
+      }),
       { httpMetadata: { contentType: "application/json" } },
     );
     await finishAi(this.room.id, s.transcript, s.state);
@@ -954,6 +1390,7 @@ export class InterviewRoom extends DurableObject<Env> {
     this.client = null;
   }
   lastCodeAt: number | null = null;
+  finishing = false;
 
   stopTimer() {
     if (this.timer) clearInterval(this.timer);
@@ -990,17 +1427,18 @@ export class InterviewRoom extends DurableObject<Env> {
     });
   }
 
-  async save() {
-    if (this.s) await this.ctx.storage.put("saved", this.s);
-  }
-
   /** After a reconnect: put the problem, their code and the whiteboard back where they were. */
   restoreWorkspace() {
     const s = this.s!;
     const p = this.problem(s.state.assigned.problem);
     if (p) this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
     const w = s.whiteboard;
-    if (w?.open) this.send({ t: "design", design: { id: w.topic, title: w.topic, prompt: "", requirements: w.requirements }, elements: s.board?.raw ?? [] });
+    if (w?.open)
+      this.send({
+        t: "design",
+        design: { id: w.topic, title: w.topic, prompt: "", requirements: w.requirements },
+        elements: s.board?.raw ?? [],
+      });
     if (s.board) this.scene = sceneOf(s.board.elements);
     if (s.fallback) for (const l of s.transcript.slice(-30)) this.send({ t: "chat", role: l.role, text: l.text });
   }

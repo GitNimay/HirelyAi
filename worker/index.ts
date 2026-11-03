@@ -20,7 +20,8 @@ const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(self), geolocation=(), payment=(), microphone=(self), display-capture=(self), fullscreen=(self)",
+  "Permissions-Policy":
+    "camera=(self), geolocation=(), payment=(), microphone=(self), display-capture=(self), fullscreen=(self)",
   // Enforced: directives no feature needs, so they can't break anything
   "Content-Security-Policy": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
   // Full policy in report-only first: violations show in the browser console. Promote to the enforced header once a week
@@ -76,8 +77,16 @@ const REC_MAX = 25 * 1024 * 1024; // one recording chunk (10 s of low-bitrate vi
 async function interviewRoute(request: Request, env: Env, url: URL, slug: string, action: string) {
   if (action === "enter" && request.method === "GET") {
     const id = await enterAi(slug, url.searchParams.get("t") ?? "");
-    const headers = new Headers({ Location: `/interview/${slug}`, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
-    if (id) headers.append("Set-Cookie", `iv=${id}; Path=/interview/${slug}; Max-Age=${30 * 86_400}; HttpOnly; Secure; SameSite=Lax`);
+    const headers = new Headers({
+      Location: `/interview/${slug}`,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    });
+    if (id)
+      headers.append(
+        "Set-Cookie",
+        `iv=${id}; Path=/interview/${slug}; Max-Age=${30 * 86_400}; HttpOnly; Secure; SameSite=Lax`,
+      );
     return new Response(null, { status: 302, headers });
   }
   // Same-origin only: browsers don't apply CORS to WebSockets, and uploads carry the session cookie
@@ -92,7 +101,10 @@ async function interviewRoute(request: Request, env: Env, url: URL, slug: string
   }
   if (action === "warm" && request.method === "POST") {
     // Best effort: the room pre-opens the voice connection while the candidate reads the overview
-    if (s.status === "onboarded" || s.status === "live") await env.INTERVIEW_ROOM.getByName(s.id).warm().catch(() => {});
+    if (s.status === "onboarded" || s.status === "live")
+      await env.INTERVIEW_ROOM.getByName(s.id)
+        .warm()
+        .catch(() => {});
     return new Response(null, { status: 204 });
   }
   if (action === "rec" && request.method === "POST") {
@@ -100,13 +112,23 @@ async function interviewRoute(request: Request, env: Env, url: URL, slug: string
     const track = url.searchParams.get("track");
     const segment = url.searchParams.get("segment") ?? "";
     const seq = Number(url.searchParams.get("seq"));
-    if ((track !== "cam" && track !== "screen") || !/^\d{10,15}$/.test(segment) || !Number.isInteger(seq) || seq < 0 || seq > 100_000)
+    if (
+      (track !== "cam" && track !== "screen") ||
+      !/^\d{10,15}$/.test(segment) ||
+      !Number.isInteger(seq) ||
+      seq < 0 ||
+      seq > 100_000
+    )
       return new Response("Bad chunk", { status: 400 });
     if (Number(request.headers.get("Content-Length") ?? 0) > REC_MAX) return new Response("Too large", { status: 413 });
     const body = await request.arrayBuffer(); // R2 needs a known length
     if (!body.byteLength || body.byteLength > REC_MAX) return new Response("Bad chunk", { status: 400 });
     await env.MEDIA.put(`iv/${s.id}/rec/${track}/${segment}/${String(seq).padStart(6, "0")}.webm`, body, {
-      httpMetadata: { contentType: request.headers.get("Content-Type")?.startsWith("video/") ? request.headers.get("Content-Type")! : "video/webm" },
+      httpMetadata: {
+        contentType: request.headers.get("Content-Type")?.startsWith("video/")
+          ? request.headers.get("Content-Type")!
+          : "video/webm",
+      },
     });
     return new Response(null, { status: 204 });
   }

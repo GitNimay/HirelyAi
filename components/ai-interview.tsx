@@ -6,7 +6,7 @@ import posthog from "posthog-js";
 import { memo, useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import type { CandidateView } from "@/lib/interview";
-import { PHASES, phaseLabel, type PhaseId } from "@/lib/harness";
+import { LIMITS, PHASES, phaseLabel, type PhaseId } from "@/lib/harness";
 import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
 import type { PublicProblem, RunResult, Language } from "@/lib/workspace";
 import { Details, MicCheck } from "./interview";
@@ -17,12 +17,27 @@ import { btnGhost, Icon, icons } from "./ui";
 
 // Heavy and only needed in their rounds: loaded when the round starts
 // memo: captions and agent state update the room many times a second; the workspaces' props rarely change
-const CodeWorkspace = dynamic(() => import("./ai-workspace").then((m) => memo(m.CodeWorkspace)), { ssr: false, loading: () => <Loading what="editor" /> });
-const Whiteboard = dynamic(() => import("./ai-workspace").then((m) => memo(m.Whiteboard)), { ssr: false, loading: () => <Loading what="whiteboard" /> });
+const CodeWorkspace = dynamic(() => import("./ai-workspace").then((m) => memo(m.CodeWorkspace)), {
+  ssr: false,
+  loading: () => <Loading what="editor" />,
+});
+const Whiteboard = dynamic(() => import("./ai-workspace").then((m) => memo(m.Whiteboard)), {
+  ssr: false,
+  loading: () => <Loading what="whiteboard" />,
+});
 
 type Step = "nolink" | "details" | "check" | "consent" | "brief" | "room" | "done" | "closed";
 const STEPS = ["Your details", "System check", "Consent", "Overview", "Interview"];
-const INDEX: Record<Step, number> = { nolink: 0, details: 0, check: 1, consent: 2, brief: 3, room: 4, done: 5, closed: 0 };
+const INDEX: Record<Step, number> = {
+  nolink: 0,
+  details: 0,
+  check: 1,
+  consent: 2,
+  brief: 3,
+  room: 4,
+  done: 5,
+  closed: 0,
+};
 type AgentState = "connecting" | "listening" | "thinking" | "speaking";
 const ORB = { connecting: "connecting", listening: "listening", thinking: "solving", speaking: "composing" } as const;
 const STATE_LABEL: Record<AgentState, string> = {
@@ -50,6 +65,8 @@ function stepOf(v: CandidateView): Step {
  */
 type Media = { mic: string; camera: MediaStream | null; screen: MediaStream | null };
 const media: Media = { mic: "", camera: null, screen: null };
+/** Automatic rejoins in a row after a dropped room connection (reset once a connection opens). */
+const rejoins = { n: 0 };
 
 /**
  * The candidate's side of the AI interview: details → system check (browser, mic, camera, screen, monitors, network)
@@ -105,7 +122,8 @@ export function AiInterview({ view }: { view: CandidateView }) {
           <h3 className="text-xs font-medium tracking-wide text-muted uppercase">The role</h3>
           <ul className="list-disc space-y-1 pl-5 marker:text-muted">
             <li>
-              <strong className="font-medium">{view.title}</strong> at <strong className="font-medium">{view.company}</strong>
+              <strong className="font-medium">{view.title}</strong> at{" "}
+              <strong className="font-medium">{view.company}</strong>
             </li>
             <li>
               {LEVELS[view.job.level]} · {JOB_TYPES[view.job.type]} · {WORKPLACES[view.job.workplace]}
@@ -114,16 +132,23 @@ export function AiInterview({ view }: { view: CandidateView }) {
           </ul>
         </section>
         <section className="space-y-2">
-          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">The interview · {minutes} min</h3>
+          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">
+            The interview · {view.flexible ? `flexible, up to ${LIMITS.flexibleMinutes} min` : `${minutes} min`}
+          </h3>
           <ol className="divide-y divide-border rounded-lg border border-border">
             {view.phases.map((p, i) => (
               <li key={p.id} className="flex items-start gap-3 px-3 py-2.5">
                 <span className="mt-0.5 w-4 shrink-0 text-xs text-muted tabular-nums">{i + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{phaseLabel(p.id)}</span>
-                  <span className="block text-xs text-muted">{(PHASES as Record<string, { goal: string }>)[p.id]?.goal}</span>
+                  <span className="block text-xs text-muted">
+                    {(PHASES as Record<string, { goal: string }>)[p.id]?.goal}
+                  </span>
                 </span>
-                <span className="shrink-0 text-xs text-muted tabular-nums">{p.minutes} min</span>
+                <span className="shrink-0 text-xs text-muted tabular-nums">
+                  {view.flexible ? "~" : ""}
+                  {p.minutes} min
+                </span>
               </li>
             ))}
           </ol>
@@ -133,8 +158,9 @@ export function AiInterview({ view }: { view: CandidateView }) {
           <ul className="list-disc space-y-1 pl-5 marker:text-muted">
             <li>Talk out loud, like a real interview. You can interrupt the interviewer at any time.</li>
             <li>
-              Stay in <strong className="font-medium">full screen</strong> with your screen shared and your face visible.
-              Leaving full screen, a second monitor or stepping away pauses the interview until it&apos;s fixed.
+              Stay in <strong className="font-medium">full screen</strong> with your screen shared and your face
+              visible. Leaving full screen, a second monitor or stepping away pauses the interview until it&apos;s
+              fixed.
             </li>
             <li>Tab switches and pasted text are noted for the hiring team. Work on your own.</li>
             <li>
@@ -166,7 +192,9 @@ export function AiInterview({ view }: { view: CandidateView }) {
           <Icon d={icons.check} size={24} />
         </span>
         <h2 className="mt-5 font-display text-xl font-normal">Interview submitted</h2>
-        <p className="mt-1 text-sm text-muted">Thanks. {view.company}&apos;s hiring team will review it and be in touch. You can close this tab.</p>
+        <p className="mt-1 text-sm text-muted">
+          Thanks. {view.company}&apos;s hiring team will review it and be in touch. You can close this tab.
+        </p>
       </div>
     ),
     closed: (
@@ -197,14 +225,28 @@ export function AiInterview({ view }: { view: CandidateView }) {
 // ── System check ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 type CheckState = "pending" | "ok" | "fail";
-function Row({ state, title, sub, children }: { state: CheckState; title: string; sub: string; children?: React.ReactNode }) {
+function Row({
+  state,
+  title,
+  sub,
+  children,
+}: {
+  state: CheckState;
+  title: string;
+  sub: string;
+  children?: React.ReactNode;
+}) {
   return (
     <li className="flex items-start gap-3 py-3">
       <span
         className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ${state === "ok" ? "bg-success/15 text-success" : state === "fail" ? "bg-danger/15 text-danger" : "border border-border text-muted"}`}
         aria-label={state === "ok" ? "Passed" : state === "fail" ? "Failed" : "Not checked yet"}
       >
-        {state === "ok" ? <Icon d={icons.check} size={12} /> : state === "fail" ? <Icon d={icons.close} size={12} /> : null}
+        {state === "ok" ? (
+          <Icon d={icons.check} size={12} />
+        ) : state === "fail" ? (
+          <Icon d={icons.close} size={12} />
+        ) : null}
       </span>
       <span className="min-w-0 flex-1 text-sm">
         <span className="block font-medium">{title}</span>
@@ -218,7 +260,11 @@ function Row({ state, title, sub, children }: { state: CheckState; title: string
 /** Everything the interview needs, checked up front, with a fix for each failure. */
 function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }) {
   // Known only in the browser: "pending" on the server so hydration matches
-  const browser = useSyncExternalStore<CheckState>(noop, () => (supported() ? "ok" : "fail"), () => "pending");
+  const browser = useSyncExternalStore<CheckState>(
+    noop,
+    () => (supported() ? "ok" : "fail"),
+    () => "pending",
+  );
   const [mic, setMic] = useState(media.mic);
   const [micErr, setMicErr] = useState("");
   const [cam, setCam] = useState<CheckState>(media.camera?.active ? "ok" : "pending");
@@ -233,7 +279,9 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
     let stop = false;
     (async () => {
       try {
-        const s = media.camera?.active ? media.camera : await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 360, frameRate: 15 } });
+        const s = media.camera?.active
+          ? media.camera
+          : await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 360, frameRate: 15 } });
         if (stop && s !== media.camera) return s.getTracks().forEach((t) => t.stop());
         media.camera = s;
         if (video.current) video.current.srcObject = s;
@@ -247,7 +295,10 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
       const times: number[] = [];
       for (let i = 0; i < 3; i++) {
         const t0 = performance.now();
-        const ok = await fetch("/api/health", { cache: "no-store" }).then((r) => r.ok, () => false);
+        const ok = await fetch("/api/health", { cache: "no-store" }).then(
+          (r) => r.ok,
+          () => false,
+        );
         if (!ok) return setNet({ state: "fail", ms: 0 });
         times.push(performance.now() - t0);
       }
@@ -263,7 +314,10 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
   async function share() {
     setScreenErr("");
     try {
-      const s = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "monitor", frameRate: 5 }, audio: false });
+      const s = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "monitor", frameRate: 5 },
+        audio: false,
+      });
       const surface = s.getVideoTracks()[0]?.getSettings().displaySurface;
       if (surface && surface !== "monitor") {
         s.getTracks().forEach((t) => t.stop());
@@ -285,12 +339,27 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
       <Head title="System check" sub="Make sure everything works before the interview starts." />
       <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
         <ul className="divide-y divide-border">
-          <Row state={browser} title="Browser" sub={browser === "fail" ? "Use the latest Chrome or Edge on a laptop or desktop." : "Supported browser."} />
-          <Row state={cam} title="Camera" sub={cam === "fail" ? "Allow camera access from the icon in the address bar, then reload." : "Your face should be clearly visible."} />
+          <Row
+            state={browser}
+            title="Browser"
+            sub={browser === "fail" ? "Use the latest Chrome or Edge on a laptop or desktop." : "Supported browser."}
+          />
+          <Row
+            state={cam}
+            title="Camera"
+            sub={
+              cam === "fail"
+                ? "Allow camera access from the icon in the address bar, then reload."
+                : "Your face should be clearly visible."
+            }
+          />
           <Row
             state={screen}
             title="Screen sharing"
-            sub={screenErr || (screen === "ok" ? "Sharing your entire screen." : "Share your entire screen for the whole interview.")}
+            sub={
+              screenErr ||
+              (screen === "ok" ? "Sharing your entire screen." : "Share your entire screen for the whole interview.")
+            }
           >
             {screen !== "ok" && (
               <button type="button" className={`${btnGhost} mt-2 border border-border`} onClick={share}>
@@ -298,14 +367,35 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
               </button>
             )}
           </Row>
-          <Row state={monitors} title="One monitor" sub={monitors === "fail" ? "Disconnect extra monitors (or set displays to mirror)." : "No extra displays detected."} />
+          <Row
+            state={monitors}
+            title="One monitor"
+            sub={
+              monitors === "fail"
+                ? "Disconnect extra monitors (or set displays to mirror)."
+                : "No extra displays detected."
+            }
+          />
           <Row
             state={net.state}
             title="Network"
-            sub={net.state === "pending" ? "Checking…" : net.state === "ok" ? `Good connection (${net.ms} ms).` : "Your connection is slow or offline. Move closer to your router or switch networks."}
+            sub={
+              net.state === "pending"
+                ? "Checking…"
+                : net.state === "ok"
+                  ? `Good connection (${net.ms} ms).`
+                  : "Your connection is slow or offline. Move closer to your router or switch networks."
+            }
           />
         </ul>
-        <video ref={video} autoPlay muted playsInline className="aspect-video w-full -scale-x-100 rounded-lg border border-border bg-surface object-cover sm:aspect-[3/4]" aria-label="Camera preview" />
+        <video
+          ref={video}
+          autoPlay
+          muted
+          playsInline
+          className="aspect-video w-full -scale-x-100 rounded-lg border border-border bg-surface object-cover sm:aspect-[3/4]"
+          aria-label="Camera preview"
+        />
       </div>
       <div className="space-y-2">
         <p className="text-sm font-medium">Microphone</p>
@@ -315,7 +405,9 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
             return (
               <>
                 {micErr && <Alert>{micErr}</Alert>}
-                <p className="text-xs text-muted">Headphones help: the interviewer won&apos;t hear itself through your speakers.</p>
+                <p className="text-xs text-muted">
+                  Headphones help: the interviewer won&apos;t hear itself through your speakers.
+                </p>
                 <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5">
                   {!ready && <span className="text-xs text-muted">Fix the items above to continue</span>}
                   <button type="button" className={primary} disabled={!ready} onClick={onDone}>
@@ -355,10 +447,22 @@ function Consent({ company, onDone, onBack }: { company: string; onDone: () => v
       <Head title="Consent and notice" sub="Please read this before you start." />
       <ul className="space-y-3">
         {[
-          ["AI interviewer", `The interview is run by an AI interviewer on behalf of ${company}. It asks questions and follow-ups; it doesn't decide whether you're hired.`],
-          ["Recording", "Your camera, microphone, screen, code and whiteboard are recorded for the whole session, with a live transcript."],
-          ["How it's used", `An AI evaluator summarizes the interview against the role's rubric for ${company}'s hiring team, who review the recording and make the decision.`],
-          ["Integrity", "Leaving full screen, switching tabs, pasting text, extra monitors and your face leaving the camera are logged."],
+          [
+            "AI interviewer",
+            `The interview is run by an AI interviewer on behalf of ${company}. It asks questions and follow-ups; it doesn't decide whether you're hired.`,
+          ],
+          [
+            "Recording",
+            "Your camera, microphone, screen, code and whiteboard are recorded for the whole session, with a live transcript.",
+          ],
+          [
+            "How it's used",
+            `An AI evaluator summarizes the interview against the role's rubric for ${company}'s hiring team, who review the recording and make the decision.`,
+          ],
+          [
+            "Integrity",
+            "Leaving full screen, switching tabs, pasting text, extra monitors and your face leaving the camera are logged.",
+          ],
           ["Your data", `It's shared only with ${company}'s hiring team and kept according to their retention policy.`],
         ].map(([t, d]) => (
           <li key={t} className="rounded-lg border border-border px-3 py-2.5">
@@ -368,11 +472,21 @@ function Consent({ company, onDone, onBack }: { company: string; onDone: () => v
         ))}
       </ul>
       <label className="flex cursor-pointer items-start gap-3">
-        <input type="checkbox" checked={a} onChange={(e) => setA(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-foreground" />
+        <input
+          type="checkbox"
+          checked={a}
+          onChange={(e) => setA(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-foreground"
+        />
         <span>I agree to be interviewed by an AI interviewer and to the recording described above.</span>
       </label>
       <label className="flex cursor-pointer items-start gap-3">
-        <input type="checkbox" checked={b} onChange={(e) => setB(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-foreground" />
+        <input
+          type="checkbox"
+          checked={b}
+          onChange={(e) => setB(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-foreground"
+        />
         <span>I&apos;ll take the interview myself, without help from other people or tools.</span>
       </label>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
@@ -393,13 +507,14 @@ function Consent({ company, onDone, onBack }: { company: string; onDone: () => v
 /** Mic → 20 ms PCM16 frames (capture), and a queue that plays the interviewer's PCM16 (play). Runs at 16 kHz. */
 const WORKLET = `
 class Cap extends AudioWorkletProcessor {
-  constructor() { super(); this.buf = new Int16Array(320); this.n = 0; }
+  // 40 ms frames (Phonic's maximum): half the WebSocket messages of 20 ms, which halves billed requests and room CPU wake-ups
+  constructor() { super(); this.buf = new Int16Array(640); this.n = 0; }
   process(inputs) {
     const ch = inputs[0][0];
     if (ch) for (let i = 0; i < ch.length; i++) {
       const v = Math.max(-1, Math.min(1, ch[i]));
       this.buf[this.n++] = v < 0 ? v * 0x8000 : v * 0x7fff;
-      if (this.n === 320) { this.port.postMessage(this.buf.buffer.slice(0)); this.n = 0; }
+      if (this.n === 640) { this.port.postMessage(this.buf.buffer.slice(0)); this.n = 0; }
     }
     return true;
   }
@@ -430,7 +545,9 @@ registerProcessor("play", Play);
  */
 function record(slug: string, track: "cam" | "screen", stream: MediaStream, bits: number) {
   const segment = String(Date.now());
-  const type = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t))!;
+  const type = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((t) =>
+    MediaRecorder.isTypeSupported(t),
+  )!;
   const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: bits, audioBitsPerSecond: 32_000 });
   let seq = 0;
   let chain = Promise.resolve();
@@ -443,29 +560,65 @@ function record(slug: string, track: "cam" | "screen", stream: MediaStream, bits
           method: "POST",
           headers: { "Content-Type": "video/webm" },
           body: e.data,
-        }).then((r) => r.ok || r.status === 409, () => false);
+        }).then(
+          (r) => r.ok || r.status === 409,
+          () => false,
+        );
         if (ok) return;
         await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
       }
     });
   };
   rec.start(10_000);
-  return { stop: () => new Promise<void>((r) => ((rec.onstop = () => void chain.then(() => r())), rec.state !== "inactive" ? rec.stop() : r())) };
+  return {
+    stop: () =>
+      new Promise<void>(
+        (r) => ((rec.onstop = () => void chain.then(() => r())), rec.state !== "inactive" ? rec.stop() : r()),
+      ),
+  };
 }
 
 // ── Room ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-type Clock = { index: number; phases: { id: PhaseId; label: string; seconds: number }[]; phaseLeft: number; totalLeft: number; running: boolean; at: number };
+/** flexible: phase times are only a guide, so only the overall time left is shown. */
+type Clock = {
+  index: number;
+  phases: { id: PhaseId; label: string; seconds: number }[];
+  phaseLeft: number;
+  totalLeft: number;
+  running: boolean;
+  flexible?: boolean;
+  at: number;
+};
 export type RoomSocket = { send: (msg: object) => void };
 type Workspace =
-  | { kind: "code"; problem: PublicProblem; starter: Record<Language, string>; code: { language: Language; code: string } | null }
-  | { kind: "board"; design: { id: string; title: string; prompt: string; requirements: string[] }; elements: unknown[] }
+  | {
+      kind: "code";
+      problem: PublicProblem;
+      starter: Record<Language, string>;
+      code: { language: Language; code: string } | null;
+    }
+  | {
+      kind: "board";
+      design: { id: string; title: string; prompt: string; requirements: string[] };
+      elements: unknown[];
+    }
   | null;
 
 /** Where the room is on its way to a live interviewer. "ready" once Phonic said it's ready; "reconnecting" mid-interview. */
 type Stage = "audio" | "room" | "joining" | "reconnecting" | "ready" | "failed";
 
-function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDone: () => void; onDropped: () => void; onRetry: () => void }) {
+function Room({
+  view,
+  onDone,
+  onDropped,
+  onRetry,
+}: {
+  view: CandidateView;
+  onDone: () => void;
+  onDropped: () => void;
+  onRetry: () => void;
+}) {
   const [agent, setAgent] = useState<AgentState>("connecting");
   const [stage, setStage] = useState<Stage>("audio");
   const [started, setStarted] = useState(() => Date.now()); // when the current stage wait began, for "taking longer"
@@ -494,10 +647,13 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
     if (v && media.camera && v.srcObject !== media.camera) v.srcObject = media.camera;
   }, []);
   const ended = useRef(false);
-  const [socket] = useState<RoomSocket>(() => ({ send: (m) => ws.current?.readyState === 1 && ws.current.send(JSON.stringify(m)) }));
+  const [socket] = useState<RoomSocket>(() => ({
+    send: (m) => ws.current?.readyState === 1 && ws.current.send(JSON.stringify(m)),
+  }));
   const onSnapshot = useCallback((fn: (id: string) => void) => void (snapshot.current = fn), []);
 
   const dropped = useEffectEvent(() => onDropped());
+  const rejoin = useEffectEvent(() => onRetry());
   const onMessage = useEffectEvent((m: Record<string, unknown>) => {
     switch (m.t) {
       case "stage": {
@@ -517,7 +673,12 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
       case "clock":
         return setClock({ ...(m as unknown as Clock), at: Date.now() });
       case "problem":
-        return setCode({ kind: "code", problem: m.problem as PublicProblem, starter: m.starter as Record<Language, string>, code: m.code as never });
+        return setCode({
+          kind: "code",
+          problem: m.problem as PublicProblem,
+          starter: m.starter as Record<Language, string>,
+          code: m.code as never,
+        });
       case "design":
         return setBoard({ kind: "board", design: m.design as never, elements: (m.elements as unknown[]) ?? [] });
       case "board-close":
@@ -537,6 +698,8 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
         setEverReady(true);
         setStage("ready");
         return setFallback(true);
+      case "voice": // voice came back after a text-chat stretch
+        return setFallback(false);
       case "chat":
         return setChat((c) => [...c, { role: m.role as "agent" | "candidate", text: String(m.text) }]);
       case "error":
@@ -556,7 +719,9 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
         const ctx = new AudioContext({ sampleRate: 16_000 });
         cleanup.push(() => void ctx.close());
         await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" })));
-        const mic = await navigator.mediaDevices.getUserMedia({ audio: { ...CAPTURE, ...(media.mic && { deviceId: { exact: media.mic } }) } });
+        const mic = await navigator.mediaDevices.getUserMedia({
+          audio: { ...CAPTURE, ...(media.mic && { deviceId: { exact: media.mic } }) },
+        });
         cleanup.push(() => mic.getTracks().forEach((t) => t.stop()));
         micTrack.current = mic.getAudioTracks()[0] ?? null;
         const src = ctx.createMediaStreamSource(mic);
@@ -583,27 +748,46 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
 
         if (closed) return;
         setStage("room");
-        const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/interview/${view.slug}/room`);
+        const sock = new WebSocket(
+          `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/interview/${view.slug}/room`,
+        );
         sock.binaryType = "arraybuffer";
         let opened = false;
-        sock.onopen = () => ((opened = true), setStage((s) => (s === "room" ? "joining" : s)));
         ws.current = sock;
         cap.port.onmessage = (e) => sock.readyState === 1 && sock.send(e.data as ArrayBuffer);
         sock.onmessage = (e) => {
           if (typeof e.data === "string") return onMessage(JSON.parse(e.data));
           player.port.postMessage(e.data, [e.data as ArrayBuffer]);
         };
+        sock.onopen = () => ((opened = true), (rejoins.n = 0), setStage((s) => (s === "room" ? "joining" : s)));
         sock.onclose = (e) => {
           if (closed || ended.current) return;
           if (!opened) return void setStage("failed"); // never reached the room: show Try again, not the device check
-          setError(e.code === 4000 ? "The interview was opened in another tab." : "The connection dropped. Rejoin within 5 minutes to continue where you left off.");
+          // A blip: rejoin on our own (the room keeps the conversation open briefly), with backoff, before asking
+          // the candidate to re-check their devices
+          const live = !media.screen || media.screen.getVideoTracks()[0]?.readyState === "live";
+          if (e.code !== 4000 && live && rejoins.n < 3) {
+            rejoins.n++;
+            setStage("reconnecting");
+            return void setTimeout(rejoin, 500 * 2 ** rejoins.n);
+          }
+          setError(
+            e.code === 4000
+              ? "The interview was opened in another tab."
+              : "The connection dropped. Rejoin within 5 minutes to continue where you left off.",
+          );
           dropped();
         };
         cleanup.push(() => sock.close(1000));
 
         // Recordings: camera + both voices, and the shared screen
         if (media.camera) {
-          const r = record(view.slug, "cam", new MediaStream([...media.camera.getVideoTracks(), ...mix.stream.getAudioTracks()]), 250_000);
+          const r = record(
+            view.slug,
+            "cam",
+            new MediaStream([...media.camera.getVideoTracks(), ...mix.stream.getAudioTracks()]),
+            250_000,
+          );
           cleanup.push(() => void r.stop());
         }
         if (media.screen) {
@@ -612,7 +796,9 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
         }
       } catch (e) {
         setStage("failed");
-        setError(e instanceof Error && e.message ? e.message : "Couldn't start the interview. Check your mic and try again.");
+        setError(
+          e instanceof Error && e.message ? e.message : "Couldn't start the interview. Check your mic and try again.",
+        );
       }
     })();
     return () => {
@@ -620,6 +806,21 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
       cleanup.reverse().forEach((f) => f());
     };
   }, [view.slug]);
+
+  // Once the interviewer is live, warm the code editor and whiteboard in the background (the workspace chunk with
+  // Excalidraw, and Monaco from its CDN) so they open instantly when the technical or coding round starts
+  useEffect(() => {
+    if (!everReady) return;
+    const warm = () => {
+      void import("./ai-workspace").catch(() => {});
+      void import("@monaco-editor/react").then((m) => m.loader.init()).catch(() => {});
+    };
+    const t = setTimeout(
+      () => (typeof requestIdleCallback === "function" ? requestIdleCallback(warm, { timeout: 10_000 }) : warm()),
+      5_000,
+    );
+    return () => clearTimeout(t);
+  }, [everReady]);
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -638,7 +839,7 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
   useProctoring(socket, self);
 
   const phase = clock?.phases[clock.index]?.id;
-  // The whiteboard opens whenever the interviewer asks for a design sketch (any time in the Experience round)
+  // The whiteboard opens when the interviewer asks for a design sketch (the technical round)
   const workspace = phase === "coding" && code ? "code" : board ? "board" : "talk";
 
   return (
@@ -665,12 +866,21 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
             <span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />
             REC
           </span>
-          {everReady && clock ? <Timer clock={clock} /> : <span className="text-muted">Waiting for your interviewer</span>}
+          {everReady && clock ? (
+            <Timer clock={clock} />
+          ) : (
+            <span className="text-muted">Waiting for your interviewer</span>
+          )}
           <button
             type="button"
             className="inline-flex h-8 items-center rounded-md border border-danger/50 px-3 font-medium text-danger transition-colors hover:bg-danger/10"
             onClick={async () =>
-              (await ask({ title: "End the interview now?", body: "You can't restart it.", confirm: "End interview", danger: true })) && socket.send({ t: "end" })
+              (await ask({
+                title: "End the interview now?",
+                body: "You can't restart it.",
+                confirm: "End interview",
+                danger: true,
+              })) && socket.send({ t: "end" })
             }
           >
             End
@@ -681,64 +891,94 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
       {!everReady ? (
         <Joining stage={stage} since={started} error={error} onRetry={onRetry} />
       ) : (
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[300px_1fr]">
-        <aside className="flex min-h-0 flex-col gap-4 border-b border-border p-4 lg:border-r lg:border-b-0">
-          <div className="flex items-center gap-3 lg:flex-col lg:items-stretch">
-            <div className="flex size-20 shrink-0 items-center justify-center lg:size-auto lg:h-32" aria-hidden>
-              <ThinkingOrb state={ORB[agent]} size={64} />
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[300px_1fr]">
+          <aside className="flex min-h-0 flex-col gap-4 border-b border-border p-4 lg:border-r lg:border-b-0">
+            <div className="flex items-center gap-3 lg:flex-col lg:items-stretch">
+              <div className="flex size-20 shrink-0 items-center justify-center lg:size-auto lg:h-32" aria-hidden>
+                <ThinkingOrb state={ORB[agent]} size={64} />
+              </div>
+              <div className="min-w-0 space-y-1.5 lg:text-center" aria-live="polite">
+                <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
+                {caption.agent && <p className="line-clamp-4 text-sm leading-relaxed break-words">{caption.agent}</p>}
+                {caption.you && (
+                  <p className={`line-clamp-2 text-xs break-words ${youSpeaking ? "text-foreground" : "text-muted"}`}>
+                    You: {caption.you}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="min-w-0 space-y-1.5 lg:text-center" aria-live="polite">
-              <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
-              {caption.agent && <p className="line-clamp-4 text-sm leading-relaxed break-words">{caption.agent}</p>}
-              {caption.you && (
-                <p className={`line-clamp-2 text-xs break-words ${youSpeaking ? "text-foreground" : "text-muted"}`}>You: {caption.you}</p>
-              )}
-            </div>
-          </div>
-          {muted && (
-            <button type="button" className={primary} onClick={() => void audioCtx.current?.resume()}>
-              Tap to hear your interviewer
+            {muted && (
+              <button type="button" className={primary} onClick={() => void audioCtx.current?.resume()}>
+                Tap to hear your interviewer
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggleMic}
+              aria-pressed={!micOn}
+              className={`inline-flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${micOn ? "border-border hover:bg-surface-hover" : "border-danger/50 bg-danger/10 text-danger"}`}
+            >
+              <Icon d={micOn ? icons.mic : MIC_OFF} size={16} />
+              {micOn ? "Mute" : "Unmute: the interviewer can't hear you"}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={toggleMic}
-            aria-pressed={!micOn}
-            className={`inline-flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${micOn ? "border-border hover:bg-surface-hover" : "border-danger/50 bg-danger/10 text-danger"}`}
-          >
-            <Icon d={micOn ? icons.mic : MIC_OFF} size={16} />
-            {micOn ? "Mute" : "Unmute: the interviewer can't hear you"}
-          </button>
-          <video ref={selfView} autoPlay muted playsInline className="mt-auto hidden aspect-video w-full -scale-x-100 rounded-lg border border-border bg-surface object-cover lg:block" aria-label="Your camera" />
-          <p className="hidden text-xs text-muted lg:block">Camera, microphone and screen are being recorded.</p>
-          {error && <Alert>{error}</Alert>}
-        </aside>
+            <video
+              ref={selfView}
+              autoPlay
+              muted
+              playsInline
+              className="mt-auto hidden aspect-video w-full -scale-x-100 rounded-lg border border-border bg-surface object-cover lg:block"
+              aria-label="Your camera"
+            />
+            <p className="hidden text-xs text-muted lg:block">Camera, microphone and screen are being recorded.</p>
+            {error && <Alert>{error}</Alert>}
+          </aside>
 
-        <main className="relative min-h-0 min-w-0">
-          {stage === "reconnecting" && !fallback && (
-            <p role="status" className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 border-b border-border bg-surface px-4 py-2 text-xs">
-              <span className="size-1.5 animate-pulse rounded-full bg-foreground motion-reduce:animate-none" />
-              Reconnecting to your interviewer… The clock is paused.
-            </p>
-          )}
-          {fallback ? (
-            <TextChat chat={chat} onSend={(text) => (setChat((c) => [...c, { role: "candidate", text }]), socket.send({ t: "chat", text }))} />
-          ) : workspace === "code" && code ? (
-            <CodeWorkspace socket={socket} problem={code.problem} starter={code.starter} initial={code.code} run={run} />
-          ) : workspace === "board" && board ? (
-            <Whiteboard key={board.design.id} socket={socket} design={board.design} initial={board.elements} onSnapshot={onSnapshot} />
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-              <p className="font-display text-2xl font-normal">{phase ? phaseLabel(phase) : "Getting ready"}</p>
-              <p className="max-w-md text-sm text-muted">
-                {phase === "coding"
-                  ? "Your interviewer will open the editor in a moment."
-                  : "Answer out loud, like a normal conversation. Take your time to think; short pauses are fine."}
+          <main className="relative min-h-0 min-w-0">
+            {stage === "reconnecting" && !fallback && (
+              <p
+                role="status"
+                className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 border-b border-border bg-surface px-4 py-2 text-xs"
+              >
+                <span className="size-1.5 animate-pulse rounded-full bg-foreground motion-reduce:animate-none" />
+                Reconnecting to your interviewer… The clock is paused.
               </p>
-            </div>
-          )}
-        </main>
-      </div>
+            )}
+            {fallback ? (
+              <TextChat
+                chat={chat}
+                onSend={(text) => (
+                  setChat((c) => [...c, { role: "candidate", text }]),
+                  socket.send({ t: "chat", text })
+                )}
+              />
+            ) : workspace === "code" && code ? (
+              <CodeWorkspace
+                socket={socket}
+                problem={code.problem}
+                starter={code.starter}
+                initial={code.code}
+                run={run}
+              />
+            ) : workspace === "board" && board ? (
+              <Whiteboard
+                key={board.design.id}
+                socket={socket}
+                design={board.design}
+                initial={board.elements}
+                onSnapshot={onSnapshot}
+              />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+                <p className="font-display text-2xl font-normal">{phase ? phaseLabel(phase) : "Getting ready"}</p>
+                <p className="max-w-md text-sm text-muted">
+                  {phase === "coding"
+                    ? "Your interviewer will open the editor in a moment."
+                    : "Answer out loud, like a normal conversation. Take your time to think; short pauses are fine."}
+                </p>
+              </div>
+            )}
+          </main>
+        </div>
       )}
 
       {paused && <PauseOverlay reason={paused} />}
@@ -758,9 +998,25 @@ const STUCK_MS = 90_000; // then offer a retry
  * Shown until the interviewer is actually live: the clock hasn't started and nothing is assessed yet. Each step ticks
  * off as it completes; a slow join reassures, a stuck one offers Try again (the room remounts and reconnects).
  */
-function Joining({ stage, since, error, onRetry }: { stage: Stage; since: number; error: string; onRetry: () => void }) {
+function Joining({
+  stage,
+  since,
+  error,
+  onRetry,
+}: {
+  stage: Stage;
+  since: number;
+  error: string;
+  onRetry: () => void;
+}) {
   const now = useNow(1000);
-  const at = stage === "reconnecting" ? 2 : Math.max(0, JOIN_STEPS.findIndex((s) => s.stage === stage));
+  const at =
+    stage === "reconnecting"
+      ? 2
+      : Math.max(
+          0,
+          JOIN_STEPS.findIndex((s) => s.stage === stage),
+        );
   const waited = now - since;
   const failed = stage === "failed" || waited > STUCK_MS;
   return (
@@ -770,9 +1026,13 @@ function Joining({ stage, since, error, onRetry }: { stage: Stage; since: number
           <ThinkingOrb state="connecting" size={64} className="scale-125" />
         </div>
         <div>
-          <h2 className="font-display text-xl font-normal">{failed ? "Couldn't reach your interviewer" : "Getting your interview ready"}</h2>
+          <h2 className="font-display text-xl font-normal">
+            {failed ? "Couldn't reach your interviewer" : "Getting your interview ready"}
+          </h2>
           <p className="mt-1 text-sm text-muted">
-            {failed ? "Your progress is saved and the clock hasn't started." : "The clock starts when your interviewer joins."}
+            {failed
+              ? "Your progress is saved and the clock hasn't started."
+              : "The clock starts when your interviewer joins."}
           </p>
         </div>
         <ol className="space-y-3 text-left">
@@ -804,14 +1064,17 @@ function Joining({ stage, since, error, onRetry }: { stage: Stage; since: number
             Try again
           </button>
         ) : (
-          waited > SLOW_MS && <p className="text-xs text-muted">This is taking longer than usual. Keep this tab open.</p>
+          waited > SLOW_MS && (
+            <p className="text-xs text-muted">This is taking longer than usual. Keep this tab open.</p>
+          )
         )}
       </div>
     </div>
   );
 }
 
-const MIC_OFF = "M2 2l20 20M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23M12 19v3";
+const MIC_OFF =
+  "M2 2l20 20M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23M12 19v3";
 
 /** A clock that re-renders only itself (not the editor or whiteboard) every tick. */
 function useNow(ms: number) {
@@ -829,9 +1092,23 @@ function Timer({ clock }: { clock: Clock }) {
   const elapsed = clock.running ? Math.floor((now - clock.at) / 1000) : 0;
   const phaseLeft = clock.phaseLeft - elapsed;
   const label = phaseLabel(clock.phases[clock.index]?.id ?? "");
+  if (clock.flexible) {
+    const left = clock.totalLeft - elapsed;
+    return (
+      <span
+        className={`tabular-nums ${left <= 300 ? "font-medium text-danger" : "text-muted"}`}
+        title="Time left in the interview (flexible timing)"
+      >
+        {label} · {mmss(left)} left{clock.running ? "" : " · paused"}
+      </span>
+    );
+  }
   return (
     <>
-      <span className={`tabular-nums ${phaseLeft <= 60 ? "font-medium text-danger" : "text-muted"}`} title="Time left in this phase">
+      <span
+        className={`tabular-nums ${phaseLeft <= 60 ? "font-medium text-danger" : "text-muted"}`}
+        title="Time left in this phase"
+      >
         {label} {mmss(phaseLeft)}
         {clock.running ? "" : " · paused"}
       </span>
@@ -846,7 +1123,13 @@ function Loading({ what }: { what: string }) {
   return <div className="flex h-full items-center justify-center text-sm text-muted">Loading the {what}…</div>;
 }
 
-function TextChat({ chat, onSend }: { chat: { role: "agent" | "candidate"; text: string }[]; onSend: (t: string) => void }) {
+function TextChat({
+  chat,
+  onSend,
+}: {
+  chat: { role: "agent" | "candidate"; text: string }[];
+  onSend: (t: string) => void;
+}) {
   const [text, setText] = useState("");
   const end = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -854,10 +1137,15 @@ function TextChat({ chat, onSend }: { chat: { role: "agent" | "candidate"; text:
   }, [chat.length]);
   return (
     <div className="flex h-full flex-col">
-      <p className="border-b border-border px-4 py-2 text-xs text-muted">Voice is unavailable, so the interview continues by text.</p>
+      <p className="border-b border-border px-4 py-2 text-xs text-muted">
+        Voice is unavailable, so the interview continues by text.
+      </p>
       <ol className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {chat.map((l, i) => (
-          <li key={i} className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${l.role === "agent" ? "bg-surface" : "ml-auto border border-border"}`}>
+          <li
+            key={i}
+            className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${l.role === "agent" ? "bg-surface" : "ml-auto border border-border"}`}
+          >
             {l.text}
           </li>
         ))}
@@ -892,7 +1180,10 @@ function TextChat({ chat, onSend }: { chat: { role: "agent" | "candidate"; text:
 
 const PAUSE_TEXT: Record<string, { title: string; body: string }> = {
   fullscreen_exit: { title: "You left full screen", body: "Return to full screen to continue the interview." },
-  extra_monitor: { title: "Extra monitor detected", body: "Disconnect other monitors (or mirror your displays) to continue." },
+  extra_monitor: {
+    title: "Extra monitor detected",
+    body: "Disconnect other monitors (or mirror your displays) to continue.",
+  },
   face_absent: { title: "We can't see you", body: "Make sure your face is visible to the camera to continue." },
   camera_off: { title: "Your camera is off", body: "Turn your camera back on to continue." },
   screen_share_stopped: { title: "Screen sharing stopped", body: "Share your entire screen again to continue." },
@@ -901,9 +1192,16 @@ const PAUSE_TEXT: Record<string, { title: string; body: string }> = {
 function PauseOverlay({ reason }: { reason: string }) {
   const t = PAUSE_TEXT[reason] ?? { title: "Interview paused", body: "Fix the issue to continue." };
   return (
-    <div role="alertdialog" aria-modal aria-labelledby="pause-title" className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4 backdrop-blur">
+    <div
+      role="alertdialog"
+      aria-modal
+      aria-labelledby="pause-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4 backdrop-blur"
+    >
       <div className="w-full max-w-sm space-y-4 border border-border bg-background p-6 text-center">
-        <h2 id="pause-title" className="font-display text-xl font-normal">{t.title}</h2>
+        <h2 id="pause-title" className="font-display text-xl font-normal">
+          {t.title}
+        </h2>
         <p className="text-sm text-muted">{t.body} The clock is paused.</p>
         {reason === "fullscreen_exit" && (
           <button type="button" className={primary} onClick={() => void document.documentElement.requestFullscreen()}>
@@ -915,7 +1213,9 @@ function PauseOverlay({ reason }: { reason: string }) {
             type="button"
             className={primary}
             onClick={async () => {
-              const s = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "monitor", frameRate: 5 } }).catch(() => null);
+              const s = await navigator.mediaDevices
+                .getDisplayMedia({ video: { displaySurface: "monitor", frameRate: 5 } })
+                .catch(() => null);
               if (s && s.getVideoTracks()[0]?.getSettings().displaySurface !== "browser") {
                 media.screen = s;
                 window.dispatchEvent(new CustomEvent("screen-shared", { detail: s }));
@@ -973,7 +1273,10 @@ function useProctoring(socket: RoomSocket, self: React.RefObject<HTMLVideoElemen
     const reshared = (e: Event) => watch((e as CustomEvent<MediaStream>).detail, "screen_share_stopped");
     window.addEventListener("screen-shared", reshared);
 
-    const mon = setInterval(() => set("extra_monitor", !!(window.screen as Screen & { isExtended?: boolean }).isExtended), 3000);
+    const mon = setInterval(
+      () => set("extra_monitor", !!(window.screen as Screen & { isExtended?: boolean }).isExtended),
+      3000,
+    );
 
     // Face presence: the native FaceDetector where available, else MediaPipe's face detector (free, in the browser)
     let faceTimer = 0;
@@ -1020,7 +1323,9 @@ const MEDIAPIPE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14"
 
 /** Returns a face counter for a video frame, or null when no detector can load (then face checks are skipped). */
 async function faceDetector(): Promise<((v: HTMLVideoElement) => Promise<number>) | null> {
-  const Native = (window as unknown as { FaceDetector?: new (o: object) => { detect(s: CanvasImageSource): Promise<unknown[]> } }).FaceDetector;
+  const Native = (
+    window as unknown as { FaceDetector?: new (o: object) => { detect(s: CanvasImageSource): Promise<unknown[]> } }
+  ).FaceDetector;
   if (Native) {
     const fd = new Native({ fastMode: true, maxDetectedFaces: 3 });
     return async (v) => (await fd.detect(v)).length;
@@ -1029,7 +1334,10 @@ async function faceDetector(): Promise<((v: HTMLVideoElement) => Promise<number>
     const vision = await import(/* @vite-ignore */ `${MEDIAPIPE}/vision_bundle.mjs`);
     const files = await vision.FilesetResolver.forVisionTasks(`${MEDIAPIPE}/wasm`);
     const fd = await vision.FaceDetector.createFromOptions(files, {
-      baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite" },
+      baseOptions: {
+        modelAssetPath:
+          "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+      },
       runningMode: "VIDEO",
     });
     return async (v) => fd.detectForVideo(v, performance.now()).detections.length;

@@ -34,7 +34,9 @@ const indent = (s: string, n: number) =>
 function python(sig: Signature) {
   const reads = sig.reads.map((r) => {
     if ("ints" in r)
-      return r.ints.length === 1 ? `${r.ints[0]} = int(lines[i]); i += 1` : `${r.ints.join(", ")} = map(int, lines[i].split()); i += 1`;
+      return r.ints.length === 1
+        ? `${r.ints[0]} = int(lines[i]); i += 1`
+        : `${r.ints.join(", ")} = map(int, lines[i].split()); i += 1`;
     if ("array" in r) return `${r.array} = list(map(int, lines[i].split())); i += 1`;
     if ("str" in r) return `${r.str} = lines[i] if i < len(lines) else ""; i += 1`;
     const names = r.fields.map(([n]) => n);
@@ -66,7 +68,8 @@ main()
 
 function js(sig: Signature, ts: boolean) {
   const k = kinds(sig);
-  const type = (n: string) => (ts ? `: ${{ int: "number", ints: "number[]", str: "string", strs: "string[]" }[k.get(n)!]}` : "");
+  const type = (n: string) =>
+    ts ? `: ${{ int: "number", ints: "number[]", str: "string", strs: "string[]" }[k.get(n)!]}` : "";
   const reads = sig.reads.map((r) => {
     if ("ints" in r)
       return r.ints.length === 1
@@ -74,7 +77,9 @@ function js(sig: Signature, ts: boolean) {
         : `const [${r.ints.join(", ")}] = lines[i++].trim().split(/\\s+/).map(Number);`;
     if ("array" in r) return `const ${r.array} = lines[i++].trim().split(/\\s+/).map(Number);`;
     if ("str" in r) return `const ${r.str} = lines[i++] || "";`;
-    const decl = r.fields.map(([n, t]) => `const ${n}${ts ? `: ${t === "int" ? "number" : "string"}[]` : ""} = [];`).join("\n");
+    const decl = r.fields
+      .map(([n, t]) => `const ${n}${ts ? `: ${t === "int" ? "number" : "string"}[]` : ""} = [];`)
+      .join("\n");
     const push = r.fields.map(([n, t], j) => `${n}.push(${t === "int" ? `Number(p[${j}])` : `p[${j}]`});`).join(" ");
     return `${decl}\nfor (let r = 0; r < ${r.rows}; r++) {\n  const p = lines[i++].trim().split(/\\s+/);\n  ${push}\n}`;
   });
@@ -102,10 +107,15 @@ function java(sig: Signature) {
   const reads = sig.reads.map((r, x) => {
     if ("ints" in r)
       return `StringTokenizer st${x} = new StringTokenizer(br.readLine());\n${r.ints.map((n) => `int ${n} = Integer.parseInt(st${x}.nextToken());`).join("\n")}`;
-    if ("array" in r) return `int[] ${r.array} = Arrays.stream(br.readLine().trim().split("\\\\s+")).mapToInt(Integer::parseInt).toArray();`;
+    if ("array" in r)
+      return `int[] ${r.array} = Arrays.stream(br.readLine().trim().split("\\\\s+")).mapToInt(Integer::parseInt).toArray();`;
     if ("str" in r) return `String ${r.str} = br.readLine();\nif (${r.str} == null) ${r.str} = "";`;
-    const decl = r.fields.map(([n, t]) => `${t === "int" ? "int" : "String"}[] ${n} = new ${t === "int" ? "int" : "String"}[${r.rows}];`).join("\n");
-    const set = r.fields.map(([n, t], j) => `${n}[r] = ${t === "int" ? `Integer.parseInt(p[${j}])` : `p[${j}]`};`).join(" ");
+    const decl = r.fields
+      .map(([n, t]) => `${t === "int" ? "int" : "String"}[] ${n} = new ${t === "int" ? "int" : "String"}[${r.rows}];`)
+      .join("\n");
+    const set = r.fields
+      .map(([n, t], j) => `${n}[r] = ${t === "int" ? `Integer.parseInt(p[${j}])` : `p[${j}]`};`)
+      .join(" ");
     return `${decl}\nfor (int r = 0; r < ${r.rows}; r++) {\n    String[] p = br.readLine().trim().split("\\\\s+");\n    ${set}\n}`;
   });
   return `import java.io.*;
@@ -139,8 +149,11 @@ function cpp(sig: Signature) {
       return `getline(cin, line);\nlong long ${r.ints.join(", ")};\n{ istringstream ss(line); ss >> ${r.ints.join(" >> ")}; }`;
     if ("array" in r)
       return `getline(cin, line);\nvector<long long> ${r.array};\n{ istringstream ss(line); long long x; while (ss >> x) ${r.array}.push_back(x); }`;
-    if ("str" in r) return `string ${r.str};\nif (!getline(cin, ${r.str})) ${r.str} = "";\nif (!${r.str}.empty() && ${r.str}.back() == '\\r') ${r.str}.pop_back();`;
-    const decl = r.fields.map(([n, t]) => `vector<${t === "int" ? "long long" : "string"}> ${n}(${r.rows});`).join("\n");
+    if ("str" in r)
+      return `string ${r.str};\nif (!getline(cin, ${r.str})) ${r.str} = "";\nif (!${r.str}.empty() && ${r.str}.back() == '\\r') ${r.str}.pop_back();`;
+    const decl = r.fields
+      .map(([n, t]) => `vector<${t === "int" ? "long long" : "string"}> ${n}(${r.rows});`)
+      .join("\n");
     return `${decl}\nfor (long long r = 0; r < ${r.rows}; r++) {\n    getline(cin, line);\n    istringstream ss(line);\n    ss >> ${r.fields.map(([n]) => `${n}[r]`).join(" >> ")};\n}`;
   });
   return `#include <bits/stdc++.h>
@@ -168,8 +181,10 @@ function go(sig: Signature) {
   const k = kinds(sig);
   const T = { int: "int", ints: "[]int", str: "string", strs: "[]string" };
   const reads = sig.reads.map((r, x) => {
-    if ("ints" in r) return `f${x} := strings.Fields(next())\n${r.ints.map((n, j) => `${n} := atoi(f${x}[${j}])`).join("\n")}`;
-    if ("array" in r) return `f${x} := strings.Fields(next())\n${r.array} := make([]int, len(f${x}))\nfor j, v := range f${x} {\n\t${r.array}[j] = atoi(v)\n}`;
+    if ("ints" in r)
+      return `f${x} := strings.Fields(next())\n${r.ints.map((n, j) => `${n} := atoi(f${x}[${j}])`).join("\n")}`;
+    if ("array" in r)
+      return `f${x} := strings.Fields(next())\n${r.array} := make([]int, len(f${x}))\nfor j, v := range f${x} {\n\t${r.array}[j] = atoi(v)\n}`;
     if ("str" in r) return `${r.str} := strings.TrimRight(next(), "\\r")`;
     const decl = r.fields.map(([n, t]) => `${n} := make([]${t === "int" ? "int" : "string"}, ${r.rows})`).join("\n");
     const set = r.fields.map(([n, t], j) => `${n}[r] = ${t === "int" ? `atoi(p[${j}])` : `p[${j}]`}`).join("\n\t");
@@ -219,5 +234,12 @@ ${body
 }
 
 export function starters(sig: Signature): Record<Language, string> {
-  return { python: python(sig), javascript: js(sig, false), typescript: js(sig, true), java: java(sig), cpp: cpp(sig), go: go(sig) };
+  return {
+    python: python(sig),
+    javascript: js(sig, false),
+    typescript: js(sig, true),
+    java: java(sig),
+    cpp: cpp(sig),
+    go: go(sig),
+  };
 }

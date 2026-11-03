@@ -85,7 +85,8 @@ export function jsonObject(text: string): unknown {
     let inString = false;
     let escaped = false;
     for (const ch of raw) {
-      if (inString && !escaped && (ch === "\n" || ch === "\r" || ch === "\t")) out += ch === "\n" ? "\\n" : ch === "\t" ? "\\t" : "";
+      if (inString && !escaped && (ch === "\n" || ch === "\r" || ch === "\t"))
+        out += ch === "\n" ? "\\n" : ch === "\t" ? "\\t" : "";
       else out += ch;
       if (escaped) escaped = false;
       else if (ch === "\\") escaped = inString;

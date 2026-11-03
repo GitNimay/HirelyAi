@@ -153,8 +153,12 @@ export function sceneOf(els: BoardElement[]): Scene {
   }
   const label = (id: string) => (labels.get(id) ?? []).join(" / ").slice(0, 120);
   const elements = [
-    ...els.filter((e) => e.type !== "text" && e.type !== "arrow" && e.type !== "line").map((e) => ({ id: e.id, type: e.type, label: label(e.id) })),
-    ...loose.map((e) => ({ id: e.id, type: "note", label: (e.text ?? "").trim().slice(0, 120) })).filter((e) => e.label),
+    ...els
+      .filter((e) => e.type !== "text" && e.type !== "arrow" && e.type !== "line")
+      .map((e) => ({ id: e.id, type: e.type, label: label(e.id) })),
+    ...loose
+      .map((e) => ({ id: e.id, type: "note", label: (e.text ?? "").trim().slice(0, 120) }))
+      .filter((e) => e.label),
   ];
   const connections = els
     .filter((e) => e.type === "arrow" || e.type === "line")
@@ -165,6 +169,21 @@ export function sceneOf(els: BoardElement[]): Scene {
     }))
     .filter((c): c is { from: string; to: string; label: string } => !!c.from && !!c.to && c.from !== c.to);
   return { elements: elements.slice(0, 200), connections: connections.slice(0, 300) };
+}
+
+/**
+ * The scene as the agent reads it: components by label and connections as "A → B", so it can talk about what the
+ * candidate drew by name instead of by element id. Unlabelled shapes show as "unlabelled <type>".
+ */
+export function sceneText(s: Scene) {
+  const name = (id: string) => {
+    const e = s.elements.find((x) => x.id === id);
+    return e?.label || (e ? `unlabelled ${e.type}` : "?");
+  };
+  const comps = s.elements.map((e) => e.label || `unlabelled ${e.type}`);
+  const conns = s.connections.map((c) => `${name(c.from)} → ${name(c.to)}${c.label ? ` (${c.label})` : ""}`);
+  return `Components: ${comps.join("; ") || "none"}.
+Connections: ${conns.join("; ") || "none"}.`;
 }
 
 /** What changed between two scenes, in words, or "" when nothing significant (moves and resizes don't count). */
@@ -180,7 +199,9 @@ export function sceneChange(before: Scene, after: Scene) {
   return [
     ...added.map((e) => `added ${e.type} "${e.label}"`),
     ...removed.map((e) => `deleted "${e.label}"`),
-    ...linked.map((c) => `connected "${name(after, c.from)}" → "${name(after, c.to)}"${c.label ? ` (${c.label})` : ""}`),
+    ...linked.map(
+      (c) => `connected "${name(after, c.from)}" → "${name(after, c.to)}"${c.label ? ` (${c.label})` : ""}`,
+    ),
     ...unlinked.map((c) => `removed connection "${name(before, c.from)}" → "${name(before, c.to)}"`),
   ]
     .join("; ")

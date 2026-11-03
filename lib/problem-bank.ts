@@ -17,7 +17,11 @@ export const PROBLEMS: Problem[] = [
     input: "Line 1: n and target. Line 2: n integers.",
     output: "The two indices separated by a space.",
     constraints: "2 ≤ n ≤ 10^5, values and target fit in 32-bit signed integers.",
-    signature: { reads: [{ ints: ["n", "target"] }, { array: "nums" }], args: ["nums", "target"], returns: 'Return the two indices as "i j" (i < j)' },
+    signature: {
+      reads: [{ ints: ["n", "target"] }, { array: "nums" }],
+      args: ["nums", "target"],
+      returns: 'Return the two indices as "i j" (i < j)',
+    },
     visible: [
       { name: "basic", input: "4 9\n2 7 11 15", output: "0 1" },
       { name: "unsorted", input: "3 6\n3 2 4", output: "1 2" },
@@ -67,7 +71,20 @@ export const PROBLEMS: Problem[] = [
     input: "Line 1: n. Next n lines: start end.",
     output: "Merged intervals as start-end pairs separated by spaces, e.g. 1-6 8-10.",
     constraints: "1 ≤ n ≤ 10^5, 0 ≤ start < end ≤ 10^9.",
-    signature: { reads: [{ ints: ["n"] }, { rows: "n", fields: [["starts", "int"], ["ends", "int"]] }], args: ["starts", "ends"], returns: 'Return the merged intervals as "s-e s-e ..." sorted by start' },
+    signature: {
+      reads: [
+        { ints: ["n"] },
+        {
+          rows: "n",
+          fields: [
+            ["starts", "int"],
+            ["ends", "int"],
+          ],
+        },
+      ],
+      args: ["starts", "ends"],
+      returns: 'Return the merged intervals as "s-e s-e ..." sorted by start',
+    },
     visible: [
       { name: "overlap", input: "4\n1 3\n2 6\n8 10\n15 18", output: "1-6 8-10 15-18" },
       { name: "touching", input: "2\n1 4\n4 5", output: "1-5" },
@@ -91,7 +108,11 @@ export const PROBLEMS: Problem[] = [
     input: "One line: the string (printable ASCII, may be empty).",
     output: "The length.",
     constraints: "0 ≤ length ≤ 10^5.",
-    signature: { reads: [{ str: "s" }], args: ["s"], returns: "Return the length of the longest substring without repeated characters" },
+    signature: {
+      reads: [{ str: "s" }],
+      args: ["s"],
+      returns: "Return the length of the longest substring without repeated characters",
+    },
     visible: [
       { name: "basic", input: "abcabcbb", output: "3" },
       { name: "all same", input: "bbbbb", output: "1" },
@@ -117,7 +138,20 @@ export const PROBLEMS: Problem[] = [
     input: "Line 1: L W q. Next q lines: user timestamp.",
     output: "One token per request, ALLOW or DENY, separated by spaces.",
     constraints: "1 ≤ q ≤ 10^5, 1 ≤ L ≤ 10^4, 1 ≤ W ≤ 10^6.",
-    signature: { reads: [{ ints: ["limit", "window", "q"] }, { rows: "q", fields: [["users", "str"], ["times", "int"]] }], args: ["limit", "window", "users", "times"], returns: 'Return "ALLOW" or "DENY" for each request, separated by spaces' },
+    signature: {
+      reads: [
+        { ints: ["limit", "window", "q"] },
+        {
+          rows: "q",
+          fields: [
+            ["users", "str"],
+            ["times", "int"],
+          ],
+        },
+      ],
+      args: ["limit", "window", "users", "times"],
+      returns: 'Return "ALLOW" or "DENY" for each request, separated by spaces',
+    },
     visible: [{ name: "basic", input: "2 10 4\na 1\na 2\na 3\na 11", output: "ALLOW ALLOW DENY ALLOW" }],
     hidden: [
       { name: "two users", input: "1 5 4\na 1\nb 1\na 2\nb 6", output: "ALLOW ALLOW DENY ALLOW" },
@@ -135,6 +169,10 @@ export const PROBLEMS: Problem[] = [
 /** Fallback problems at a difficulty (nearest difficulty first): primary, then backups. */
 export function fallbackProblems(difficulty: Difficulty, n = 2): Problem[] {
   const order: Difficulty[] =
-    difficulty === "easy" ? ["easy", "medium", "hard"] : difficulty === "hard" ? ["hard", "medium", "easy"] : ["medium", "easy", "hard"];
+    difficulty === "easy"
+      ? ["easy", "medium", "hard"]
+      : difficulty === "hard"
+        ? ["hard", "medium", "easy"]
+        : ["medium", "easy", "hard"];
   return order.flatMap((d) => PROBLEMS.filter((p) => p.difficulty === d)).slice(0, n);
 }

@@ -709,7 +709,7 @@ export function JobFacts({ job: j, h: H = "h3" }: { job: Facts; h?: "h2" | "h3" 
       label: "Hiring process",
       value:
         j.interview.kind === "ai"
-          ? `AI interview · ${j.interview.minutes} min: resume, coding and system design`
+          ? `AI interview · ${j.interview.flexible ? "up to " : ""}${j.interview.minutes} min: resume, coding and system design`
           : `${j.interview.kind === "mcq" ? "MCQ test" : "AI voice interview"} · ${screeningFacts(j.interview.kind, j.interview.questions)}`,
       sub:
         j.interview.kind === "ai"
@@ -1566,7 +1566,8 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
         <div className="min-w-0">
           <p className="font-medium">{KINDS[iv.kind]}</p>
           <p className="text-xs text-muted" suppressHydrationWarning>
-            {screeningFacts(iv.kind, iv.questions, iv.minutes)} · {closed ? "Closed" : "Open until"} {dateTime(iv.deadline)}
+            {screeningFacts(iv.kind, iv.questions, iv.minutes)} · {closed ? "Closed" : "Open until"}{" "}
+            {dateTime(iv.deadline)}
           </p>
         </div>
         {!mine &&
@@ -1883,10 +1884,14 @@ function AiSummary({ r, jobId, applicantId }: { r: InterviewResult; jobId: strin
               <span className="text-sm font-normal text-muted">/5</span>
             </p>
             {ai.recommendation && (
-              <p className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-xs font-medium">{RECOMMENDATIONS[ai.recommendation]}</p>
+              <p className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-xs font-medium">
+                {RECOMMENDATIONS[ai.recommendation]}
+              </p>
             )}
             {ai.integrity.level !== "none" && (
-              <p className={`text-xs font-medium ${ai.integrity.level === "high" ? "text-danger" : "text-muted"}`}>Integrity: {ai.integrity.level}</p>
+              <p className={`text-xs font-medium ${ai.integrity.level === "high" ? "text-danger" : "text-muted"}`}>
+                Integrity: {ai.integrity.level}
+              </p>
             )}
           </div>
         ) : (
@@ -1895,8 +1900,16 @@ function AiSummary({ r, jobId, applicantId }: { r: InterviewResult; jobId: strin
         {r.report?.summary && <p className="leading-relaxed text-foreground/90">{r.report.summary}</p>}
         {claims.length > 0 && (
           <p className="text-xs text-muted">
-            Resume claims: {(["verified", "vague", "contradicted", "not_reached"] as const)
-              .map((s) => [s, claims.filter((c) => (results[c.id]?.status ?? (r.status === "done" ? "not_reached" : "")) === s).length] as const)
+            Resume claims:{" "}
+            {(["verified", "vague", "contradicted", "not_reached"] as const)
+              .map(
+                (s) =>
+                  [
+                    s,
+                    claims.filter((c) => (results[c.id]?.status ?? (r.status === "done" ? "not_reached" : "")) === s)
+                      .length,
+                  ] as const,
+              )
               .filter(([, n]) => n)
               .map(([s, n]) => `${n} ${s.replace("_", " ")}`)
               .join(" · ") || "not probed yet"}

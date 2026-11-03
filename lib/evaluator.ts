@@ -21,11 +21,22 @@ import {
 } from "./harness";
 import type { RunResult } from "./workspace";
 
-export const RECOMMENDATIONS = { strong_hire: "Strong hire", hire: "Hire", lean_no: "Lean no", no_hire: "No hire" } as const;
+export const RECOMMENDATIONS = {
+  strong_hire: "Strong hire",
+  hire: "Hire",
+  lean_no: "Lean no",
+  no_hire: "No hire",
+} as const;
 export type Recommendation = keyof typeof RECOMMENDATIONS;
 export type EvidenceKind = "transcript" | "code" | "run" | "whiteboard" | "note";
 export type Evidence = { ref: string; at: number; kind: EvidenceKind; quote: string; note: string };
-export type CompetencyScore = { id: string; name: string; score: number | null; rationale: string; evidence: Evidence[] };
+export type CompetencyScore = {
+  id: string;
+  name: string;
+  score: number | null;
+  rationale: string;
+  evidence: Evidence[];
+};
 export type IntegrityLevel = "none" | "medium" | "high";
 export type AiReport = Report & {
   ai: {
@@ -76,7 +87,9 @@ export function integrityOf(events: IvEvent[]): AiReport["ai"]["integrity"] {
   const end = events.at(-1)?.at ?? 0;
   for (const at of open.values()) hardMs += end - at; // never cleared
   const hardCount = [...by.values()].filter((s) => s.hard).reduce((n, s) => n + s.count, 0);
-  const pasted = events.filter((e): e is Extract<IvEvent, { type: "paste" }> => e.type === "paste").reduce((n, e) => n + e.chars, 0);
+  const pasted = events
+    .filter((e): e is Extract<IvEvent, { type: "paste" }> => e.type === "paste")
+    .reduce((n, e) => n + e.chars, 0);
   const signals = [...by.values()];
   const n = (sig: string) => by.get(sig)?.count ?? 0;
   const level: IntegrityLevel =
@@ -91,7 +104,8 @@ export function integrityOf(events: IvEvent[]): AiReport["ai"]["integrity"] {
 // ── Input ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** A quote short enough to scan: cut at a word boundary with an ellipsis. */
-const clip = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, s.lastIndexOf(" ", max - 1) > max / 2 ? s.lastIndexOf(" ", max - 1) : max - 1)}…`);
+const clip = (s: string, max: number) =>
+  s.length <= max ? s : `${s.slice(0, s.lastIndexOf(" ", max - 1) > max / 2 ? s.lastIndexOf(" ", max - 1) : max - 1)}…`;
 
 export type Refs = Map<string, { at: number; kind: EvidenceKind; quote: string }>;
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
@@ -127,14 +141,28 @@ export function evalInput(o: {
       const res = e.result as RunResult & { final?: boolean };
       const q = `${res.final ? "final " : ""}${res.suite} tests: ${res.passed}/${res.total} ${res.status}`;
       refs.set(id, { at: e.at, kind: "run", quote: q });
-      lines.push(`[${id} ${t}] (${e.by} ran code in ${e.language}) ${q}${res.cases?.some((c) => !c.passed) ? `; failing: ${res.cases.filter((c) => !c.passed).map((c) => c.name).join(", ")}` : ""}`);
+      lines.push(
+        `[${id} ${t}] (${e.by} ran code in ${e.language}) ${q}${
+          res.cases?.some((c) => !c.passed)
+            ? `; failing: ${res.cases
+                .filter((c) => !c.passed)
+                .map((c) => c.name)
+                .join(", ")}`
+            : ""
+        }`,
+      );
     } else if (e.type === "board" && e.change) {
       const id = `b${++b}`;
       refs.set(id, { at: e.at, kind: "whiteboard", quote: e.change.slice(0, 300) });
       lines.push(`[${id} ${t}] (whiteboard) ${e.change.replaceAll("<", "‹")}`);
     } else if (e.type === "assign") {
-      lines.push(`(${t}: ${e.what === "problem" ? `coding problem ${e.id} shown` : `whiteboard opened: ${e.id.replaceAll("<", "‹")}`})`);
-    } else if (e.type === "phase" && e.to) lines.push(`(${t}: ${phaseLabel(e.to)} phase starts${e.reason === "forced" ? ", previous phase ran out of time" : ""})`);
+      lines.push(
+        `(${t}: ${e.what === "problem" ? `coding problem ${e.id} shown` : `whiteboard opened: ${e.id.replaceAll("<", "‹")}`})`,
+      );
+    } else if (e.type === "phase" && e.to)
+      lines.push(
+        `(${t}: ${phaseLabel(e.to)} phase starts${e.reason === "forced" ? ", previous phase ran out of time" : ""})`,
+      );
   }
   state.notes.forEach((n, i) => refs.set(`n${i + 1}`, { at: n.at, kind: "note", quote: n.text.slice(0, 300) }));
   const last = events.at(-1)?.at ?? startedAt;
@@ -153,8 +181,12 @@ export function evalInput(o: {
     `Resume claims and the interviewer's recorded outcome:\n${untrusted("claims", o.plan.claims.map((c) => `${c.id}: ${c.text} → ${state.claims[c.id]?.status ?? "not_reached"}${state.claims[c.id]?.evidence ? ` (${state.claims[c.id]!.evidence})` : ""}`).join("\n") || "(none)")}`,
     `Interviewer notes (observations, not scores):\n${untrusted("notes", state.notes.map((n, i) => `n${i + 1} [${n.rubric}] ${n.text}`).join("\n") || "(none)")}`,
     `Hints given: ${state.hints.length ? state.hints.map((h) => `L${h.level} in ${phaseLabel(h.phase)}`).join(", ") : "none"}`,
-    o.final?.code ? `Final code (code-final):\n${untrusted("code", `${o.final.code.language}\n${o.final.code.code.slice(0, 6000)}`)}` : "",
-    o.final?.scene ? `Final whiteboard (board-final):\n${untrusted("whiteboard", JSON.stringify(o.final.scene).slice(0, 4000))}` : "",
+    o.final?.code
+      ? `Final code (code-final):\n${untrusted("code", `${o.final.code.language}\n${o.final.code.code.slice(0, 6000)}`)}`
+      : "",
+    o.final?.scene
+      ? `Final whiteboard (board-final):\n${untrusted("whiteboard", JSON.stringify(o.final.scene).slice(0, 4000))}`
+      : "",
     `Timeline (cite these ids):\n${untrusted("timeline", lines.join("\n").slice(0, 60_000))}`,
   ]
     .filter(Boolean)
@@ -190,7 +222,12 @@ const tidy = (v: unknown, max: number) =>
       .trim(),
     max,
   );
-const score = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number.isFinite(Number(v)) ? Math.min(5, Math.max(1, Math.round(Number(v)))) : null);
+const score = (v: unknown) =>
+  v === null || v === undefined || v === ""
+    ? null
+    : Number.isFinite(Number(v))
+      ? Math.min(5, Math.max(1, Math.round(Number(v))))
+      : null;
 
 /**
  * Model output → a report we can render and trust: unknown competencies dropped, missing ones "Not assessed",
@@ -212,7 +249,9 @@ export function cleanAiReport(
 ): AiReport {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const given = new Map(
-    (Array.isArray(r.competencies) ? r.competencies : []).map((c) => [str(c?.id, 40), c as Record<string, unknown>] as const),
+    (Array.isArray(r.competencies) ? r.competencies : []).map(
+      (c) => [str(c?.id, 40), c as Record<string, unknown>] as const,
+    ),
   );
   const competencies: CompetencyScore[] = o.rubric.map((c) => {
     const g = given.get(c.id);
@@ -224,12 +263,20 @@ export function cleanAiReport(
       })
       .filter((e): e is Evidence => !!e)
       .slice(0, 3);
-    if (!weightOf(c)) return { id: c.id, name: c.name, score: null, rationale: "Not scored for this role.", evidence: [] };
+    if (!weightOf(c))
+      return { id: c.id, name: c.name, score: null, rationale: "Not scored for this role.", evidence: [] };
     const s = evidence.length ? score(g?.score) : null;
-    return { id: c.id, name: c.name, score: s, rationale: s === null ? "Not assessed: no relevant evidence in the interview." : tidy(g?.rationale, 200), evidence };
+    return {
+      id: c.id,
+      name: c.name,
+      score: s,
+      rationale: s === null ? "Not assessed: no relevant evidence in the interview." : tidy(g?.rationale, 200),
+      evidence,
+    };
   });
   const sections = o.phases.map((phase) => {
-    const g = (Array.isArray(r.sections) ? r.sections : []).find((x) => x?.phase === phase) as Record<string, unknown> | undefined;
+    const g = (Array.isArray(r.sections) ? r.sections : []).find((x) => x?.phase === phase) as
+      Record<string, unknown> | undefined;
     return { phase, score: score(g?.score), feedback: tidy(g?.feedback, 240) };
   });
   // Weighted by what the recruiter said matters most; competencies without evidence don't count either way
@@ -237,7 +284,13 @@ export function cleanAiReport(
   const total = weighted.reduce((a, x) => a + x.w, 0);
   const overall = total ? Math.round((weighted.reduce((a, x) => a + x.s * x.w, 0) / total) * 10) / 10 : null;
   const hundred = toHundred(overall);
-  const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => tidy(x, 80)).filter(Boolean).slice(0, 3) : []);
+  const list = (v: unknown) =>
+    Array.isArray(v)
+      ? v
+          .map((x) => tidy(x, 80))
+          .filter(Boolean)
+          .slice(0, 3)
+      : [];
   return {
     score: hundred,
     fit: fitFor(hundred) as Fit,

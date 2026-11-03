@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { cleanConfig } from "./harness";
+import { cleanConfig, LIMITS as LIMITS_IV } from "./harness";
 import type { SessionStatus } from "./interview";
 import type { Fit, Kind, Mcq } from "./interview-fields";
 import { getResume } from "./resume";
@@ -40,7 +40,8 @@ export type Job = {
     kind: Kind;
     deadline: number;
     questions: number;
-    minutes: number; // AI interview length (sum of its phases); 0 for voice/MCQ
+    minutes: number; // AI interview length (sum of its phases, or the flexible limit); 0 for voice/MCQ
+    flexible: boolean; // AI interview with flexible timing: `minutes` is its upper limit
     slug: string | null;
     /** Voice/MCQ: the shared password. AI interview: the viewing applicant's personal link token (their session id). */
     password: string | null;
@@ -97,6 +98,7 @@ type Row = {
   iv_deadline: number | null;
   iv_questions: number | null;
   iv_minutes: number | null;
+  iv_flexible: number | null;
   iv_slug: string | null;
   iv_password: string | null;
   iv_status: SessionStatus | null;
@@ -115,7 +117,9 @@ const SELECT = `
          EXISTS (SELECT 1 FROM company_verifications v WHERE v.company_id = j.company_id AND v.user_id = j.poster_id) AS co_verified,
          i.kind AS iv_kind, i.deadline AS iv_deadline, json_array_length(i.questions) AS iv_questions, ivs.status AS iv_status,
          CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.slug END AS iv_slug,
-         (SELECT SUM(json_extract(p.value, '$.minutes')) FROM json_each(i.config, '$.phases') p) AS iv_minutes,
+         CASE WHEN json_extract(i.config, '$.timing') = 'flexible' THEN ${LIMITS_IV.flexibleMinutes}
+           ELSE (SELECT SUM(json_extract(p.value, '$.minutes')) FROM json_each(i.config, '$.phases') p) END AS iv_minutes,
+         json_extract(i.config, '$.timing') = 'flexible' AS iv_flexible,
          CASE WHEN i.kind = 'ai' THEN CASE WHEN a.applicant_id IS NOT NULL THEN ivs.id END
               WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.password END AS iv_password
   FROM jobs j
@@ -162,6 +166,7 @@ const toJob = (r: Row): Job => ({
           deadline: r.iv_deadline,
           questions: r.iv_questions ?? 0,
           minutes: r.iv_minutes ?? 0,
+          flexible: !!r.iv_flexible,
           slug: r.iv_slug,
           password: r.iv_password,
           status: r.iv_status,
@@ -295,7 +300,9 @@ export async function jobAiConfig(posterId: string, jobId: string) {
   )
     .bind(posterId, jobId)
     .first<{ config: string | null; started: number }>();
-  return r ? { aiConfig: cleanConfig(r.config ? JSON.parse(r.config) : null), started: !!r.started } : { aiConfig: null, started: false };
+  return r
+    ? { aiConfig: cleanConfig(r.config ? JSON.parse(r.config) : null), started: !!r.started }
+    : { aiConfig: null, started: false };
 }
 
 /** Contact details from the viewer's last application, to prefill the next one. */
@@ -336,7 +343,7 @@ export type PublicJob = Pick<
   | "closedAt"
 > & {
   poster: { name: string; headline: string | null };
-  interview: { kind: Kind; deadline: number; questions: number; minutes: number } | null;
+  interview: { kind: Kind; deadline: number; questions: number; minutes: number; flexible: boolean } | null;
 };
 
 export async function getPublicJob(id: string): Promise<PublicJob | null> {
@@ -362,6 +369,7 @@ export async function getPublicJob(id: string): Promise<PublicJob | null> {
       deadline: j.interview.deadline,
       questions: j.interview.questions,
       minutes: j.interview.minutes,
+      flexible: j.interview.flexible,
     },
   };
 }

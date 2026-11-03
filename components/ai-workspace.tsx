@@ -57,7 +57,14 @@ export function CodeWorkspace({
 
   async function switchTo(next: Language) {
     // Untouched starter code just swaps; real work asks first
-    if (code.trim() !== starter[language].trim() && !(await ask({ title: `Switch to ${LANGUAGES[next].label}?`, body: "Your current code will be replaced with the starter code.", confirm: "Switch" })))
+    if (
+      code.trim() !== starter[language].trim() &&
+      !(await ask({
+        title: `Switch to ${LANGUAGES[next].label}?`,
+        body: "Your current code will be replaced with the starter code.",
+        confirm: "Switch",
+      }))
+    )
       return;
     setLanguage(next);
     setCode(starter[next]);
@@ -120,7 +127,13 @@ export function CodeWorkspace({
             value={code}
             onChange={(v) => edit(v ?? "")}
             theme={isDark ? "vs-dark" : "light"}
-            options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, tabSize: 4, automaticLayout: true }}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 14,
+              scrollBeyondLastLine: false,
+              tabSize: 4,
+              automaticLayout: true,
+            }}
           />
         </div>
         <Results run={run} />
@@ -140,10 +153,20 @@ function Results({ run }: { run: { running: boolean; result: RunResult | null } 
       ) : (
         <div className="space-y-2">
           <p className={`font-medium ${r.status === "Accepted" ? "text-success" : "text-danger"}`}>
-            {r.status === "unavailable" ? "Code execution is unavailable right now" : `${r.status} · ${r.passed}/${r.total} passed`}
-            {r.time != null && <span className="ml-2 text-xs font-normal text-muted">{r.time}s · {Math.round((r.memory ?? 0) / 1024)} MB</span>}
+            {r.status === "unavailable"
+              ? "Code execution is unavailable right now"
+              : `${r.status} · ${r.passed}/${r.total} passed`}
+            {r.time != null && (
+              <span className="ml-2 text-xs font-normal text-muted">
+                {r.time}s · {Math.round((r.memory ?? 0) / 1024)} MB
+              </span>
+            )}
           </p>
-          {r.error && <pre className="overflow-x-auto rounded-md bg-surface p-2 font-mono text-xs whitespace-pre-wrap text-danger">{r.error}</pre>}
+          {r.error && (
+            <pre className="overflow-x-auto rounded-md bg-surface p-2 font-mono text-xs whitespace-pre-wrap text-danger">
+              {r.error}
+            </pre>
+          )}
           <ul className="space-y-1">
             {r.cases.map((c) => (
               <li key={c.name} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
@@ -152,7 +175,8 @@ function Results({ run }: { run: { running: boolean; result: RunResult | null } 
                 </span>
                 {!c.passed && c.expected !== undefined && (
                   <span className="font-mono text-muted">
-                    expected <span className="text-foreground">{c.expected}</span> · got <span className="text-foreground">{c.got || "(nothing)"}</span>
+                    expected <span className="text-foreground">{c.expected}</span> · got{" "}
+                    <span className="text-foreground">{c.got || "(nothing)"}</span>
                   </span>
                 )}
               </li>
@@ -273,10 +297,15 @@ export function Whiteboard({
       <div className="min-h-0 flex-1">
         <Excalidraw
           excalidrawAPI={(a) => void (api.current = a as unknown as ExApi)}
-          initialData={{ elements: initial as never, appState: { viewBackgroundColor: isDark ? "#121212" : "#ffffff" } }}
+          initialData={{
+            elements: initial as never,
+            appState: { viewBackgroundColor: isDark ? "#121212" : "#ffffff" },
+          }}
           theme={isDark ? "dark" : "light"}
           onChange={(els) => change(els as unknown as readonly ExEl[])}
-          UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false, export: false, saveAsImage: false } }}
+          UIOptions={{
+            canvasActions: { loadScene: false, saveToActiveFile: false, export: false, saveAsImage: false },
+          }}
         />
       </div>
     </div>
@@ -295,7 +324,17 @@ export function BoardView({ elements }: { elements: unknown[] }) {
       viewModeEnabled
       zenModeEnabled
       theme={isDark ? "dark" : "light"}
-      UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false, export: false, saveAsImage: false, changeViewBackgroundColor: false, clearCanvas: false, toggleTheme: false } }}
+      UIOptions={{
+        canvasActions: {
+          loadScene: false,
+          saveToActiveFile: false,
+          export: false,
+          saveAsImage: false,
+          changeViewBackgroundColor: false,
+          clearCanvas: false,
+          toggleTheme: false,
+        },
+      }}
     />
   );
 }
@@ -308,7 +347,13 @@ export function CodeView({ code, language }: { code: string; language: Language 
       language={LANGUAGES[language]?.monaco ?? "plaintext"}
       value={code}
       theme={isDark ? "vs-dark" : "light"}
-      options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, automaticLayout: true }}
+      options={{
+        readOnly: true,
+        minimap: { enabled: false },
+        fontSize: 13,
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+      }}
     />
   );
 }

@@ -6,11 +6,15 @@ import { recordingChunks } from "@/lib/ai-interview";
  * One recording segment of an AI interview (camera or screen), for the job's poster. The browser uploaded it as
  * 10 s WebM chunks; they're served as one continuous file with Range support, so the report's player can seek.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ jobId: string; applicantId: string; track: string; segment: string }> }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ jobId: string; applicantId: string; track: string; segment: string }> },
+) {
   const { userId } = await auth();
   if (!userId) return new Response("Unauthorized", { status: 401 });
   const { jobId, applicantId, track, segment } = await params;
-  if ((track !== "cam" && track !== "screen") || !/^\d{10,15}$/.test(segment)) return new Response("Not found", { status: 404 });
+  if ((track !== "cam" && track !== "screen") || !/^\d{10,15}$/.test(segment))
+    return new Response("Not found", { status: 404 });
   const s = await env.DB.prepare(
     "SELECT s.id FROM interview_sessions s JOIN jobs j ON j.id = s.job_id AND j.poster_id = ? WHERE s.job_id = ? AND s.applicant_id = ?",
   )
@@ -26,9 +30,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
   let start = 0;
   let end = size - 1;
   if (m) {
-    if (m[1]) (start = Number(m[1])), (end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1);
+    if (m[1]) ((start = Number(m[1])), (end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1));
     else start = Math.max(0, size - Number(m[2]));
-    if (start > end || start >= size) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+    if (start > end || start >= size)
+      return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
   }
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   (async () => {

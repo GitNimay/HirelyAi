@@ -592,12 +592,9 @@ async function editJob(id: string, input: Record<string, unknown>) {
     ).bind(job.title, job.location, job.workplace, job.type, job.level, job.salary, job.description, id, me),
     ...(interview
       ? [
-          env.DB.prepare("UPDATE interviews SET questions = ?, deadline = ?, config = COALESCE(?, config) WHERE job_id = ?").bind(
-            JSON.stringify(interview.questions),
-            interview.deadline,
-            config,
-            id,
-          ),
+          env.DB.prepare(
+            "UPDATE interviews SET questions = ?, deadline = ?, config = COALESCE(?, config) WHERE job_id = ?",
+          ).bind(JSON.stringify(interview.questions), interview.deadline, config, id),
         ]
       : []),
   ]);
@@ -619,7 +616,8 @@ export async function deleteJob(jobId: string) {
     .all<{ id: string }>();
   const del = await env.DB.prepare("DELETE FROM jobs WHERE id = ? AND poster_id = ?").bind(id, me).run();
   if (!del.meta.changes) throw new Error("Job not found");
-  if (sessions.length) waitUntil(deleteSessionFiles(sessions.map((s) => s.id)).catch((e) => console.error("delete interview files", e)));
+  if (sessions.length)
+    waitUntil(deleteSessionFiles(sessions.map((s) => s.id)).catch((e) => console.error("delete interview files", e)));
   // Every notification about it (new job, applicants, status changes) would lead to a missing listing
   const { results } = await env.DB.prepare("DELETE FROM notifications WHERE link IN (?1, ?2, ?3) RETURNING id, user_id")
     .bind(`/dashboard/jobs?id=${id}`, `/dashboard/jobs?tab=applied&id=${id}`, `/dashboard/jobs?tab=posted&id=${id}`)

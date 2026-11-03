@@ -14,10 +14,18 @@ const b64 = (s: string) => {
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); // spread caps out on big inputs
   return btoa(bin);
 };
-const unb64 = (s: string | null) => (s ? new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.charCodeAt(0))) : "");
+const unb64 = (s: string | null) =>
+  s ? new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.charCodeAt(0))) : "";
 
 /** One sandboxed run. `id` is Judge0's status: 3 accepted (ran cleanly), 6 compile error, 0 unavailable. */
-export type RawRun = { id: number; status: string; stdout: string; error: string; time: number | null; memory: number | null };
+export type RawRun = {
+  id: number;
+  status: string;
+  stdout: string;
+  error: string;
+  time: number | null;
+  memory: number | null;
+};
 
 export async function runRaw(language: Language, code: string, stdin: string): Promise<RawRun> {
   const base = env.JUDGE0_URL || "https://ce.judge0.com";
@@ -29,12 +37,24 @@ export async function runRaw(language: Language, code: string, stdin: string): P
   const res = await fetch(`${base}/submissions?base64_encoded=true&wait=true`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ language_id: LANGUAGES[language].judge0, source_code: b64(code.slice(0, 100_000)), stdin: b64(stdin), ...LIMITS }),
+    body: JSON.stringify({
+      language_id: LANGUAGES[language].judge0,
+      source_code: b64(code.slice(0, 100_000)),
+      stdin: b64(stdin),
+      ...LIMITS,
+    }),
     signal: AbortSignal.timeout(30_000),
   }).catch((e) => (console.error("judge0 fetch", String(e)), null));
   if (!res?.ok) {
     console.error("judge0", res?.status, await res?.text().catch(() => ""));
-    return { id: 0, status: "unavailable", stdout: "", error: "Code execution is unavailable right now.", time: null, memory: null };
+    return {
+      id: 0,
+      status: "unavailable",
+      stdout: "",
+      error: "Code execution is unavailable right now.",
+      time: null,
+      memory: null,
+    };
   }
   const r = (await res.json()) as {
     stdout: string | null;
@@ -56,7 +76,12 @@ export async function runRaw(language: Language, code: string, stdin: string): P
 }
 
 /** Runs a test suite in one submission (multi-case stdin) and grades it line by line. */
-export async function runSuite(language: Language, code: string, tests: Test[], suite: "visible" | "hidden"): Promise<RunResult> {
+export async function runSuite(
+  language: Language,
+  code: string,
+  tests: Test[],
+  suite: "visible" | "hidden",
+): Promise<RunResult> {
   const r = await runRaw(language, code, suiteInput(tests));
   const failed = (status: string): RunResult => ({
     suite,

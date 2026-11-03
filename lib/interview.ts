@@ -27,7 +27,15 @@ import {
 import type { Job } from "./jobs";
 import { getResume } from "./resume";
 import { cleanResume, fmtRange, STATUSES, type Resume } from "./resume-fields";
-import { cleanConfig, hasCoding, totalMinutes, type HarnessState, type Plan, type RoleConfig } from "./harness";
+import {
+  capMinutes,
+  cleanConfig,
+  hasCoding,
+  totalMinutes,
+  type HarnessState,
+  type Plan,
+  type RoleConfig,
+} from "./harness";
 import { sendTo } from "./realtime";
 import { enqueue } from "./tasks";
 
@@ -37,8 +45,9 @@ export type SessionStatus = "verified" | "onboarded" | "live" | "processing" | "
 export type CandidateView = {
   slug: string;
   kind: Kind;
-  /** AI interview: its phases (id + minutes), for the overview. */
+  /** AI interview: its phases (id + minutes), for the overview; flexible: the minutes are a guide, up to the limit. */
   phases: { id: string; minutes: number }[];
+  flexible: boolean;
   title: string;
   company: string;
   deadline: number;
@@ -258,7 +267,8 @@ async function sendAiInvite(
     .first<string>("id");
   if (!id) return;
   const config = cleanConfig(iv.config ? JSON.parse(iv.config) : null);
-  const minutes = totalMinutes(config);
+  const length =
+    config.timing === "flexible" ? `up to ${capMinutes(config)} minutes` : `about ${totalMinutes(config)} minutes`;
   const parts = [
     "a conversation about your experience",
     ...(config.design.enabled ? ["a system design sketch on a whiteboard"] : []),
@@ -268,7 +278,7 @@ async function sendAiInvite(
   const link = `${env.APP_URL}/interview/${iv.slug}/enter?t=${id}`;
   const lines = [
     `We've received your application for ${iv.title} at ${iv.company}.`,
-    `The next step is a live technical interview with an AI interviewer, about ${minutes} minutes: ${covers}. Take it before ${when(iv.deadline)}.`,
+    `The next step is a live technical interview with an AI interviewer, ${length}: ${covers}. Take it before ${when(iv.deadline)}.`,
     `Start your interview: ${link}`,
     "This link is personal: don't share it.",
     "Use a laptop or desktop with Chrome or Edge, a microphone and a camera, in a quiet place. You'll share your screen and stay in full screen, and the session is recorded for the hiring team.",
@@ -375,6 +385,7 @@ export async function candidateView(slug: string, sessionId: string | undefined)
     slug,
     kind: iv.kind,
     phases: iv.kind === "ai" ? cleanConfig(iv.config ? JSON.parse(iv.config) : null).phases : [],
+    flexible: iv.kind === "ai" && cleanConfig(iv.config ? JSON.parse(iv.config) : null).timing === "flexible",
     title: iv.title,
     company: iv.company,
     deadline: iv.deadline,
@@ -676,7 +687,9 @@ const resumeText = (r: Resume) =>
  * otherwise a failure is stored as "failed" (transcript kept) and the poster can retry.
  */
 export async function evaluate(sessionId: string, final = true) {
-  const kind = await env.DB.prepare("SELECT i.kind FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id WHERE s.id = ?")
+  const kind = await env.DB.prepare(
+    "SELECT i.kind FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id WHERE s.id = ?",
+  )
     .bind(sessionId)
     .first<Kind>("kind");
   if (kind === "ai") return evaluateAi(sessionId, final);

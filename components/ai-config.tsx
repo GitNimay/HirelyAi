@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   BARS,
+  capMinutes,
   DEFAULT_RUBRIC,
   defaultConfig,
   difficultyOf,
@@ -16,6 +17,7 @@ import {
   type Level,
   type PhaseId,
   type RoleConfig,
+  type Timing,
 } from "@/lib/harness";
 import { btnGhost, Icon, icons } from "./ui";
 
@@ -35,7 +37,11 @@ const WEIGHTS = [
 
 const toLines = (s: string) => s.split("\n");
 /** Problems are separated by a blank line (a problem itself can span lines). */
-const toProblems = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+const toProblems = (s: string) =>
+  s
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
 /** A row of mutually exclusive choices, styled like the screening picker. */
 function Choice<T extends string | number>({
@@ -84,7 +90,15 @@ function Block({ title, hint, children }: { title: string; hint?: string; childr
  * what to cover (rounds, optional design sketch, optional own coding problems), what to ask at each stage, and how
  * to judge (bar, competency weights). Posts as `aiConfig` (JSON).
  */
-export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: RoleConfig | null; locked: boolean; defaultLevel?: Level }) {
+export function AiConfigEditor({
+  initial,
+  locked,
+  defaultLevel,
+}: {
+  initial: RoleConfig | null;
+  locked: boolean;
+  defaultLevel?: Level;
+}) {
   const [c, setC] = useState<RoleConfig>(initial ?? defaultConfig(defaultLevel));
   const [ownProblems, setOwnProblems] = useState(c.coding.problems.length > 0);
   const [problemText, setProblemText] = useState(c.coding.problems.join("\n\n"));
@@ -92,12 +106,22 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
   const coding = c.phases.some((p) => p.id === "coding");
   const minutes = c.phases.reduce((s, p) => s + p.minutes, 0);
   // What gets posted: own problems only while that option is on
-  const posted: RoleConfig = { ...c, coding: { problems: ownProblems ? toProblems(problemText).slice(0, LIMITS.problems) : [] } };
+  const posted: RoleConfig = {
+    ...c,
+    coding: { problems: ownProblems ? toProblems(problemText).slice(0, LIMITS.problems) : [] },
+  };
 
   const setPhases = (ids: PhaseId[]) =>
-    setC({ ...c, phases: PHASE_ORDER.filter((x) => ids.includes(x)).map((x) => c.phases.find((p) => p.id === x) ?? { id: x, minutes: PHASES[x].minutes }) });
-  const setMinutes = (id: PhaseId, m: number) => setC({ ...c, phases: c.phases.map((p) => (p.id === id ? { ...p, minutes: m } : p)) });
-  const setQuestions = (k: keyof RoleConfig["questions"], text: string) => setC({ ...c, questions: { ...c.questions, [k]: toLines(text) } });
+    setC({
+      ...c,
+      phases: PHASE_ORDER.filter((x) => ids.includes(x)).map(
+        (x) => c.phases.find((p) => p.id === x) ?? { id: x, minutes: PHASES[x].minutes },
+      ),
+    });
+  const setMinutes = (id: PhaseId, m: number) =>
+    setC({ ...c, phases: c.phases.map((p) => (p.id === id ? { ...p, minutes: m } : p)) });
+  const setQuestions = (k: keyof RoleConfig["questions"], text: string) =>
+    setC({ ...c, questions: { ...c.questions, [k]: toLines(text) } });
   const minutesOf = (id: PhaseId) => c.phases.find((p) => p.id === id)?.minutes ?? PHASES[id].minutes;
   const minutesInput = (id: PhaseId) => (
     <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
@@ -123,7 +147,10 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
         </p>
       )}
       <fieldset disabled={locked} className="space-y-6 disabled:opacity-60">
-        <Block title="Candidate level" hint={`Sets how hard and how deep the interview goes, and what a good score means: ${LEVELS[c.level].expect}.`}>
+        <Block
+          title="Candidate level"
+          hint={`Sets how hard and how deep the interview goes, and what a good score means: ${LEVELS[c.level].expect}.`}
+        >
           <Choice
             label="Candidate level"
             value={c.level}
@@ -132,22 +159,63 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
           />
         </Block>
 
-        <Block title="Interview" hint={`${minutes} min in total (max ${LIMITS.maxTotalMinutes}). The interviewer adapts its questions to each candidate's answers and resume.`}>
+        <Block
+          title="Timing"
+          hint={
+            c.timing === "flexible"
+              ? `No fixed time per section: the minutes below are a guide, and the interviewer moves on when each part is done. The interview can run up to ${LIMITS.flexibleMinutes} minutes.`
+              : "Each section gets its minutes, and the interviewer moves on when they're up."
+          }
+        >
+          <Choice<Timing>
+            label="Timing"
+            value={c.timing}
+            options={[
+              ["fixed", `Fixed (up to ${LIMITS.maxTotalMinutes} min)`],
+              ["flexible", `Flexible (up to ${LIMITS.flexibleMinutes} min)`],
+            ]}
+            onChange={(timing) => setC({ ...c, timing })}
+          />
+        </Block>
+
+        <Block
+          title="Interview"
+          hint={
+            minutes > capMinutes(c)
+              ? `${minutes} min is over the ${capMinutes(c)}-minute limit: each section will be shortened to fit.`
+              : c.timing === "flexible"
+                ? `About ${minutes} min as a guide (up to ${capMinutes(c)}). The interviewer adapts its questions to each candidate's answers and resume.`
+                : `${minutes} min in total (max ${capMinutes(c)}). The interviewer adapts its questions to each candidate's answers and resume.`
+          }
+        >
           <ol className="divide-y divide-border rounded-lg border border-border">
             <li className="flex items-center gap-3 px-3 py-2.5 text-sm">
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">Intro</span>
-                <span className="block text-xs text-muted">Rapport, the format, and your opening questions.</span>
+                <span className="block text-xs text-muted">
+                  Confirms their name, the format, their introduction, and your opening questions.
+                </span>
               </span>
               {minutesInput("intro")}
+            </li>
+            <li className="flex items-center gap-3 px-3 py-2.5 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{PHASES.resume.label}</span>
+                <span className="block text-xs text-muted">
+                  One or two of their own projects in depth, checking the claims on their resume.
+                </span>
+              </span>
+              {minutesInput("resume")}
             </li>
             <li className="space-y-3 px-3 py-2.5 text-sm">
               <div className="flex items-center gap-3">
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium">Experience & technical discussion</span>
-                  <span className="block text-xs text-muted">A deep dive into their own work, checking the claims on their resume.</span>
+                  <span className="block font-medium">{PHASES.technical.label}</span>
+                  <span className="block text-xs text-muted">
+                    Technical questions grounded in their resume and this role.
+                  </span>
                 </span>
-                {minutesInput("resume")}
+                {minutesInput("technical")}
               </div>
               <label className="flex cursor-pointer items-start gap-2.5">
                 <input
@@ -158,7 +226,9 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
                 />
                 <span>
                   <span className="block">Include a system design sketch</span>
-                  <span className="block text-xs text-muted">The interviewer opens a whiteboard when it fits the conversation, usually about a system they built.</span>
+                  <span className="block text-xs text-muted">
+                    The interviewer opens a whiteboard in this section, usually about a system they built.
+                  </span>
                 </span>
               </label>
               {c.design.enabled && (
@@ -168,7 +238,9 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
                   onChange={(e) => setC({ ...c, design: { ...c.design, topics: toLines(e.target.value) } })}
                   maxLength={LIMITS.topics * 201}
                   aria-label="Design topics"
-                  placeholder={"Optional design topics, one per line, e.g. Design a rate limiter for our public API.\nLeave empty and the interviewer picks one from their projects and switches if they don't know it."}
+                  placeholder={
+                    "Optional design topics, one per line, e.g. Design a rate limiter for our public API.\nLeave empty and the interviewer picks one from their projects and switches if they don't know it."
+                  }
                   className={area}
                 />
               )}
@@ -179,12 +251,19 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
                   type="checkbox"
                   aria-label="Include a coding round"
                   checked={coding}
-                  onChange={(e) => setPhases([...c.phases.map((p): PhaseId => p.id).filter((id) => id !== "coding"), ...(e.target.checked ? (["coding"] as const) : [])])}
+                  onChange={(e) =>
+                    setPhases([
+                      ...c.phases.map((p): PhaseId => p.id).filter((id) => id !== "coding"),
+                      ...(e.target.checked ? (["coding"] as const) : []),
+                    ])
+                  }
                   className="size-4 shrink-0 accent-foreground"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">Coding</span>
-                  <span className="block text-xs text-muted">A live problem in a code editor, with tests. Six languages.</span>
+                  <span className="block text-xs text-muted">
+                    A live problem in a code editor, with tests. Six languages.
+                  </span>
                 </span>
                 {coding && minutesInput("coding")}
               </div>
@@ -206,12 +285,16 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
                       onChange={(e) => setProblemText(e.target.value)}
                       maxLength={LIMITS.problems * (LIMITS.problemChars + 2)}
                       aria-label="Your coding problems"
-                      placeholder={"Paste up to 3 problems. Separate them with a blank line.\n\nGiven a list of transactions, return the accounts whose balance ever went negative."}
+                      placeholder={
+                        "Paste up to 3 problems. Separate them with a blank line.\n\nGiven a list of transactions, return the accounts whose balance ever went negative."
+                      }
                       className={area}
                     />
                   ) : (
                     <p className="text-xs text-muted">
-                      A fresh problem and two backups are written for the role, level and the candidate&apos;s stack, then checked against a reference solution. If a candidate doesn&apos;t know the problem type, the interviewer switches to a backup.
+                      A fresh problem and two backups are written for the role, level and the candidate&apos;s stack,
+                      then checked against a reference solution. If a candidate doesn&apos;t know the problem type, the
+                      interviewer switches to a backup.
                     </p>
                   )}
                   <div className="space-y-1.5">
@@ -241,7 +324,10 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
           </ol>
         </Block>
 
-        <Block title="Your questions" hint={`Optional. One per line, up to ${LIMITS.questions} each. The interviewer asks them naturally and follows up.`}>
+        <Block
+          title="Your questions"
+          hint={`Optional. One per line, up to ${LIMITS.questions} each. The interviewer asks them naturally and follows up.`}
+        >
           {(
             [
               ["intro", "Opening", "Tell me about yourself and why this role."],
@@ -264,7 +350,12 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
         </Block>
 
         <Block title="How to judge" hint={BARS[c.bar].hint}>
-          <Choice label="Bar" value={c.bar} options={Object.entries(BARS).map(([k, v]) => [k as Bar, v.label] as const)} onChange={(bar) => setC({ ...c, bar })} />
+          <Choice
+            label="Bar"
+            value={c.bar}
+            options={Object.entries(BARS).map(([k, v]) => [k as Bar, v.label] as const)}
+            onChange={(bar) => setC({ ...c, bar })}
+          />
           <ul className="divide-y divide-border rounded-lg border border-border">
             {c.rubric.map((comp, i) => (
               <li key={comp.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
@@ -276,12 +367,19 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
                   label={`${comp.name} weight`}
                   value={weightOf(comp)}
                   options={WEIGHTS}
-                  onChange={(weight) => setC({ ...c, rubric: c.rubric.map((x, k) => (k === i ? { ...x, weight } : x)) })}
+                  onChange={(weight) =>
+                    setC({ ...c, rubric: c.rubric.map((x, k) => (k === i ? { ...x, weight } : x)) })
+                  }
                 />
               </li>
             ))}
           </ul>
-          <button type="button" className={`${btnGhost} -ml-2`} onClick={() => setShowRubric(!showRubric)} aria-expanded={showRubric}>
+          <button
+            type="button"
+            className={`${btnGhost} -ml-2`}
+            onClick={() => setShowRubric(!showRubric)}
+            aria-expanded={showRubric}
+          >
             <Icon d={showRubric ? "m18 15-6-6-6 6" : "m6 9 6 6 6-6"} size={14} />
             Edit the rubric (what each score from 1 to 5 means)
           </button>
@@ -293,7 +391,8 @@ export function AiConfigEditor({ initial, locked, defaultLevel }: { initial: Rol
 }
 
 function RubricEditor({ rubric, onChange }: { rubric: Competency[]; onChange: (r: Competency[]) => void }) {
-  const set = (i: number, patch: Partial<Competency>) => onChange(rubric.map((c, k) => (k === i ? { ...c, ...patch } : c)));
+  const set = (i: number, patch: Partial<Competency>) =>
+    onChange(rubric.map((c, k) => (k === i ? { ...c, ...patch } : c)));
   return (
     <div className="mt-3 space-y-3">
       {rubric.map((c, i) => (
@@ -314,14 +413,30 @@ function RubricEditor({ rubric, onChange }: { rubric: Competency[]; onChange: (r
             </button>
           </summary>
           <div className="space-y-2 border-t border-border p-3">
-            <input value={c.name} onChange={(e) => set(i, { name: e.target.value })} maxLength={60} placeholder="Name" aria-label="Competency name" className={field} />
-            <input value={c.description} onChange={(e) => set(i, { description: e.target.value })} maxLength={300} placeholder="What it measures" aria-label="Competency description" className={field} />
+            <input
+              value={c.name}
+              onChange={(e) => set(i, { name: e.target.value })}
+              maxLength={60}
+              placeholder="Name"
+              aria-label="Competency name"
+              className={field}
+            />
+            <input
+              value={c.description}
+              onChange={(e) => set(i, { description: e.target.value })}
+              maxLength={300}
+              placeholder="What it measures"
+              aria-label="Competency description"
+              className={field}
+            />
             {c.levels.map((l, k) => (
               <label key={k} className="flex items-center gap-2 text-xs text-muted">
                 <span className="w-4 tabular-nums">{k + 1}</span>
                 <input
                   value={l}
-                  onChange={(e) => set(i, { levels: c.levels.map((x, j) => (j === k ? e.target.value : x)) as Competency["levels"] })}
+                  onChange={(e) =>
+                    set(i, { levels: c.levels.map((x, j) => (j === k ? e.target.value : x)) as Competency["levels"] })
+                  }
                   maxLength={300}
                   aria-label={`Level ${k + 1}`}
                   className={field}
@@ -336,7 +451,12 @@ function RubricEditor({ rubric, onChange }: { rubric: Competency[]; onChange: (r
           <button
             type="button"
             className={`${btnGhost} border border-border`}
-            onClick={() => onChange([...rubric, { id: `custom_${rubric.length + 1}`, name: "", description: "", levels: ["", "", "", "", ""] }])}
+            onClick={() =>
+              onChange([
+                ...rubric,
+                { id: `custom_${rubric.length + 1}`, name: "", description: "", levels: ["", "", "", "", ""] },
+              ])
+            }
           >
             <Icon d={icons.plus} size={14} />
             Add competency
