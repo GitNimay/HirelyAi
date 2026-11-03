@@ -24,7 +24,11 @@ export function applyTheme(t: Theme) {
 }
 
 /** One-click light/dark flip for public pages. Icons swap via CSS, so no state and no hydration mismatch. */
-export function ThemeToggle() {
+export function ThemeToggle({
+  className = "flex items-center px-4 text-muted transition-colors hover:text-foreground",
+}: {
+  className?: string;
+}) {
   const flip = () => {
     const cur =
       document.documentElement.dataset.theme ??
@@ -36,7 +40,8 @@ export function ThemeToggle() {
       type="button"
       onClick={flip}
       aria-label="Toggle light and dark mode"
-      className="flex items-center px-4 text-muted transition-colors hover:text-foreground"
+      title="Light or dark mode"
+      className={className}
     >
       <Icon d={icons.sun} size={16} className="light:hidden" />
       <Icon d={icons.moon} size={16} className="hidden light:block" />

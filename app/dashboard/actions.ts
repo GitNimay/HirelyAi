@@ -8,6 +8,7 @@ import {
   createAiSession,
   decide,
   deleteRecordingsFor,
+  shareReport,
   deleteSessionFiles,
   dismissFlag,
 } from "@/lib/ai-interview/session";
@@ -917,6 +918,15 @@ export async function removeRecordings(jobId: string, applicantId: string) {
   try {
     await deleteRecordingsFor(await writer(), String(jobId), String(applicantId));
     return { ok: true as const };
+  } catch (e) {
+    return failed(e);
+  }
+}
+
+/** Turns the report's public share link on or off; returns the token (null when off). */
+export async function shareInterview(jobId: string, applicantId: string, on: boolean) {
+  try {
+    return { token: await shareReport(await writer(), String(jobId), String(applicantId), !!on) };
   } catch (e) {
     return failed(e);
   }
