@@ -64,7 +64,7 @@ const FIXTURES = [
 
 describe("evaluator replays", () => {
   it.each(FIXTURES)("$name", async (f) => {
-    const { text, refs, startedAt } = evalInput({ job: { title: "Backend Engineer", level: "Mid-Senior level", description: "Go, Postgres, Redis services" }, rubric: config.rubric, plan, state: f.state, events: f.events, final: null });
+    const { text, refs, startedAt } = evalInput({ job: { title: "Backend Engineer", level: "Mid-Senior level", description: "Go, Postgres, Redis services" }, config, plan, state: f.state, events: f.events, final: null });
     const report = cleanAiReport(await evaluate(EVALUATOR, text), { rubric: config.rubric, refs, phases: ["intro", "resume", "wrapup"], plan, state: f.state, integrity: integrityOf(f.events), startedAt });
     console.log(f.name, "→", report.ai.overall, report.ai.competencies.map((c) => `${c.id}:${c.score ?? "-"}`).join(" "));
     f.expect(report.ai.overall);

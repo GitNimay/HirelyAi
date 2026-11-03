@@ -39,7 +39,6 @@ import {
 } from "../lib/harness";
 import type { Line } from "../lib/interview-fields";
 import { runSuite } from "../lib/sandbox";
-import { designById, problemById } from "../lib/problem-bank";
 import { starters } from "../lib/starters";
 import {
   diffLines,
@@ -49,12 +48,13 @@ import {
   sceneOf,
   type BoardElement,
   type Language,
+  type Problem,
   type RunResult,
   type Scene,
 } from "../lib/workspace";
 
 const PHONIC = "https://api.phonic.ai/v1/sts/ws";
-const VOICE = "divya"; // moderate Indian accent; most candidates are in India
+const VOICE = "nolan"; // male, "confident, direct, professional" per Phonic: suits an interviewer
 const GRACE_MS = 5 * 60_000; // a dropped candidate can rejoin within this, with the clock paused
 const IDLE_MS = 60_000; // coding/design: no speech and no edits for this long wakes the agent
 const FLUSH_MS = 15_000; // event log → R2
@@ -77,6 +77,7 @@ type Saved = {
   summarized: number;
   code: { language: Language; code: string } | null;
   board: { elements: BoardElement[]; raw: unknown[] } | null;
+  whiteboard: { topic: string; requirements: string[]; open: boolean } | null; // the design question on screen
   fallback: boolean;
 };
 
@@ -146,6 +147,7 @@ export class InterviewRoom extends DurableObject<Env> {
       summarized: 0,
       code: null,
       board: null,
+      whiteboard: null,
       fallback: false,
     };
     const fresh = this.s.state.log.length === 0;
@@ -271,7 +273,7 @@ export class InterviewRoom extends DurableObject<Env> {
 
   phaseTools(phase: PhaseId) {
     const enums = enumsFor(this.room!.config, this.room!.plan);
-    return toolsFor(phase).map((n) => phonicTool(n, enums));
+    return toolsFor(phase, { design: this.room!.config.design.enabled }).map((n) => phonicTool(n, enums));
   }
 
   prompt(phase: PhaseId) {
@@ -287,20 +289,39 @@ export class InterviewRoom extends DurableObject<Env> {
       job: r.job,
       candidate: r.candidate,
       plan: r.plan,
-      rubric: r.config.rubric,
-      questions: r.questions,
+      config: r.config,
       summary: [s.summary, recent && `Most recent lines:\n${recent}`].filter(Boolean).join("\n\n"),
-      problem: r.plan.problem ? problemById(r.plan.problem) : undefined,
-      design: r.plan.design ? designById(r.plan.design) : undefined,
+      problem: this.problem(s.state.assigned.problem) ?? r.plan.problems?.[0],
     };
+  }
+
+  /** A problem from this candidate's plan (primary or a backup). */
+  problem(id: string | undefined): Problem | undefined {
+    return id ? this.room!.plan.problems?.find((p) => p.id === id) : undefined;
+  }
+
+  /** Puts a problem in the candidate's editor with fresh starter code. */
+  showProblem(p: Problem) {
+    const s = this.s!;
+    s.state = { ...s.state, assigned: { ...s.state.assigned, problem: p.id, tried: [...(s.state.assigned.tried ?? []), p.id] } };
+    s.code = { language: s.code?.language ?? "python", code: starters(p.signature)[s.code?.language ?? "python"] };
+    this.lastCodeRead = "";
+    this.log({ at: Date.now(), type: "assign", what: "problem", id: p.id });
+    this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
   }
 
   /** The harness puts the round's work on screen itself (deterministic, nothing for the agent to narrate). */
   async prepare(phase: PhaseId | null) {
-    const { plan } = this.room!;
-    const assigned = this.s!.state.assigned;
-    if (phase === "coding" && plan.problem && !assigned.problem) await this.workspaceTool("assign_problem", { problem_id: plan.problem });
-    if (phase === "design" && plan.design && !assigned.design) await this.workspaceTool("assign_design", { prompt_id: plan.design });
+    const first = this.room!.plan.problems?.[0];
+    if (phase === "coding" && first && !this.s!.state.assigned.problem) this.showProblem(first);
+    // Leaving the Experience round closes a whiteboard the agent left open
+    if (phase !== "resume" && this.s!.whiteboard?.open) this.closeWhiteboard();
+  }
+
+  closeWhiteboard() {
+    const s = this.s!;
+    if (s.whiteboard) s.whiteboard = { ...s.whiteboard, open: false };
+    this.send({ t: "board-close" });
   }
 
   /** Re-briefs the agent for a new phase: that phase's tools, then its private brief. */
@@ -516,13 +537,13 @@ export class InterviewRoom extends DurableObject<Env> {
     const s = this.s!;
     const now = Date.now();
     switch (name) {
-      case "assign_problem": {
-        const p = problemById(String(a.problem_id))!;
-        s.state = { ...s.state, assigned: { ...s.state.assigned, problem: p.id } };
-        s.code ??= { language: "python", code: starters(p.signature).python };
-        this.log({ at: now, type: "assign", what: "problem", id: p.id });
-        this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
-        return { ok: true, title: p.title, difficulty: p.difficulty, statement: p.statement, visible_tests: p.visible.length, hidden_tests: p.hidden.length };
+      case "switch_problem": {
+        const tried = s.state.assigned.tried ?? [];
+        const next = this.room!.plan.problems?.find((p) => !tried.includes(p.id));
+        if (!next) return { error: "No backup problem left. Simplify the current one with a hint instead." };
+        this.showProblem(next);
+        this.log({ at: now, type: "session", what: "resumed", detail: `problem switched: ${String(a.reason).slice(0, 120)}` });
+        return { ok: true, title: next.title, statement: next.statement, note: "The new problem is on their screen with fresh starter code. Introduce it in one sentence." };
       }
       case "read_editor": {
         if (!s.code) return { error: "No problem assigned yet." };
@@ -544,13 +565,23 @@ export class InterviewRoom extends DurableObject<Env> {
       }
       case "get_run_history":
         return { runs: s.state.runs.map((r) => ({ by: r.by, suite: r.suite, passed: r.passed, total: r.total, status: r.status, seconds_ago: Math.round((now - r.at) / 1000) })) };
-      case "assign_design": {
-        const d = designById(String(a.prompt_id))!;
-        s.state = { ...s.state, assigned: { ...s.state.assigned, design: d.id } };
-        this.log({ at: now, type: "assign", what: "design", id: d.id });
-        this.send({ t: "design", design: { id: d.id, title: d.title, prompt: d.prompt, requirements: d.requirements }, elements: s.board?.raw ?? [] });
-        return { ok: true, title: d.title, requirements: d.requirements };
+      case "open_whiteboard": {
+        const topic = String(a.topic);
+        const requirements = String(a.requirements).split(/[;\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 5);
+        s.state = { ...s.state, assigned: { ...s.state.assigned, design: topic } };
+        // A new question starts on a clean board; reopening the same one keeps the sketch
+        if (s.whiteboard?.topic !== topic) {
+          s.board = null;
+          this.scene = { elements: [], connections: [] };
+        }
+        s.whiteboard = { topic, requirements, open: true };
+        this.log({ at: now, type: "assign", what: "design", id: topic });
+        this.send({ t: "design", design: { id: topic, title: topic, prompt: "", requirements }, elements: s.board?.raw ?? [] });
+        return { ok: true, note: "The whiteboard is open on their screen with this question." };
       }
+      case "close_whiteboard":
+        this.closeWhiteboard();
+        return { ok: true };
       case "read_whiteboard":
         return this.scene.elements.length
           ? { scene: untrusted("whiteboard", JSON.stringify(this.scene)) }
@@ -571,7 +602,7 @@ export class InterviewRoom extends DurableObject<Env> {
   /** A string result is an error message for the agent. */
   async execute(by: "candidate" | "agent", suite: "visible" | "hidden"): Promise<RunResult | string> {
     const s = this.s!;
-    const p = s.state.assigned.problem ? problemById(s.state.assigned.problem) : undefined;
+    const p = this.problem(s.state.assigned.problem);
     if (!p || !s.code) return "No problem assigned yet.";
     const { language, code } = s.code;
     this.send({ t: "running", suite, by });
@@ -613,15 +644,16 @@ export class InterviewRoom extends DurableObject<Env> {
     }
     if (due === "force") return void (await this.transition("forced"));
     this.flushReply();
-    const phase = phaseOf(s.state);
+    // Silent work: coding, or sketching on the whiteboard
+    const working = phaseOf(s.state) === "coding" || !!s.whiteboard?.open;
     // Idle nudges back off (1, 2, 4 min…) so a thinking candidate isn't nagged; speaking resets the ladder
-    if ((phase === "coding" || phase === "design") && s.state.since !== null && !this.agentSpeaking && !this.candidateSpeaking && now - this.lastActivity > IDLE_MS * 2 ** this.nudges) {
+    if (working && s.state.since !== null && !this.agentSpeaking && !this.candidateSpeaking && now - this.lastActivity > IDLE_MS * 2 ** this.nudges) {
       this.lastActivity = now;
       this.nudges++;
       this.wake("idle", "Harness: the candidate hasn't spoken or changed anything for a minute. Check in briefly: ask what they're thinking. Offer the next hint level only if they say they're stuck.");
     }
     const quiet = now - this.lastSpeech; // typing is silent work: only speech keeps the conversation open
-    if ((phase === "coding" || phase === "design") && this.ready && !this.paused && !this.agentSpeaking && !this.candidateSpeaking && !this.toolsInFlight && !this.queuedReply && quiet > STANDBY_MS)
+    if (working && this.ready && !this.paused && !this.agentSpeaking && !this.candidateSpeaking && !this.toolsInFlight && !this.queuedReply && quiet > STANDBY_MS)
       this.enterStandby();
     if (this.standby && !this.warmed) void this.warm();
     if (now % 5000 < 1000) this.sendClock();
@@ -855,7 +887,7 @@ export class InterviewRoom extends DurableObject<Env> {
       prompt: this.prompt(phase),
       transcript: s.transcript.slice(-24),
       system,
-      tools: toolsFor(phase).map((n) => phonicTool(n, enumsFor(this.room!.config, this.room!.plan)).tool_schema),
+      tools: this.phaseTools(phase).map((t) => t.tool_schema),
       runTool: (name, args) => this.runTool(crypto.randomUUID(), name, args),
     });
     this.send({ t: "state", agent: "listening" });
@@ -890,7 +922,7 @@ export class InterviewRoom extends DurableObject<Env> {
     }
     // Final hidden-test run on the last code, so the evaluator has it even if the agent never ran them
     if (s.state.assigned.problem && s.code && !s.state.runs.some((r) => r.suite === "hidden" && r.at > (this.lastCodeAt ?? 0))) {
-      const p = problemById(s.state.assigned.problem);
+      const p = this.problem(s.state.assigned.problem);
       if (p) {
         const r = await runSuite(s.code.language, s.code.code, p.hidden, "hidden");
         this.log({ at: Date.now(), type: "run", by: "agent", language: s.code.language, result: { ...r, final: true } });
@@ -965,10 +997,10 @@ export class InterviewRoom extends DurableObject<Env> {
   /** After a reconnect: put the problem, their code and the whiteboard back where they were. */
   restoreWorkspace() {
     const s = this.s!;
-    const p = s.state.assigned.problem ? problemById(s.state.assigned.problem) : undefined;
+    const p = this.problem(s.state.assigned.problem);
     if (p) this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
-    const d = s.state.assigned.design ? designById(s.state.assigned.design) : undefined;
-    if (d) this.send({ t: "design", design: { id: d.id, title: d.title, prompt: d.prompt, requirements: d.requirements }, elements: s.board?.raw ?? [] });
+    const w = s.whiteboard;
+    if (w?.open) this.send({ t: "design", design: { id: w.topic, title: w.topic, prompt: "", requirements: w.requirements }, elements: s.board?.raw ?? [] });
     if (s.board) this.scene = sceneOf(s.board.elements);
     if (s.fallback) for (const l of s.transcript.slice(-30)) this.send({ t: "chat", role: l.role, text: l.text });
   }

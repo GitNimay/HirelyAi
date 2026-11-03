@@ -27,7 +27,7 @@ import {
 import type { Job } from "./jobs";
 import { getResume } from "./resume";
 import { cleanResume, fmtRange, STATUSES, type Resume } from "./resume-fields";
-import { cleanConfig, LIMITS as AI, totalMinutes, type HarnessState, type Plan, type RoleConfig } from "./harness";
+import { cleanConfig, hasCoding, totalMinutes, type HarnessState, type Plan, type RoleConfig } from "./harness";
 import { sendTo } from "./realtime";
 import { enqueue } from "./tasks";
 
@@ -93,17 +93,14 @@ export function parseInterview(input: Record<string, unknown>, current?: { kind:
   let questions: string[] | Mcq[];
   let config: RoleConfig | null = null;
   if (kind === "ai") {
-    // Optional general/behavioral questions for the resume round, plus the role config (phases, minutes, pools, rubric)
-    questions = String(input.questions ?? "")
-      .split("\n")
-      .map((q) => q.trim().replace(/\s+/g, " ").slice(0, AI.questionChars))
-      .filter(Boolean)
-      .slice(0, AI.questions);
+    // Everything (rounds, level, bar, questions per stage, coding problems, design topics, rubric) is in the config;
+    // the technical questions are also kept in `questions`, like the other screening kinds
     try {
       config = cleanConfig(JSON.parse(String(input.aiConfig ?? "{}")));
     } catch (e) {
-      throw new Fail(e instanceof SyntaxError ? "Set up the interview rounds" : (e as Error).message);
+      throw new Fail(e instanceof SyntaxError ? "Set up the interview" : (e as Error).message);
     }
+    questions = config.questions.main;
   } else if (kind === "voice") {
     questions = cleanQuestions(input.questions);
     if (!questions.length) throw new Fail("Add at least one interview question");
@@ -260,11 +257,18 @@ async function sendAiInvite(
     .bind(jobId, to)
     .first<string>("id");
   if (!id) return;
-  const minutes = totalMinutes(cleanConfig(iv.config ? JSON.parse(iv.config) : null));
+  const config = cleanConfig(iv.config ? JSON.parse(iv.config) : null);
+  const minutes = totalMinutes(config);
+  const parts = [
+    "a conversation about your experience",
+    ...(config.design.enabled ? ["a system design sketch on a whiteboard"] : []),
+    ...(hasCoding(config) ? ["a coding exercise"] : []),
+  ];
+  const covers = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
   const link = `${env.APP_URL}/interview/${iv.slug}/enter?t=${id}`;
   const lines = [
     `We've received your application for ${iv.title} at ${iv.company}.`,
-    `The next step is a live technical interview with an AI interviewer, about ${minutes} minutes: a chat about your experience, a coding exercise and a system design discussion. Take it before ${when(iv.deadline)}.`,
+    `The next step is a live technical interview with an AI interviewer, about ${minutes} minutes: ${covers}. Take it before ${when(iv.deadline)}.`,
     `Start your interview: ${link}`,
     "This link is personal: don't share it.",
     "Use a laptop or desktop with Chrome or Edge, a microphone and a camera, in a quiet place. You'll share your screen and stay in full screen, and the session is recorded for the hiring team.",
@@ -763,7 +767,8 @@ export async function interviewResult(
     transcript: parse(s.transcript) ?? [],
     report: parse(s.report),
     review,
-    ai: s.kind === "ai" ? { plan: parse(s.plan), state: parse(s.state) } : null,
+    // Claims only: the plan's generated coding problems carry hidden tests and never leave the server
+    ai: s.kind === "ai" ? { plan: { claims: parse<Plan>(s.plan)?.claims ?? [] }, state: parse(s.state) } : null,
     startedAt: s.started_at,
     endedAt: s.ended_at,
   };

@@ -16,37 +16,25 @@ const b64 = (s: string) => {
 };
 const unb64 = (s: string | null) => (s ? new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.charCodeAt(0))) : "");
 
-export async function runSuite(language: Language, code: string, tests: Test[], suite: "visible" | "hidden"): Promise<RunResult> {
+/** One sandboxed run. `id` is Judge0's status: 3 accepted (ran cleanly), 6 compile error, 0 unavailable. */
+export type RawRun = { id: number; status: string; stdout: string; error: string; time: number | null; memory: number | null };
+
+export async function runRaw(language: Language, code: string, stdin: string): Promise<RawRun> {
   const base = env.JUDGE0_URL || "https://ce.judge0.com";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (env.JUDGE0_KEY) {
     headers["X-RapidAPI-Key"] = env.JUDGE0_KEY;
     headers["X-RapidAPI-Host"] = new URL(base).host;
   }
-  const empty = (status: string, error = ""): RunResult => ({
-    suite,
-    passed: 0,
-    total: tests.length,
-    cases: tests.map((t) => ({ name: t.name, passed: false })),
-    status,
-    error,
-    time: null,
-    memory: null,
-  });
   const res = await fetch(`${base}/submissions?base64_encoded=true&wait=true`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      language_id: LANGUAGES[language].judge0,
-      source_code: b64(code.slice(0, 100_000)),
-      stdin: b64(suiteInput(tests)),
-      ...LIMITS,
-    }),
+    body: JSON.stringify({ language_id: LANGUAGES[language].judge0, source_code: b64(code.slice(0, 100_000)), stdin: b64(stdin), ...LIMITS }),
     signal: AbortSignal.timeout(30_000),
   }).catch((e) => (console.error("judge0 fetch", String(e)), null));
   if (!res?.ok) {
     console.error("judge0", res?.status, await res?.text().catch(() => ""));
-    return empty("unavailable", "Code execution is unavailable right now.");
+    return { id: 0, status: "unavailable", stdout: "", error: "Code execution is unavailable right now.", time: null, memory: null };
   }
   const r = (await res.json()) as {
     stdout: string | null;
@@ -57,19 +45,41 @@ export async function runSuite(language: Language, code: string, tests: Test[], 
     time: string | null;
     memory: number | null;
   };
-  const status = r.status?.description ?? "Unknown";
-  const error = (unb64(r.compile_output) || unb64(r.stderr) || unb64(r.message)).slice(0, 2000);
-  if (r.status?.id === 6) return empty("Compilation Error", error); // compile error: nothing ran
-  const cases = gradeOutput(tests, unb64(r.stdout), suite === "visible");
+  return {
+    id: r.status?.id ?? -1,
+    status: r.status?.description ?? "Unknown",
+    stdout: unb64(r.stdout),
+    error: (unb64(r.compile_output) || unb64(r.stderr) || unb64(r.message)).slice(0, 2000),
+    time: r.time ? Number(r.time) : null,
+    memory: r.memory,
+  };
+}
+
+/** Runs a test suite in one submission (multi-case stdin) and grades it line by line. */
+export async function runSuite(language: Language, code: string, tests: Test[], suite: "visible" | "hidden"): Promise<RunResult> {
+  const r = await runRaw(language, code, suiteInput(tests));
+  const failed = (status: string): RunResult => ({
+    suite,
+    passed: 0,
+    total: tests.length,
+    cases: tests.map((t) => ({ name: t.name, passed: false })),
+    status,
+    error: r.error,
+    time: null,
+    memory: null,
+  });
+  if (r.id === 0) return failed("unavailable");
+  if (r.id === 6) return failed("Compilation Error"); // nothing ran
+  const cases = gradeOutput(tests, r.stdout, suite === "visible");
   const passed = cases.filter((c) => c.passed).length;
   return {
     suite,
     passed,
     total: tests.length,
     cases,
-    status: passed === tests.length && r.status?.id === 3 ? "Accepted" : r.status?.id === 3 ? "Wrong Answer" : status,
-    error,
-    time: r.time ? Number(r.time) : null,
+    status: passed === tests.length && r.id === 3 ? "Accepted" : r.id === 3 ? "Wrong Answer" : r.status,
+    error: r.error,
+    time: r.time,
     memory: r.memory,
   };
 }

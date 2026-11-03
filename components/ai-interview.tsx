@@ -6,7 +6,7 @@ import posthog from "posthog-js";
 import { memo, useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import type { CandidateView } from "@/lib/interview";
-import { PHASES, type PhaseId } from "@/lib/harness";
+import { PHASES, phaseLabel, type PhaseId } from "@/lib/harness";
 import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
 import type { PublicProblem, RunResult, Language } from "@/lib/workspace";
 import { Details, MicCheck } from "./interview";
@@ -120,8 +120,8 @@ export function AiInterview({ view }: { view: CandidateView }) {
               <li key={p.id} className="flex items-start gap-3 px-3 py-2.5">
                 <span className="mt-0.5 w-4 shrink-0 text-xs text-muted tabular-nums">{i + 1}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium">{PHASES[p.id as PhaseId].label}</span>
-                  <span className="block text-xs text-muted">{PHASES[p.id as PhaseId].goal}</span>
+                  <span className="block font-medium">{phaseLabel(p.id)}</span>
+                  <span className="block text-xs text-muted">{(PHASES as Record<string, { goal: string }>)[p.id]?.goal}</span>
                 </span>
                 <span className="shrink-0 text-xs text-muted tabular-nums">{p.minutes} min</span>
               </li>
@@ -520,6 +520,8 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
         return setCode({ kind: "code", problem: m.problem as PublicProblem, starter: m.starter as Record<Language, string>, code: m.code as never });
       case "design":
         return setBoard({ kind: "board", design: m.design as never, elements: (m.elements as unknown[]) ?? [] });
+      case "board-close":
+        return setBoard(null);
       case "running":
         return setRun((r) => ({ ...r, running: true }));
       case "run":
@@ -636,7 +638,8 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
   useProctoring(socket, self);
 
   const phase = clock?.phases[clock.index]?.id;
-  const workspace = phase === "coding" && code ? "code" : phase === "design" && board ? "board" : "talk";
+  // The whiteboard opens whenever the interviewer asks for a design sketch (any time in the Experience round)
+  const workspace = phase === "coding" && code ? "code" : board ? "board" : "talk";
 
   return (
     <div className="flex h-dvh flex-col bg-background">
@@ -723,13 +726,13 @@ function Room({ view, onDone, onDropped, onRetry }: { view: CandidateView; onDon
           ) : workspace === "code" && code ? (
             <CodeWorkspace socket={socket} problem={code.problem} starter={code.starter} initial={code.code} run={run} />
           ) : workspace === "board" && board ? (
-            <Whiteboard socket={socket} design={board.design} initial={board.elements} onSnapshot={onSnapshot} />
+            <Whiteboard key={board.design.id} socket={socket} design={board.design} initial={board.elements} onSnapshot={onSnapshot} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-              <p className="font-display text-2xl font-normal">{phase ? PHASES[phase].label : "Getting ready"}</p>
+              <p className="font-display text-2xl font-normal">{phase ? phaseLabel(phase) : "Getting ready"}</p>
               <p className="max-w-md text-sm text-muted">
-                {phase === "coding" || phase === "design"
-                  ? "Your interviewer will open the workspace in a moment."
+                {phase === "coding"
+                  ? "Your interviewer will open the editor in a moment."
                   : "Answer out loud, like a normal conversation. Take your time to think; short pauses are fine."}
               </p>
             </div>
@@ -825,7 +828,7 @@ function Timer({ clock }: { clock: Clock }) {
   const now = useNow(500);
   const elapsed = clock.running ? Math.floor((now - clock.at) / 1000) : 0;
   const phaseLeft = clock.phaseLeft - elapsed;
-  const label = PHASES[clock.phases[clock.index]?.id as PhaseId]?.label ?? "";
+  const label = phaseLabel(clock.phases[clock.index]?.id ?? "");
   return (
     <>
       <span className={`tabular-nums ${phaseLeft <= 60 ? "font-medium text-danger" : "text-muted"}`} title="Time left in this phase">

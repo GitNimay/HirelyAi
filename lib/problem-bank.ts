@@ -1,9 +1,9 @@
 /**
- * The coding problems (with hidden tests) and design prompts (with follow-up ladders). SERVER ONLY: never import
- * this from a client component or from anything a client component imports (lib/harness.ts, lib/workspace.ts,
- * lib/evaluator.ts); the hidden tests would ship in the page's JavaScript. tests/ checks the client graph.
+ * Fallback coding problems (with hidden tests), used when per-candidate generation (lib/problem-gen.ts) fails.
+ * SERVER ONLY: never import this from a client component or from anything a client component imports
+ * (lib/harness.ts, lib/workspace.ts, lib/evaluator.ts); the hidden tests would ship in the page's JavaScript.
  */
-import { DESIGN_META, PROBLEM_META, type DesignPrompt, type Problem } from "./workspace";
+import type { Difficulty, Problem } from "./workspace";
 
 const big = (n: number, f: (i: number) => number) => Array.from({ length: n }, (_, i) => f(i)).join(" ");
 
@@ -132,52 +132,9 @@ export const PROBLEMS: Problem[] = [
   },
 ];
 
-export const DESIGNS: DesignPrompt[] = [
-  {
-    id: "url-shortener",
-    title: "URL shortener",
-    difficulty: "easy",
-    prompt: "Design a service like bit.ly that turns long URLs into short links and redirects visitors.",
-    requirements: ["Create a short link for a URL", "Redirect quickly", "Basic click counts", "100M new links a month"],
-    ladder: [
-      "How will you generate short codes that never collide?",
-      "Links can now expire and users can pick custom aliases.",
-      "A link goes viral: 1M redirects a second from around the world. What breaks first?",
-    ],
-  },
-  {
-    id: "chat",
-    title: "Group chat",
-    difficulty: "medium",
-    prompt: "Design the backend for a group chat app with real-time delivery, history and read receipts.",
-    requirements: ["1:1 and group chats up to 500 people", "Messages delivered in real time", "History across devices", "Read receipts"],
-    ladder: [
-      "How does a message get from the sender to an online recipient?",
-      "Recipients may be offline for days on flaky mobile networks.",
-      "Scale to 50M concurrent connections. How do you shard and fail over?",
-    ],
-  },
-  {
-    id: "news-feed",
-    title: "News feed",
-    difficulty: "hard",
-    prompt: "Design a social news feed: users follow others and see a ranked feed of their posts.",
-    requirements: ["Post text and images", "Follow users", "Home feed under 200 ms", "Celebrities with 50M followers"],
-    ladder: [
-      "When is the feed computed: at write time or read time?",
-      "Ranking now depends on likes and comments that change every second.",
-      "A data center goes down. What do users see and how do you recover?",
-    ],
-  },
-];
-
-export const problemById = (id: string) => PROBLEMS.find((p) => p.id === id);
-export const designById = (id: string) => DESIGNS.find((d) => d.id === id);
-
-// The client-safe metadata must describe exactly this bank
-for (const [meta, items] of [
-  [PROBLEM_META, PROBLEMS],
-  [DESIGN_META, DESIGNS],
-] as const)
-  if (meta.map((m) => `${m.id}:${m.difficulty}`).join() !== items.map((i) => `${i.id}:${i.difficulty}`).join())
-    throw new Error("problem-bank and workspace metadata disagree");
+/** Fallback problems at a difficulty (nearest difficulty first): primary, then backups. */
+export function fallbackProblems(difficulty: Difficulty, n = 2): Problem[] {
+  const order: Difficulty[] =
+    difficulty === "easy" ? ["easy", "medium", "hard"] : difficulty === "hard" ? ["hard", "medium", "easy"] : ["medium", "easy", "hard"];
+  return order.flatMap((d) => PROBLEMS.filter((p) => p.difficulty === d)).slice(0, n);
+}

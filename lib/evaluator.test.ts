@@ -22,7 +22,7 @@ const events: IvEvent[] = [
 
 describe("evaluator input", () => {
   it("tags every item with a citable id and neutralises candidate tags", () => {
-    const { text, refs } = evalInput({ job: { title: "BE", level: "Mid", description: "" }, rubric: config.rubric, plan, state, events, final: { code: { language: "python", code: "print(1)" }, scene: null } });
+    const { text, refs } = evalInput({ job: { title: "BE", level: "Mid", description: "" }, config, plan, state, events, final: { code: { language: "python", code: "print(1)" }, scene: null } });
     expect([...refs.keys()]).toEqual(expect.arrayContaining(["u1", "u2", "b1", "r1", "code-final"]));
     expect(refs.get("u2")).toMatchObject({ at: T0 + 5000, kind: "transcript" });
     expect(text).not.toContain("<untrusted_x>");
@@ -31,7 +31,7 @@ describe("evaluator input", () => {
 });
 
 describe("cleanAiReport", () => {
-  const { refs } = evalInput({ job: { title: "BE", level: "Mid", description: "" }, rubric: config.rubric, plan, state, events, final: null });
+  const { refs } = evalInput({ job: { title: "BE", level: "Mid", description: "" }, config, plan, state, events, final: null });
   const base = { rubric: config.rubric, refs, phases: ["intro", "resume"] as const, plan, state, integrity: integrityOf(events), startedAt: T0 };
 
   it("keeps only evidence that exists, and unscores competencies without it", () => {
@@ -81,6 +81,28 @@ describe("cleanAiReport", () => {
     expect(coding.rationale).toBe("Solid basics.");
   });
 
+  it("weights the overall by what the recruiter said matters, and skips competencies turned off", () => {
+    const rubric = config.rubric.map((c) => (c.id === "coding" ? { ...c, weight: 3 } : c.id === "communication" ? { ...c, weight: 0 } : c));
+    const r = cleanAiReport(
+      {
+        competencies: [
+          { id: "coding", score: 5, evidence: [{ ref: "r1" }] },
+          { id: "experience", score: 1, evidence: [{ ref: "u2" }] },
+          { id: "communication", score: 1, evidence: [{ ref: "u2" }] },
+        ],
+      },
+      { ...base, rubric, phases: [...base.phases] },
+    );
+    expect(r.ai.overall).toBe(4); // (5×3 + 1×1) / 4; communication is off
+    expect(r.ai.competencies.find((c) => c.id === "communication")).toMatchObject({ score: null, rationale: "Not scored for this role." });
+  });
+
+  it("tells the evaluator the level and the bar", () => {
+    const { text } = evalInput({ job: { title: "BE", level: "Mid", description: "" }, config: { ...config, level: "senior", bar: "strict" }, plan, state, events, final: null });
+    expect(text).toContain("Level: Senior");
+    expect(text).toContain("Bar: Strict");
+  });
+
   it("clamps scores and survives garbage", () => {
     expect(cleanAiReport({ competencies: [{ id: "coding", score: 99, evidence: [{ ref: "r1" }] }] }, { ...base, phases: [...base.phases] }).ai.competencies.find((c) => c.id === "coding")!.score).toBe(5);
     const empty = cleanAiReport("garbage", { ...base, phases: [...base.phases] });
@@ -92,6 +114,8 @@ describe("cleanAiReport", () => {
   it("maps overall to the 0-100 list score and recommendation bands", () => {
     expect([toHundred(1), toHundred(3), toHundred(5)]).toEqual([0, 50, 100]);
     expect([recommendationFor(4.5), recommendationFor(3.5), recommendationFor(2.8), recommendationFor(1.5)]).toEqual(["strong_hire", "hire", "lean_no", "no_hire"]);
+    // The bar shifts the same score's label: strict asks more, lenient less
+    expect([recommendationFor(3.5, "strict"), recommendationFor(3.5, "balanced"), recommendationFor(3.2, "lenient")]).toEqual(["lean_no", "hire", "hire"]);
   });
 });
 
@@ -174,13 +198,13 @@ describe("workspace helpers", () => {
 });
 
 describe("hidden tests stay on the server", () => {
-  // Anything a client component imports must not reach lib/problem-bank.ts (hidden tests, hint ladders)
+  // Anything a client component imports must not reach lib/problem-bank.ts or lib/problem-gen.ts (hidden tests, hint ladders)
   const clientSafe = ["lib/harness.ts", "lib/workspace.ts", "lib/evaluator.ts", "lib/interview-fields.ts"];
   const clientFiles = readdirSync("components")
     .filter((f) => f.endsWith(".tsx"))
     .map((f) => join("components", f));
 
   it.each([...clientSafe, ...clientFiles])("%s doesn't import the problem bank", (file) => {
-    expect(readFileSync(file, "utf8")).not.toMatch(/(from|import)\s*\(?\s*["'][^"']*problem-bank/);
+    expect(readFileSync(file, "utf8")).not.toMatch(/(from|import)\s*\(?\s*["'][^"']*problem-(bank|gen)/);
   });
 });

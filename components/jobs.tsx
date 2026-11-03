@@ -22,7 +22,7 @@ import {
 } from "@/lib/job-fields";
 import type { InterviewResult, SessionStatus } from "@/lib/interview";
 import { RECOMMENDATIONS, type AiReport } from "@/lib/evaluator";
-import type { RoleConfig } from "@/lib/harness";
+import { levelForJob, type RoleConfig } from "@/lib/harness";
 import { AiConfigEditor } from "./ai-config";
 import {
   DIFFICULTY,
@@ -1456,7 +1456,7 @@ export function PostJobForm({
             {screening === "ai" && (
               <AiConfigEditor
                 initial={job?.aiConfig ?? null}
-                questions={job?.interview ? (job.questions as string[]) : []}
+                defaultLevel={job ? levelForJob(job.level) : undefined}
                 locked={!!job?.started}
               />
             )}

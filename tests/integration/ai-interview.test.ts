@@ -42,8 +42,12 @@ async function setup() {
   const j = await job(poster);
   const iv = parseInterview({
     screening: "ai",
-    questions: "Why this role?\n\nTell me about a conflict.",
-    aiConfig: JSON.stringify({ phases: [{ id: "resume", minutes: 8 }, { id: "coding", minutes: 20 }] }),
+    aiConfig: JSON.stringify({
+      level: "senior",
+      phases: [{ id: "resume", minutes: 8 }, { id: "coding", minutes: 20 }],
+      questions: { intro: ["Tell me about yourself"], main: ["Why this role?", "", "Tell me about a conflict."], wrapup: [] },
+      coding: { problems: [] },
+    }),
     deadline: String(Date.now() + 2 * DAY),
   })!;
   await insertInterview(j, iv).run();
@@ -60,7 +64,7 @@ async function setup() {
   ))!;
   // The planner normally runs from the queue (Bedrock); give the session a plan directly
   await env.DB.prepare("UPDATE interview_sessions SET plan = ? WHERE id = ?")
-    .bind(JSON.stringify({ claims: [{ id: "c1", text: "Cut p99 latency 40% with Redis", section: "experience", tech: ["Redis"], metrics: ["40%"], depth: "deep" }], problem: "merge-intervals", design: "chat" }), sessionId)
+    .bind(JSON.stringify({ claims: [{ id: "c1", text: "Cut p99 latency 40% with Redis", section: "experience", tech: ["Redis"], metrics: ["40%"], depth: "deep" }], problems: [] }), sessionId)
     .run();
   return { poster, applicant, j, sessionId, slug, sent };
 }
@@ -72,6 +76,7 @@ describe("AI interview setup", () => {
     expect(r?.kind).toBe("ai");
     expect(JSON.parse(r!.questions)).toEqual(["Why this role?", "Tell me about a conflict."]);
     expect(JSON.parse(r!.config).phases.map((p: { id: string }) => p.id)).toEqual(["intro", "resume", "coding", "wrapup"]);
+    expect(JSON.parse(r!.config)).toMatchObject({ level: "senior", bar: "balanced", design: { enabled: true }, questions: { intro: ["Tell me about yourself"] } });
     expect(sent).toEqual([{ t: "plan", sessionId }]);
   });
 
@@ -118,7 +123,7 @@ describe("live session", () => {
       .bind(JSON.stringify({ name: "Asha Rao", phone: "", city: "Pune", role: "SDE II at Acme", years: 4, notice: "30d", link: "" }), sessionId)
       .run();
     const room = await roomContext(sessionId);
-    expect(room).toMatchObject({ status: "onboarded", candidate: { name: "Asha Rao", years: 4, skills: ["Go", "Redis"] }, plan: { problem: "merge-intervals" } });
+    expect(room).toMatchObject({ status: "onboarded", candidate: { name: "Asha Rao", years: 4, skills: ["Go", "Redis"] }, plan: { claims: [{ id: "c1" }] }, config: { level: "senior" } });
     expect(room?.faq.next_steps).toContain("hiring team");
 
     await markLive(sessionId, 1000);

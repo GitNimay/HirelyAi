@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import { decideInterview, removeRecordings, retryInterview, reviewFlag } from "@/app/dashboard/actions";
 import type { AiReportData } from "@/lib/ai-interview";
 import { RECOMMENDATIONS, type Evidence } from "@/lib/evaluator";
-import { PHASES, type IvEvent, type PhaseId } from "@/lib/harness";
+import { phaseLabel, type IvEvent, type PhaseId } from "@/lib/harness";
 import type { Language, RunResult } from "@/lib/workspace";
 import { ask } from "./kit";
 import { Avatar, btnGhost, btnOutline, btnPrimary, Icon, icons } from "./ui";
@@ -137,7 +137,7 @@ export function AiReportView({ data }: { data: AiReportData }) {
               {ai!.sections.map((s) => (
                 <li key={s.phase}>
                   <a href={`#section-${s.phase}`} className="flex items-center justify-between gap-2 rounded px-1 hover:bg-surface-hover">
-                    <span>{PHASES[s.phase].label}</span>
+                    <span>{phaseLabel(s.phase)}</span>
                     <span className={`tabular-nums ${scoreTone(s.score)}`}>{s.score ?? "–"}</span>
                   </a>
                 </li>
@@ -230,8 +230,8 @@ export function AiReportView({ data }: { data: AiReportData }) {
               }}
             >
               {phases.map((p, i) => (
-                <span key={i} title={PHASES[p.phase].label} className={`absolute inset-y-0 border-r border-border text-[10px] leading-8 text-muted ${i % 2 ? "bg-surface" : ""}`} style={{ left: pct(p.start), width: `calc(${pct(p.end ?? end)} - ${pct(p.start)})` }}>
-                  <span className="truncate px-1">{PHASES[p.phase].label}</span>
+                <span key={i} title={phaseLabel(p.phase)} className={`absolute inset-y-0 border-r border-border text-[10px] leading-8 text-muted ${i % 2 ? "bg-surface" : ""}`} style={{ left: pct(p.start), width: `calc(${pct(p.end ?? end)} - ${pct(p.start)})` }}>
+                  <span className="truncate px-1">{phaseLabel(p.phase)}</span>
                 </span>
               ))}
               {flags.map((f, i) => (
@@ -290,7 +290,7 @@ export function AiReportView({ data }: { data: AiReportData }) {
       {ai && (
         <>
           {ai.sections.map((s) => (
-            <Card key={s.phase} id={`section-${s.phase}`} title={`${PHASES[s.phase].label} · ${s.score ?? "Not assessed"}${s.score ? "/5" : ""}`}>
+            <Card key={s.phase} id={`section-${s.phase}`} title={`${phaseLabel(s.phase)} · ${s.score ?? "Not assessed"}${s.score ? "/5" : ""}`}>
               <p className="text-sm leading-relaxed">{s.feedback || "No feedback for this section."}</p>
               {s.phase === "resume" && ai.claims.length > 0 && (
                 <table className="mt-4 w-full text-left text-sm">
@@ -409,7 +409,7 @@ function Transcript({ lines, start, now, phases, onSeek }: { lines: { at: number
           <option value="">Go to…</option>
           {phases.map((p, i) => (
             <option key={i} value={p.start}>
-              {PHASES[p.phase].label}
+              {phaseLabel(p.phase)}
             </option>
           ))}
         </select>

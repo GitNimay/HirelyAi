@@ -260,7 +260,7 @@ export function Whiteboard({
     <div className="flex h-full min-h-0 flex-col">
       <section className="shrink-0 space-y-1 border-b border-border px-4 py-3 text-sm">
         <h2 className="font-medium">{design.title}</h2>
-        <p className="text-muted">{design.prompt}</p>
+        {design.prompt && <p className="text-muted">{design.prompt}</p>}
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
           {design.requirements.map((r) => (
             <li key={r} className="flex items-center gap-1">

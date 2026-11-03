@@ -5,47 +5,92 @@
  * The LLM only *requests* things (a transition, a claim result); the harness approves, denies or forces.
  */
 
-import { DESIGN_META, difficultyFor, PROBLEM_META, type DesignPrompt, type Problem } from "./workspace";
+import type { Difficulty, Problem } from "./workspace";
 
 // ── Phases ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * The flow of a real technical interview: rapport, a deep conversation about the candidate's own work (where system
+ * design comes up naturally on a whiteboard when it's enabled), an optional coding exercise, then their questions.
+ */
 export const PHASES = {
   intro: {
     label: "Intro",
     minutes: 3,
-    goal: "Greet the candidate, explain the format and timing, confirm they're ready.",
+    goal: "Build rapport, explain the format, ask the recruiter's opening questions.",
   },
   resume: {
-    label: "Resume deep-dive",
-    minutes: 10,
-    goal: "Verify each planned resume claim with probing questions, then ask the recruiter's general and behavioral questions.",
+    label: "Experience",
+    minutes: 15,
+    goal: "Go deep on their most relevant work: verify resume claims, ask the recruiter's questions, and sketch a system design if enabled.",
   },
   coding: {
     label: "Coding",
     minutes: 25,
-    goal: "Assign a problem, observe, ask about approach, complexity and edge cases, run tests.",
-  },
-  design: {
-    label: "System design",
-    minutes: 20,
-    goal: "Assign a design prompt, observe the whiteboard, push on trade-offs, scale and failure modes.",
+    goal: "Solve a problem: clarify, plan, code, test, then discuss complexity.",
   },
   wrapup: {
     label: "Wrap-up",
     minutes: 5,
-    goal: "Answer the candidate's questions about the role or company, then close politely.",
+    goal: "The recruiter's closing questions, then the candidate's questions, then a polite close.",
   },
 } as const;
 export type PhaseId = keyof typeof PHASES;
 export const PHASE_ORDER = Object.keys(PHASES) as PhaseId[];
-/** Phases this build can run (all of them; kept so a future phase can ship dark). */
-export const SUPPORTED: readonly PhaseId[] = PHASE_ORDER;
-export const LIMITS = { minMinutes: 1, maxMinutes: 60, maxTotalMinutes: 90, questions: 8, questionChars: 300 };
+/** Label for a phase id, including ids from older interviews (e.g. "design"). */
+export const phaseLabel = (id: string) => (PHASES as Record<string, { label: string }>)[id]?.label ?? id.charAt(0).toUpperCase() + id.slice(1);
+export const LIMITS = { minMinutes: 1, maxMinutes: 60, maxTotalMinutes: 90, questions: 8, questionChars: 300, problems: 3, problemChars: 2000, topics: 5 };
+
+// ── Calibration ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Who the role is for: sets how hard the questions are, how deep the interviewer goes, and what a good score means. */
+export const LEVELS = {
+  intern: {
+    label: "Intern",
+    difficulty: "easy",
+    expect: "a student or new graduate: judge fundamentals, clear reasoning and how they learn; guide them more and don't expect production experience",
+  },
+  junior: {
+    label: "Junior",
+    difficulty: "easy",
+    expect: "0-2 years: solid fundamentals, can implement a well-defined task with some guidance, basic testing habits",
+  },
+  mid: {
+    label: "Mid-level",
+    difficulty: "medium",
+    expect: "2-5 years: executes independently, owns features end to end, makes and explains sensible trade-offs in their area",
+  },
+  senior: {
+    label: "Senior",
+    difficulty: "hard",
+    expect: "5+ years: designs systems, reasons deeply about trade-offs, scale and failure, owns ambiguous problems, raises the bar for others",
+  },
+  staff: {
+    label: "Staff+",
+    difficulty: "hard",
+    expect: "leads architecture across teams: handles ambiguity, weighs long-term and organizational trade-offs, sets direction",
+  },
+} as const satisfies Record<string, { label: string; difficulty: Difficulty; expect: string }>;
+export type Level = keyof typeof LEVELS;
+
+/** How demanding the final verdict is. Shifts the recommendation thresholds and the evaluator's stance. */
+export const BARS = {
+  lenient: { label: "Lenient", shift: -0.3, hint: "Give credit for potential; recommend if fundamentals are there." },
+  balanced: { label: "Balanced", shift: 0, hint: "Recommend when they meet the level's expectations." },
+  strict: { label: "Strict", shift: 0.3, hint: "Recommend only clear evidence above the level's expectations." },
+} as const;
+export type Bar = keyof typeof BARS;
+
+/** Job-post seniority → interview level (the form's default). */
+export const levelForJob = (jobLevel: string): Level =>
+  ({ internship: "intern", entry: "junior", associate: "mid", "mid-senior": "senior", director: "staff", executive: "staff" } as const)[
+    jobLevel as "entry"
+  ] ?? "mid";
 
 // ── Rubric ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type Competency = { id: string; name: string; description: string; levels: [string, string, string, string, string] };
-/** Default rubric (1-5 per competency). Editable per role in M5; stored on the interview so old reports keep their rubric. */
+/** weight: how much the competency counts in the overall score (0 = not scored, 1 = normal, 2 = high, 3 = critical). */
+export type Competency = { id: string; name: string; description: string; levels: [string, string, string, string, string]; weight?: number };
 export const DEFAULT_RUBRIC: Competency[] = [
   {
     id: "communication",
@@ -62,12 +107,12 @@ export const DEFAULT_RUBRIC: Competency[] = [
   {
     id: "experience",
     name: "Experience depth",
-    description: "Resume claims hold up under probing: ownership, specifics, metrics, decisions.",
+    description: "Their own work holds up under probing: ownership, specifics, metrics, decisions.",
     levels: [
       "Claims contradicted or can't be explained at all.",
       "Mostly vague; can't give specifics on their own work.",
-      "Some claims verified with specifics; others stay vague.",
-      "Most claims verified with concrete details, decisions and outcomes.",
+      "Some claims backed with specifics; others stay vague.",
+      "Most work explained with concrete details, decisions and outcomes.",
       "Every probed claim backed by precise ownership, numbers and trade-offs.",
     ],
   },
@@ -108,56 +153,87 @@ export const DEFAULT_RUBRIC: Competency[] = [
     ],
   },
 ];
+export const weightOf = (c: Competency) => c.weight ?? 1;
 
-/** problems / designs: the question pools the plan picks from (ids in lib/workspace.ts). */
-export type RoleConfig = {
-  phases: { id: PhaseId; minutes: number }[];
-  rubric: Competency[];
-  problems: string[];
-  designs: string[];
-};
-
-export const defaultConfig = (): RoleConfig => ({
-  phases: PHASE_ORDER.map((id) => ({ id, minutes: PHASES[id].minutes })),
-  rubric: DEFAULT_RUBRIC,
-  problems: PROBLEM_META.map((p) => p.id),
-  designs: DESIGN_META.map((d) => d.id),
-});
+// ── Role config ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * Role config from the post form or storage: known, supported phases in canonical order, minutes clamped. Intro and
- * wrap-up are always on; at least one assessed phase is required. Throws a message for the form on a bad total.
+ * What the recruiter set up for the role. Nothing is a fixed question bank: the interviewer adapts live, guided by
+ * the level and these optional inputs.
+ * - design: a system design discussion on the whiteboard during the Experience round (topics optional: empty =
+ *   the interviewer picks one from the candidate's projects and the role, and switches if they don't know it).
+ * - coding.problems: the recruiter's own problem statements; empty = generated for this role, level and candidate.
+ */
+export type RoleConfig = {
+  phases: { id: PhaseId; minutes: number }[];
+  level: Level;
+  difficulty: Difficulty | "auto";
+  bar: Bar;
+  design: { enabled: boolean; topics: string[] };
+  coding: { problems: string[] };
+  questions: { intro: string[]; main: string[]; wrapup: string[] };
+  rubric: Competency[];
+};
+
+export const defaultConfig = (level: Level = "mid"): RoleConfig => ({
+  phases: PHASE_ORDER.map((id) => ({ id, minutes: PHASES[id].minutes })),
+  level,
+  difficulty: "auto",
+  bar: "balanced",
+  design: { enabled: level !== "intern", topics: [] },
+  coding: { problems: [] },
+  questions: { intro: [], main: [], wrapup: [] },
+  rubric: DEFAULT_RUBRIC,
+});
+
+export const difficultyOf = (c: Pick<RoleConfig, "level" | "difficulty">): Difficulty =>
+  c.difficulty === "auto" ? LEVELS[c.level].difficulty : c.difficulty;
+export const hasCoding = (c: RoleConfig) => c.phases.some((p) => p.id === "coding");
+
+const pick = <T extends string>(v: unknown, options: Record<T, unknown>, fallback: T): T =>
+  typeof v === "string" && Object.hasOwn(options, v) ? (v as T) : fallback;
+
+/** Lines from a textarea or a list: trimmed, blanks dropped, capped. Problems keep their line breaks. */
+const lines = (v: unknown, n: number, max: number, multiline = false) =>
+  (Array.isArray(v) ? v : [])
+    .map((x) => (typeof x === "string" ? (multiline ? x.trim() : x.trim().replace(/\s+/g, " ")).slice(0, max) : ""))
+    .filter(Boolean)
+    .slice(0, n);
+
+/**
+ * Role config from the post form or storage: intro, Experience and wrap-up always run, coding is optional; minutes
+ * clamped; unknown values fall back to defaults. Throws a message for the form when the total is too long.
  */
 export function cleanConfig(input: unknown): RoleConfig {
-  const r = (input && typeof input === "object" ? input : {}) as {
-    phases?: unknown;
-    rubric?: unknown;
-    problems?: unknown;
-    designs?: unknown;
-  };
-  const given = new Map(
-    (Array.isArray(r.phases) ? r.phases : []).map((p) => [String(p?.id), Number(p?.minutes)] as const),
-  );
-  const phases = PHASE_ORDER.filter(
-    (id) => SUPPORTED.includes(id) && (id === "intro" || id === "wrapup" || given.has(id)),
-  ).map((id) => {
+  const r = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const level = pick<Level>(r.level, LEVELS, "mid");
+  const given = new Map((Array.isArray(r.phases) ? r.phases : []).map((p) => [String(p?.id), Number(p?.minutes)] as const));
+  const phases = PHASE_ORDER.filter((id) => id !== "coding" || given.has("coding")).map((id) => {
     const m = given.get(id);
-    return {
-      id,
-      minutes: Math.round(Math.min(LIMITS.maxMinutes, Math.max(LIMITS.minMinutes, Number.isFinite(m) ? m! : PHASES[id].minutes))),
-    };
+    return { id, minutes: Math.round(Math.min(LIMITS.maxMinutes, Math.max(LIMITS.minMinutes, Number.isFinite(m) ? m! : PHASES[id].minutes))) };
   });
-  if (!phases.some((p) => p.id !== "intro" && p.id !== "wrapup")) throw new Error("Turn on at least one interview round");
-  if (phases.reduce((s, p) => s + p.minutes, 0) > LIMITS.maxTotalMinutes)
+  if (phases.reduce((t, p) => t + p.minutes, 0) > LIMITS.maxTotalMinutes)
     throw new Error(`The interview can be at most ${LIMITS.maxTotalMinutes} minutes`);
-  const pool = (v: unknown, known: readonly { id: string }[]) => {
-    const ids = Array.isArray(v) ? v.map(String).filter((id) => known.some((k) => k.id === id)) : [];
-    return ids.length ? [...new Set(ids)] : known.map((k) => k.id);
+  const d = (r.design && typeof r.design === "object" ? r.design : {}) as Record<string, unknown>;
+  const c = (r.coding && typeof r.coding === "object" ? r.coding : {}) as Record<string, unknown>;
+  const q = (r.questions && typeof r.questions === "object" ? r.questions : {}) as Record<string, unknown>;
+  return {
+    phases,
+    level,
+    difficulty: pick<Difficulty | "auto">(r.difficulty, { auto: 1, easy: 1, medium: 1, hard: 1 }, "auto"),
+    bar: pick<Bar>(r.bar, BARS, "balanced"),
+    design: { enabled: typeof d.enabled === "boolean" ? d.enabled : level !== "intern", topics: lines(d.topics, LIMITS.topics, 200) },
+    coding: { problems: lines(c.problems, LIMITS.problems, LIMITS.problemChars, true) },
+    questions: {
+      intro: lines(q.intro, LIMITS.questions, LIMITS.questionChars),
+      main: lines(q.main, LIMITS.questions, LIMITS.questionChars),
+      wrapup: lines(q.wrapup, LIMITS.questions, LIMITS.questionChars),
+    },
+    rubric: cleanRubric(r.rubric),
   };
-  return { phases, rubric: cleanRubric(r.rubric), problems: pool(r.problems, PROBLEM_META), designs: pool(r.designs, DESIGN_META) };
 }
 
-/** Recruiter-edited rubric: up to 8 competencies, each with a name and five level descriptions; else the default. */
+/** Recruiter-edited rubric: up to 8 competencies, each with a name, five level descriptions and a 0-3 weight; else the default. */
 export function cleanRubric(v: unknown): Competency[] {
   if (!Array.isArray(v)) return DEFAULT_RUBRIC;
   const out = v
@@ -166,7 +242,14 @@ export function cleanRubric(v: unknown): Competency[] {
       const levels = Array.isArray(c?.levels) ? c.levels.map((l: unknown) => s(l, 300)) : [];
       if (!name || levels.length !== 5 || levels.some((l: string) => !l)) return null;
       const id = s(c?.id, 40).toLowerCase().replace(/[^a-z0-9_]+/g, "_") || `c${i + 1}`;
-      return { id, name, description: s(c?.description, 300), levels: levels as Competency["levels"] };
+      const w = Number(c?.weight);
+      return {
+        id,
+        name,
+        description: s(c?.description, 300),
+        levels: levels as Competency["levels"],
+        ...(Number.isFinite(w) && w !== 1 && { weight: Math.round(Math.min(3, Math.max(0, w))) }),
+      };
     })
     .filter((c): c is Competency => !!c)
     .filter((c, i, all) => all.findIndex((x) => x.id === c.id) === i)
@@ -174,7 +257,7 @@ export function cleanRubric(v: unknown): Competency[] {
   return out.length ? out : DEFAULT_RUBRIC;
 }
 
-export const totalMinutes = (c: RoleConfig) => c.phases.reduce((s, p) => s + p.minutes, 0);
+export const totalMinutes = (c: RoleConfig) => c.phases.reduce((t, p) => t + p.minutes, 0);
 
 // ── Claims and plan ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -188,18 +271,11 @@ export type Claim = {
   metrics: string[];
   depth: "light" | "deep"; // planned probing depth
 };
-/** problem / design: what the coding and design rounds will assign (picked by seniority from the role's pools). */
-export type Plan = { claims: Claim[]; problem?: string; design?: string };
-
-/** Default picks for a role and seniority: the first pool item at the level's difficulty, else the first in the pool. */
-export function pickWork(config: RoleConfig, level: string) {
-  const want = difficultyFor(level);
-  const pick = (ids: string[], meta: readonly { id: string; difficulty: string }[]) => {
-    const items = ids.map((id) => meta.find((m) => m.id === id)).filter((x) => !!x);
-    return (items.find((x) => x.difficulty === want) ?? items[0])?.id;
-  };
-  return { problem: pick(config.problems, PROBLEM_META), design: pick(config.designs, DESIGN_META) };
-}
+/**
+ * Built before the interview. problems: this candidate's coding problems, primary first then backups, each validated
+ * against a reference solution (lib/problem-gen.ts). SERVER ONLY: they carry hidden tests.
+ */
+export type Plan = { claims: Claim[]; problems?: Problem[] };
 export type ClaimResult = { status: ClaimStatus; evidence: string; at: number };
 export const MAX_CLAIMS = 6; // about what a 10-minute deep-dive can probe
 
@@ -207,7 +283,7 @@ const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().replace
 const list = (v: unknown, n: number, max: number) => (Array.isArray(v) ? v.map((x) => s(x, max)).filter(Boolean).slice(0, n) : []);
 const SECTIONS = ["experience", "projects", "skills", "education", "other"] as const;
 
-/** Model output → a plan we can trust structurally: well-formed claims only, renumbered c1…cN, capped. */
+/** Model output → claims we can trust structurally: well-formed only, renumbered c1…cN, capped. */
 export function cleanPlan(raw: unknown): Plan {
   const r = (raw && typeof raw === "object" ? raw : {}) as { claims?: unknown };
   const claims = (Array.isArray(r.claims) ? r.claims : [])
@@ -242,7 +318,9 @@ export type HarnessState = {
   notes: Note[];
   concerns: Concern[];
   hints: { at: number; phase: PhaseId; level: number; text: string }[];
-  assigned: { problem?: string; design?: string };
+  /** problem: the current problem id; tried: every problem shown so far; design: the whiteboard topic, if one was opened. */
+  assigned: { problem?: string; tried?: string[]; design?: string };
+  design: boolean; // a system design discussion is part of this interview
   runs: { at: number; by: "candidate" | "agent"; suite: "visible" | "hidden"; passed: number; total: number; status: string }[];
   heard: number; // candidate utterances in the current phase
   lastWake: number;
@@ -262,6 +340,7 @@ export function initState(config: RoleConfig, now: number): HarnessState {
     concerns: [],
     hints: [],
     assigned: {},
+    design: config.design.enabled,
     runs: [],
     heard: 0,
     lastWake: 0,
@@ -323,26 +402,26 @@ export const MIN_PHASE_MS = 20_000; // no back-to-back transitions (a forced mov
 export const MIN_WORK_MS = 180_000; // coding/design: an honest attempt before moving on early
 
 /**
- * The agent asked to move on. Approved only when the phase goal is met:
- * intro once the candidate has responded; resume once every claim has a result; coding and design once the work
- * was assigned and the candidate ran code or spent a few minutes on it (they can't be skipped in a sentence).
+ * The agent asked to move on. Approved only when the phase goal is met: intro once the candidate has responded;
+ * Experience once every claim has a result and (if enabled) the design discussion happened; coding once the candidate
+ * ran code or spent a few minutes on it. None of them can be skipped in a sentence.
  */
 export function requestTransition(s: HarnessState, now: number, claimIds: string[]): { ok: true } | { ok: false; reason: string } {
   const p = phaseOf(s);
   const t = spent(s, now);
-  if (p === "intro") return s.heard ? { ok: true } : { ok: false, reason: "Wait for the candidate to confirm they're ready." };
+  if (p === "intro") return s.heard ? { ok: true } : { ok: false, reason: "Wait for the candidate to answer before moving on." };
   if (t < MIN_PHASE_MS) return { ok: false, reason: "This phase just started. Continue it." };
+  const budget = s.phases[s.index].seconds * 1000;
   if (p === "resume") {
     const open = claimIds.filter((id) => !s.claims[id]);
     if (open.length)
       return { ok: false, reason: `Record a result for claims ${open.join(", ")} first (use not_reached for any you won't get to).` };
+    if (s.design && !s.assigned.design && t < budget * 0.7)
+      return { ok: false, reason: "Cover the system design discussion first: call open_whiteboard with a topic from their work or this role." };
   }
-  if (p === "coding" || p === "design") {
-    const work = p === "coding" ? s.assigned.problem : s.assigned.design;
-    if (!work) return { ok: false, reason: `Call ${p === "coding" ? "assign_problem" : "assign_design"} first and let the candidate work on it.` };
+  if (p === "coding") {
     const phaseStart = s.log.at(-1)?.start ?? 0;
-    const ran = p === "coding" && s.runs.some((r) => r.at >= phaseStart);
-    const budget = s.phases[s.index].seconds * 1000;
+    const ran = s.runs.some((r) => r.at >= phaseStart);
     if (!ran && t < Math.min(MIN_WORK_MS, budget / 2))
       return { ok: false, reason: "Give the candidate a real attempt first: help them get started with the next hint instead of moving on." };
   }
@@ -362,9 +441,10 @@ export const canWake = (s: HarnessState, why: Wake, now: number) => URGENT.inclu
 // ── Tools ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 type Param = { type: "string" | "integer"; description: string; enum?: readonly string[]; max?: number };
-export type ToolDef = { description: string; phases: readonly PhaseId[] | "*"; params: Record<string, Param> };
+/** design: only offered when the interview includes a system design discussion. */
+export type ToolDef = { description: string; phases: readonly PhaseId[] | "*"; params: Record<string, Param>; design?: boolean };
 
-/** Every live tool. `phases: "*"` = global. Coding and design tools are added with their milestones. */
+/** Every live tool. `phases: "*"` = global. The harness itself puts the coding problem on screen. */
 export const TOOLS = {
   add_note: {
     description: "Record an observation about the candidate linked to one rubric competency. Use it for evidence and for every hint you give.",
@@ -405,10 +485,10 @@ export const TOOLS = {
       evidence: { type: "string", description: "Under 15 words: what they said that supports this outcome.", max: 160 },
     },
   },
-  assign_problem: {
-    description: "Load a coding problem (statement, starter code, languages) into the candidate's editor. Call once at the start of the coding round.",
+  switch_problem: {
+    description: "Replace the coding problem with a backup of similar level. Only when the candidate clearly doesn't understand or know the problem type early on; give a hint first if it's just hard.",
     phases: ["coding"],
-    params: { problem_id: { type: "string", description: "Problem id from the plan." } },
+    params: { reason: { type: "string", description: "Why the problem is being switched.", max: 200 } },
   },
   read_editor: {
     description: "The candidate's current code and language, what changed since your last read, and how long they've been idle.",
@@ -421,19 +501,31 @@ export const TOOLS = {
     params: { suite: { type: "string", description: "Which tests.", enum: ["visible", "hidden"] } },
   },
   get_run_history: { description: "The candidate's code runs so far and their results.", phases: ["coding"], params: {} },
-  assign_design: {
-    description: "Show a system design prompt to the candidate and open the whiteboard. Call once at the start of the design round.",
-    phases: ["design"],
-    params: { prompt_id: { type: "string", description: "Design prompt id from the plan." } },
+  open_whiteboard: {
+    description: "Open the whiteboard with a system design question for the candidate to sketch. Call again with a new topic to switch questions.",
+    phases: ["resume"],
+    design: true,
+    params: {
+      topic: { type: "string", description: "The design question, e.g. 'Design the notification service from your last project'.", max: 160 },
+      requirements: { type: "string", description: "Two to four short requirements or constraints, separated by semicolons.", max: 400 },
+    },
   },
   read_whiteboard: {
     description: "The whiteboard as structure: components (id, type, label) and connections (from, to, label).",
-    phases: ["design"],
+    phases: ["resume"],
+    design: true,
     params: {},
   },
   snapshot_whiteboard: {
     description: "A visual description of the whiteboard image. Slower: use only when layout or drawings matter beyond the structure.",
-    phases: ["design"],
+    phases: ["resume"],
+    design: true,
+    params: {},
+  },
+  close_whiteboard: {
+    description: "Close the whiteboard and return to the conversation when the design discussion is done.",
+    phases: ["resume"],
+    design: true,
     params: {},
   },
   get_company_faq: { description: "Facts about the role and company you may share: location, workplace, pay if disclosed, about.", phases: ["wrapup"], params: {} },
@@ -441,20 +533,18 @@ export const TOOLS = {
 } as const satisfies Record<string, ToolDef>;
 export type ToolName = keyof typeof TOOLS;
 
-export const toolsFor = (phase: PhaseId) =>
+export const toolsFor = (phase: PhaseId, opts: { design: boolean }) =>
   (Object.keys(TOOLS) as ToolName[]).filter((n) => {
-    const p: ToolDef["phases"] = TOOLS[n].phases;
-    return p === "*" || p.includes(phase);
+    const def: ToolDef = TOOLS[n];
+    return (def.phases === "*" || def.phases.includes(phase)) && (!def.design || opts.design);
   });
 
 /** Phonic inline WebSocket tool definition (OpenAI strict function schema: every property required, nothing extra). */
-/** Values a tool parameter must take that depend on the session (competency ids, claim ids, pool ids). */
-export type Enums = { rubric_item: string[]; claim_id: string[]; problem_id: string[]; prompt_id: string[] };
+/** Values a tool parameter must take that depend on the session (competency ids, claim ids). */
+export type Enums = { rubric_item: string[]; claim_id: string[] };
 export const enumsFor = (config: RoleConfig, plan: Plan): Enums => ({
   rubric_item: config.rubric.map((c) => c.id),
   claim_id: plan.claims.map((c) => c.id),
-  problem_id: config.problems,
-  prompt_id: config.designs,
 });
 
 export function phonicTool(name: ToolName, enums: Enums) {
@@ -506,7 +596,8 @@ export function validateCall(
   const phase = phaseOf(s);
   if (!Object.hasOwn(TOOLS, name)) return { ok: false, error: `Unknown tool ${name}.` };
   const tool = name as ToolName;
-  if (!phase || !toolsFor(phase).includes(tool)) return { ok: false, error: `${name} isn't available in the ${phase ?? "finished"} phase.` };
+  if (!phase || !toolsFor(phase, { design: s.design }).includes(tool))
+    return { ok: false, error: `${name} isn't available in the ${phase ?? "finished"} phase.` };
   const a = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
   const out: Record<string, string | number> = {};
   for (const [k, p] of Object.entries(TOOLS[tool].params as Record<string, Param>)) {
@@ -593,7 +684,7 @@ export function applyTool(
     case "request_phase_transition": {
       const r = requestTransition(s, now, claimIds);
       return r.ok
-        ? { state: s, result: { approved: true, next: PHASES[s.phases[s.index + 1]?.id ?? "wrapup"].label }, effect: "advance" }
+        ? { state: s, result: { approved: true, next: phaseLabel(s.phases[s.index + 1]?.id ?? "wrapup") }, effect: "advance" }
         : { state: s, result: { approved: false, reason: r.reason } };
     }
     case "get_role_config":
@@ -601,7 +692,7 @@ export function applyTool(
         state: s,
         result: {
           role: ctx.role,
-          phases: s.phases.map((p) => ({ phase: PHASES[p.id].label, minutes: Math.round(p.seconds / 60) })),
+          phases: s.phases.map((p) => ({ phase: phaseLabel(p.id), minutes: Math.round(p.seconds / 60) })),
           competencies: ctx.rubric.map((c) => c.name),
         },
       };
@@ -640,13 +731,14 @@ export function applyTool(
 
 /** Tools the room runs itself because they touch the candidate's workspace or the sandbox. */
 export const WORKSPACE_TOOLS: ToolName[] = [
-  "assign_problem",
   "read_editor",
   "run_tests",
   "get_run_history",
-  "assign_design",
+  "switch_problem",
+  "open_whiteboard",
   "read_whiteboard",
   "snapshot_whiteboard",
+  "close_whiteboard",
 ];
 
 // ── Prompts ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -662,14 +754,16 @@ export type PromptCtx = {
   job: { title: string; company: string; level: string; description: string };
   candidate: { name: string; role: string; years: number };
   plan: Plan;
-  rubric: Competency[];
-  questions: string[]; // recruiter's general/behavioral questions
+  config: RoleConfig;
   summary: string; // rolling summary of the conversation so far (empty at the start)
-  problem?: Problem; // the plan's coding problem (server looks it up in lib/problem-bank.ts)
-  design?: DesignPrompt;
+  problem?: Problem; // the coding problem currently on screen
 };
 
-const BASE = (c: PromptCtx) => `You are a professional, warm technical interviewer at ${c.job.company}, running a live voice interview for the ${c.job.title} role (${c.job.level}). Never give yourself a name; if asked, you are an AI interviewer from ${c.job.company}. The candidate is ${c.candidate.name.split(" ")[0] || "the candidate"}.
+const ask = (title: string, qs: string[]) => (qs.length ? `\n${title}:\n${qs.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : "");
+
+const BASE = (c: PromptCtx) => `You are a professional, warm technical interviewer at ${c.job.company}, running a live voice interview for the ${c.job.title} role. Never give yourself a name; if asked, you are an AI interviewer from ${c.job.company}. The candidate is ${c.candidate.name.split(" ")[0] || "the candidate"}.
+
+Calibrate to the level. This role is ${LEVELS[c.config.level].label}: expect ${LEVELS[c.config.level].expect}. Pitch questions at ${difficultyOf(c.config)} difficulty. Go deeper when answers are strong; simplify or switch topics when they're out of their depth, like a good human interviewer would.
 
 How you speak:
 - Like a real person on a call: plain spoken sentences, no lists or symbols. Most turns are one or two short sentences (under 25 words).
@@ -679,6 +773,7 @@ How you speak:
 - If an answer is vague, ask for one concrete example: a number, a decision they made, or something that broke.
 - If you were interrupted, don't restart your sentence. Respond to what the candidate said.
 - If they ask you to repeat, rephrase the question more simply in one sentence.
+- If they say they don't know a topic or ask for a different question, acknowledge it and move to a different question; don't push the same one.
 - Never repeat a question they already answered, and never re-explain the format.
 
 What you never say:
@@ -694,48 +789,47 @@ How the interview runs:
 /** The private brief for one phase: what to do now, with the plan's specifics. Sent when the phase starts. */
 export function phaseBrief(phase: PhaseId, c: PromptCtx, s: HarnessState, now: number) {
   const left = timeLeft(s, now);
+  const q = c.config.questions;
   const head = `Harness: current phase is ${PHASES[phase].label} (about ${Math.ceil(left.phase / 60)} min; ${Math.ceil(left.total / 60)} min left in total). Goal: ${PHASES[phase].goal}`;
   switch (phase) {
     case "intro":
       return `${head}
-Greet ${c.candidate.name.split(" ")[0] || "the candidate"} and explain the format in two short sentences: ${s.phases.map((p) => `${PHASES[p.id].label.toLowerCase()} (${Math.round(p.seconds / 60)} min)`).join(", ")}. Mention it's recorded and ${c.job.company}'s hiring team decides. Ask if they're ready. As soon as they confirm, call request_phase_transition.`;
-    case "resume":
+Greet ${c.candidate.name.split(" ")[0] || "the candidate"} warmly and explain the format in two short sentences: ${s.phases.map((p) => `${phaseLabel(p.id).toLowerCase()} (${Math.round(p.seconds / 60)} min)`).join(", ")}. Mention it's recorded and ${c.job.company}'s hiring team decides.${ask("Then ask the recruiter's opening questions, one at a time, with a short follow-up where useful", q.intro)}
+When they're ready to start, call request_phase_transition.`;
+    case "resume": {
+      const design = c.config.design;
       return `${head}
-Verify these resume claims in order, one at a time. For each: ask what they personally built or decided, then one follow-up on how it worked or how they measured it; deep claims also get a trade-off or failure question ("what would you do differently?"). Then call record_claim_result: verified (specific and consistent), vague (stayed generic), contradicted (details conflict), not_reached (no time).
-${untrusted("resume_claims", c.plan.claims.map((cl) => `${cl.id} [${cl.depth}] ${cl.text}`).join("\n") || "(no claims: ask about their most recent role instead)")}
-${c.questions.length ? `Then ask the recruiter's questions:\n${c.questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : "Then ask one behavioral question about a hard problem they handled."}
+Run this like a real technical conversation, not a checklist. Ask which project they're proudest of or that's closest to this role, and go deep: what they personally built, why they chose that approach, the trade-offs, what broke, how they measured success, what they'd change. Verify these resume claims along the way where they fit naturally; after each, call record_claim_result: verified (specific and consistent), vague (stayed generic), contradicted (details conflict), not_reached (no time).
+${untrusted("resume_claims", c.plan.claims.map((cl) => `${cl.id} [${cl.depth}] ${cl.text}`).join("\n") || "(no claims: ask about their most recent work instead)")}${ask("Ask the recruiter's questions too, at natural moments", q.main)}${
+        design.enabled
+          ? `
+System design: once they've described a system (theirs, or one this role works on), turn it into a design question: "Let's sketch that on the whiteboard." Call open_whiteboard with the topic and a few requirements.${
+              design.topics.length
+                ? ` Use one of the recruiter's topics:\n${design.topics.map((d, i) => `${i + 1}. ${d}`).join("\n")}`
+                : ` Pick the topic yourself, grounded in their project or ${c.job.company}'s domain, sized for the level.`
+            }
+Ask them to clarify requirements first, then sketch the high-level design. Use read_whiteboard and ask about the components they drew, by name. Cover the data model, scaling to 10x, and one failure. If they don't know the topic, call open_whiteboard again with a different one. Spend about a third of this phase here, then call close_whiteboard.`
+          : ""
+      }
 Then call request_phase_transition.`;
+    }
     case "coding": {
       const p = c.problem;
       if (!p)
         return `${head}
-No coding problem is configured: ask how they'd approach a recent technical problem, then call request_phase_transition.`;
+No coding problem is available: ask how they'd approach a recent technical problem, then call request_phase_transition.`;
       return `${head}
-The problem "${p.title}" is already on their screen with starter code (the input is parsed for them; they only write solve). Introduce it in one sentence without reading it out, then ask for their approach before they code.
-While they code, stay quiet unless they talk to you. When you need to see their work, use read_editor and ask about one specific line or choice ("why a dictionary here?", "what does this loop cost for n = 100,000?", "what if the input is empty?"). When they say they're done, use run_tests: visible, then hidden. Never dictate code or the solution. For hidden tests, only name the kind of case that fails.
-If they're stuck, give the next hint, one level at a time, and log each with add_note starting "Hint L1:", "Hint L2:" or "Hint L3:":
+The problem "${p.title}" is on their screen with starter code (the input is parsed for them; they only write solve). Introduce it in one sentence without reading it out. Like a real interviewer: let them ask clarifying questions, ask for their approach before they code, then let them code.
+While they code, stay quiet unless they talk to you. When you need to see their work, use read_editor and ask about one specific line or choice ("why a dictionary here?", "what does this loop cost for large inputs?", "what if the input is empty?"). When they say they're done, use run_tests: visible, then hidden. Never dictate code or the solution. For hidden tests, only name the kind of case that fails.
+If within the first few minutes they clearly don't understand the problem or don't know the technique at all, call switch_problem (a backup of similar level is ready). If it's just hard, give the next hint instead, one level at a time, logging each with add_note starting "Hint L1:", "Hint L2:" or "Hint L3:":
 L1 (nudge): ${p.ladder[0]}
 L2 (new constraint, if they finish early): ${p.ladder[1]}
 L3 (scale or edge case): ${p.ladder[2]}
 Before moving on, ask for time and space complexity. Then call request_phase_transition.`;
     }
-    case "design": {
-      const d = c.design;
-      if (!d)
-        return `${head}
-No design prompt is configured: discuss the architecture of a system they built, then call request_phase_transition.`;
-      return `${head}
-The prompt "${d.title}" and its requirements are already on their screen with a whiteboard. Introduce it in one sentence, ask them to clarify requirements, then sketch the high-level design on the whiteboard.
-While they draw, use read_whiteboard and ask about components they drew, by name ("what happens when the cache misses?", "why does the API write to the queue directly?"). Use snapshot_whiteboard only if layout or a freehand drawing matters. Cover the data model, scale (10x traffic) and one failure (a component dies). Never design it for them.
-Follow-up ladder, one level at a time, each logged with add_note starting "Hint L1:", "Hint L2:" or "Hint L3:":
-L1: ${d.ladder[0]}
-L2: ${d.ladder[1]}
-L3: ${d.ladder[2]}
-Then call request_phase_transition.`;
-    }
     case "wrapup":
-      return `${head}
-Say that's the end of the questions and ask if they have questions about the role or ${c.job.company}. Answer only from get_company_faq; if you don't know, say the hiring team will follow up. Never mention scores, performance or the outcome. Then thank them, say goodbye in one sentence, and call end_interview.`;
+      return `${head}${ask("First ask the recruiter's closing questions, one at a time", q.wrapup)}
+Then ask if they have questions about the role or ${c.job.company}. Answer only from get_company_faq; if you don't know, say the hiring team will follow up. Never mention scores, performance or the outcome. Then thank them, say goodbye in one sentence, and call end_interview.`;
   }
 }
 
@@ -747,11 +841,11 @@ export function systemPrompt(phase: PhaseId, c: PromptCtx, s: HarnessState, now:
   return [
     BASE(c),
     phaseBrief(phase, c, s, now),
-    `Competencies you're gathering evidence for (rubric_item ids): ${c.rubric.map((r) => `${r.id} (${r.name})`).join(", ")}.`,
+    `Competencies you're gathering evidence for (rubric_item ids): ${c.config.rubric.filter((r) => weightOf(r) > 0).map((r) => `${r.id} (${r.name})`).join(", ")}.`,
     `Job description, for context only:\n${c.job.description.slice(0, 3000)}`,
     `About the candidate: ${c.candidate.role || "role not given"}, ${c.candidate.years} years of experience.`,
     c.summary ? `What has happened so far in this interview:\n${untrusted("summary", c.summary)}` : "",
-    `Session memory: ${JSON.stringify(memory(s, c.plan, c.rubric, now))}`,
+    `Session memory: ${JSON.stringify(memory(s, c.plan, c.config.rubric, now))}`,
   ]
     .filter(Boolean)
     .join("\n\n");

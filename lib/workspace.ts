@@ -54,28 +54,6 @@ export const LANGUAGES = {
 } as const;
 export type Language = keyof typeof LANGUAGES;
 
-/** Client-safe pool metadata (the post form's pickers, plan defaults). The content, hidden tests and hint ladders live
- *  in lib/problem-bank.ts, which only server code imports, so none of it can reach a candidate's browser bundle. */
-export const PROBLEM_META = [
-  { id: "pair-sum", title: "Pair with target sum", difficulty: "easy" },
-  { id: "balanced-brackets", title: "Balanced brackets", difficulty: "easy" },
-  { id: "merge-intervals", title: "Merge meeting times", difficulty: "medium" },
-  { id: "longest-unique", title: "Longest substring without repeats", difficulty: "medium" },
-  { id: "rate-limiter", title: "Sliding-window rate limiter", difficulty: "hard" },
-] as const satisfies readonly { id: string; title: string; difficulty: Difficulty }[];
-export const DESIGN_META = [
-  { id: "url-shortener", title: "URL shortener", difficulty: "easy" },
-  { id: "chat", title: "Group chat", difficulty: "medium" },
-  { id: "news-feed", title: "News feed", difficulty: "hard" },
-] as const satisfies readonly { id: string; title: string; difficulty: Difficulty }[];
-
-// ── Design prompts ──────────────────────────────────────────────────────────────────────────────────────────────────
-
-export type DesignPrompt = { id: string; title: string; difficulty: Difficulty; prompt: string; requirements: string[]; ladder: Ladder };
-/** Seniority → difficulty, for the pre-session plan's default picks. */
-export const difficultyFor = (level: string): Difficulty =>
-  /intern|entry/i.test(level) ? "easy" : /director|executive/i.test(level) ? "hard" : "medium"; // LinkedIn's "Mid-Senior" is medium
-
 // ── Execution results ───────────────────────────────────────────────────────────────────────────────────────────────
 
 export type CaseResult = { name: string; passed: boolean; expected?: string; got?: string };

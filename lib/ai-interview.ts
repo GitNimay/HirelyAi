@@ -2,7 +2,20 @@ import { env } from "cloudflare:workers";
 import { bedrockJson } from "./bedrock";
 import { Fail } from "./guard";
 import { cleanAiReport, evalInput, EVALUATOR, integrityOf, type AiReport } from "./evaluator";
-import { cleanConfig, cleanPlan, MAX_CLAIMS, pickWork, type HarnessState, type IvEvent, type Plan, type RoleConfig } from "./harness";
+import {
+  cleanConfig,
+  cleanPlan,
+  difficultyOf,
+  hasCoding,
+  LEVELS as IV_LEVELS,
+  MAX_CLAIMS,
+  type HarnessState,
+  type IvEvent,
+  type Plan,
+  type RoleConfig,
+} from "./harness";
+import { fallbackProblems } from "./problem-bank";
+import { planProblems } from "./problem-gen";
 import { cleanTranscript, type Line, type Profile } from "./interview-fields";
 import { LEVELS, WORKPLACES } from "./job-fields";
 import { sendTo } from "./realtime";
@@ -75,12 +88,24 @@ export async function planSession(sessionId: string, final: boolean) {
     .first<{ profile: string | null; config: string | null; title: string; level: keyof typeof LEVELS; description: string }>();
   if (!r) return;
   const resume = r.profile ? cleanResume(JSON.parse(r.profile)) : null;
-  const plan = resume ? await buildPlan(resume, { ...r, level: LEVELS[r.level] }) : { claims: [] };
-  if (!plan && !final) throw new Error(`plan ${sessionId}: bedrock busy`);
-  const work = pickWork(cleanConfig(r.config ? JSON.parse(r.config) : null), LEVELS[r.level]);
-  await env.DB.prepare("UPDATE interview_sessions SET plan = ? WHERE id = ? AND plan IS NULL")
-    .bind(JSON.stringify({ ...(plan ?? { claims: [] }), ...work }), sessionId)
-    .run();
+  const config = cleanConfig(r.config ? JSON.parse(r.config) : null);
+  // Claims and coding problems in parallel: problem generation (write + sandbox check) is the slow part
+  const [claims, problems] = await Promise.all([
+    resume ? buildPlan(resume, { ...r, level: LEVELS[r.level] }) : Promise.resolve({ claims: [] }),
+    hasCoding(config)
+      ? planProblems({
+          title: r.title,
+          description: r.description,
+          levelLabel: IV_LEVELS[config.level].label,
+          difficulty: difficultyOf(config),
+          skills: resume?.skills ?? [],
+          recruiter: config.coding.problems,
+        })
+      : Promise.resolve(undefined),
+  ]);
+  if (!claims && !final) throw new Error(`plan ${sessionId}: bedrock busy`);
+  const plan: Plan = { ...(claims ?? { claims: [] }), ...(problems && { problems }) };
+  await env.DB.prepare("UPDATE interview_sessions SET plan = ? WHERE id = ? AND plan IS NULL").bind(JSON.stringify(plan), sessionId).run();
 }
 
 /** The emailed link: validates the token (session id) for this interview and returns it for the cookie. */
@@ -140,12 +165,13 @@ export async function roomContext(sessionId: string) {
   const config = cleanConfig(r.config ? JSON.parse(r.config) : null);
   let plan = r.plan ? (JSON.parse(r.plan) as Plan) : null;
   if (!plan) {
-    // The background task hasn't finished (or failed): build it now, the candidate waits a few seconds once
+    // The background task hasn't finished (or failed): build what's quick now (claims; built-in problems instead of
+    // generating new ones), so the candidate waits a few seconds once rather than a minute
     plan = {
       ...((resume && (await buildPlan(resume, { title: r.title, level: LEVELS[r.level], description: r.description }))) || {
         claims: [],
       }),
-      ...pickWork(config, LEVELS[r.level]),
+      ...(hasCoding(config) && { problems: fallbackProblems(difficultyOf(config), 2) }),
     };
     await env.DB.prepare("UPDATE interview_sessions SET plan = ? WHERE id = ? AND plan IS NULL").bind(JSON.stringify(plan), r.id).run();
   }
@@ -156,7 +182,6 @@ export async function roomContext(sessionId: string) {
     applicantId: r.applicant_id,
     posterId: r.poster_id,
     config: config as RoleConfig,
-    questions: JSON.parse(r.questions) as string[],
     plan,
     state: r.state ? (JSON.parse(r.state) as HarnessState) : null,
     job: { title: r.title, company: r.company, level: LEVELS[r.level], description: r.description },
@@ -335,7 +360,7 @@ export async function evaluateAi(sessionId: string, final: boolean) {
   const [events, work] = await Promise.all([readEvents(sessionId), readFinal(sessionId)]);
   const { text, refs, startedAt } = evalInput({
     job: room.job,
-    rubric: room.config.rubric,
+    config: room.config,
     plan: room.plan,
     state: room.state,
     events,
@@ -344,7 +369,7 @@ export async function evaluateAi(sessionId: string, final: boolean) {
   const phases = [...new Set(room.state.log.map((l) => l.phase))];
   const said = events.some((e) => (e.type === "utterance" || e.type === "chat") && e.role === "candidate");
   let report: AiReport | null = null;
-  const ctx = { rubric: room.config.rubric, refs, phases, plan: room.plan, state: room.state, integrity: integrityOf(events), startedAt };
+  const ctx = { rubric: room.config.rubric, bar: room.config.bar, refs, phases, plan: room.plan, state: room.state, integrity: integrityOf(events), startedAt };
   if (!said) report = cleanAiReport({ summary: "The candidate joined but didn't answer any questions." }, ctx);
   else {
     const out = await bedrockJson("evaluation", EVALUATOR, text, 8000);

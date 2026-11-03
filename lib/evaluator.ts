@@ -4,7 +4,21 @@
  * replay eval script (scripts/replay-eval.ts) and the tests run exactly what production runs.
  */
 import { fitFor, type Fit, type Report } from "./interview-fields";
-import { PHASES, untrusted, type ClaimStatus, type Competency, type HarnessState, type IvEvent, type PhaseId, type Plan } from "./harness";
+import {
+  BARS,
+  LEVELS,
+  phaseLabel,
+  untrusted,
+  weightOf,
+  type Bar,
+  type ClaimStatus,
+  type Competency,
+  type HarnessState,
+  type IvEvent,
+  type PhaseId,
+  type Plan,
+  type RoleConfig,
+} from "./harness";
 import type { RunResult } from "./workspace";
 
 export const RECOMMENDATIONS = { strong_hire: "Strong hire", hire: "Hire", lean_no: "Lean no", no_hire: "No hire" } as const;
@@ -27,8 +41,12 @@ export type AiReport = Report & {
 
 /** Overall 1-5 → the 0-100 score and fit the applicant list already sorts and labels by. */
 export const toHundred = (overall: number | null) => (overall === null ? 0 : Math.round(((overall - 1) / 4) * 100));
-export const recommendationFor = (overall: number | null): Recommendation | null =>
-  overall === null ? null : overall >= 4.2 ? "strong_hire" : overall >= 3.4 ? "hire" : overall >= 2.6 ? "lean_no" : "no_hire";
+/** The recommendation follows the overall score, shifted by the recruiter's bar (strict asks more for the same label). */
+export const recommendationFor = (overall: number | null, bar: Bar = "balanced"): Recommendation | null => {
+  if (overall === null) return null;
+  const o = overall - BARS[bar].shift;
+  return o >= 4.2 ? "strong_hire" : o >= 3.4 ? "hire" : o >= 2.6 ? "lean_no" : "no_hire";
+};
 
 // ── Integrity ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -84,7 +102,7 @@ const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms
  */
 export function evalInput(o: {
   job: { title: string; level: string; description: string };
-  rubric: Competency[];
+  config: Pick<RoleConfig, "level" | "bar" | "rubric">;
   plan: Plan;
   state: HarnessState;
   events: IvEvent[];
@@ -99,7 +117,7 @@ export function evalInput(o: {
   let r = 0;
   let b = 0;
   for (const e of events) {
-    const t = `${clock(e.at - startedAt)} ${PHASES[phaseAt(e.at) ?? "intro"].label}`;
+    const t = `${clock(e.at - startedAt)} ${phaseLabel(phaseAt(e.at) ?? "intro")}`;
     if (e.type === "utterance" || e.type === "chat") {
       const id = `u${++u}`;
       refs.set(id, { at: e.at, kind: "transcript", quote: clip(e.text, 160) });
@@ -114,7 +132,9 @@ export function evalInput(o: {
       const id = `b${++b}`;
       refs.set(id, { at: e.at, kind: "whiteboard", quote: e.change.slice(0, 300) });
       lines.push(`[${id} ${t}] (whiteboard) ${e.change.replaceAll("<", "‹")}`);
-    } else if (e.type === "phase" && e.to) lines.push(`(${t}: ${PHASES[e.to].label} phase starts${e.reason === "forced" ? ", previous phase ran out of time" : ""})`);
+    } else if (e.type === "assign") {
+      lines.push(`(${t}: ${e.what === "problem" ? `coding problem ${e.id} shown` : `whiteboard opened: ${e.id.replaceAll("<", "‹")}`})`);
+    } else if (e.type === "phase" && e.to) lines.push(`(${t}: ${phaseLabel(e.to)} phase starts${e.reason === "forced" ? ", previous phase ran out of time" : ""})`);
   }
   state.notes.forEach((n, i) => refs.set(`n${i + 1}`, { at: n.at, kind: "note", quote: n.text.slice(0, 300) }));
   const last = events.at(-1)?.at ?? startedAt;
@@ -123,11 +143,16 @@ export function evalInput(o: {
 
   const text = [
     `Role: ${o.job.title} (${o.job.level})\nJob description:\n${o.job.description.slice(0, 2500)}`,
-    `Rubric (score each competency 1-5 using these level descriptions):\n${o.rubric.map((c) => `- ${c.id} (${c.name}): ${c.description}\n${c.levels.map((l, i) => `  ${i + 1}: ${l}`).join("\n")}`).join("\n")}`,
-    `Phases run: ${state.log.map((l) => `${PHASES[l.phase].label} ${clock((l.end ?? last) - l.start)}`).join(", ")}`,
+    `Level: ${LEVELS[o.config.level].label}. Judge against what's expected of ${LEVELS[o.config.level].expect}. A 3 means "meets this level's bar".`,
+    `Bar: ${BARS[o.config.bar].label}. ${BARS[o.config.bar].hint}`,
+    `Rubric (score each competency 1-5 using these level descriptions):\n${o.config.rubric
+      .filter((c) => weightOf(c) > 0)
+      .map((c) => `- ${c.id} (${c.name}): ${c.description}\n${c.levels.map((l, i) => `  ${i + 1}: ${l}`).join("\n")}`)
+      .join("\n")}`,
+    `Phases run: ${state.log.map((l) => `${phaseLabel(l.phase)} ${clock((l.end ?? last) - l.start)}`).join(", ")}`,
     `Resume claims and the interviewer's recorded outcome:\n${untrusted("claims", o.plan.claims.map((c) => `${c.id}: ${c.text} → ${state.claims[c.id]?.status ?? "not_reached"}${state.claims[c.id]?.evidence ? ` (${state.claims[c.id]!.evidence})` : ""}`).join("\n") || "(none)")}`,
     `Interviewer notes (observations, not scores):\n${untrusted("notes", state.notes.map((n, i) => `n${i + 1} [${n.rubric}] ${n.text}`).join("\n") || "(none)")}`,
-    `Hints given: ${state.hints.length ? state.hints.map((h) => `L${h.level} in ${PHASES[h.phase].label}`).join(", ") : "none"}`,
+    `Hints given: ${state.hints.length ? state.hints.map((h) => `L${h.level} in ${phaseLabel(h.phase)}`).join(", ") : "none"}`,
     o.final?.code ? `Final code (code-final):\n${untrusted("code", `${o.final.code.language}\n${o.final.code.code.slice(0, 6000)}`)}` : "",
     o.final?.scene ? `Final whiteboard (board-final):\n${untrusted("whiteboard", JSON.stringify(o.final.scene).slice(0, 4000))}` : "",
     `Timeline (cite these ids):\n${untrusted("timeline", lines.join("\n").slice(0, 60_000))}`,
@@ -176,6 +201,7 @@ export function cleanAiReport(
   raw: unknown,
   o: {
     rubric: Competency[];
+    bar?: Bar;
     refs: Refs;
     phases: PhaseId[];
     plan: Plan;
@@ -198,6 +224,7 @@ export function cleanAiReport(
       })
       .filter((e): e is Evidence => !!e)
       .slice(0, 3);
+    if (!weightOf(c)) return { id: c.id, name: c.name, score: null, rationale: "Not scored for this role.", evidence: [] };
     const s = evidence.length ? score(g?.score) : null;
     return { id: c.id, name: c.name, score: s, rationale: s === null ? "Not assessed: no relevant evidence in the interview." : tidy(g?.rationale, 200), evidence };
   });
@@ -205,8 +232,10 @@ export function cleanAiReport(
     const g = (Array.isArray(r.sections) ? r.sections : []).find((x) => x?.phase === phase) as Record<string, unknown> | undefined;
     return { phase, score: score(g?.score), feedback: tidy(g?.feedback, 240) };
   });
-  const assessed = competencies.map((c) => c.score).filter((s): s is number => s !== null);
-  const overall = assessed.length ? Math.round((assessed.reduce((a, b) => a + b, 0) / assessed.length) * 10) / 10 : null;
+  // Weighted by what the recruiter said matters most; competencies without evidence don't count either way
+  const weighted = competencies.flatMap((c, i) => (c.score === null ? [] : [{ s: c.score, w: weightOf(o.rubric[i]) }]));
+  const total = weighted.reduce((a, x) => a + x.w, 0);
+  const overall = total ? Math.round((weighted.reduce((a, x) => a + x.s * x.w, 0) / total) * 10) / 10 : null;
   const hundred = toHundred(overall);
   const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => tidy(x, 80)).filter(Boolean).slice(0, 3) : []);
   return {
@@ -217,7 +246,7 @@ export function cleanAiReport(
     concerns: list(r.gaps),
     ai: {
       overall,
-      recommendation: recommendationFor(overall),
+      recommendation: recommendationFor(overall, o.bar),
       competencies,
       sections,
       claims: o.plan.claims.map((c) => ({
