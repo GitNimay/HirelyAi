@@ -5,7 +5,7 @@ import { COMPONENTS } from "@/lib/status-fields";
 import { row } from "./factories";
 
 // The voice probe needs a LiveKit token; the real one lives in the interview module (Clerk, Bedrock, ...)
-vi.mock("@/lib/interview", () => ({ livekitToken: vi.fn().mockResolvedValue("test-token") }));
+vi.mock("@/lib/screening/interview", () => ({ livekitToken: vi.fn().mockResolvedValue("test-token") }));
 
 const today = () => new Date().toISOString().slice(0, 10);
 

@@ -23,9 +23,9 @@ documentation:
 "area: database":
   - changed-files:
       - any-glob-to-any-file: ["migrations/**"]
-"area: interview-agent":
+"area: voice-agent":
   - changed-files:
-      - any-glob-to-any-file: ["interview-agent/**"]
+      - any-glob-to-any-file: ["voice-agent/**"]
 "area: ci":
   - head-branch: ["^ci/"]
   - changed-files:
@@ -37,4 +37,4 @@ documentation:
 dependencies:
   - changed-files:
       - any-glob-to-any-file:
-          ["package.json", "package-lock.json", "interview-agent/package.json", "interview-agent/pnpm-lock.yaml"]
+          ["package.json", "package-lock.json", "voice-agent/package.json", "voice-agent/pnpm-lock.yaml"]

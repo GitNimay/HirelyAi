@@ -135,7 +135,13 @@ describe("screening credentials", () => {
     const j = await job(await user());
     await withScreening(j);
     const pub = await getPublicJob(j);
-    expect(pub?.interview).toEqual({ kind: "voice", deadline: expect.any(Number), questions: 2 });
+    expect(pub?.interview).toEqual({
+      kind: "voice",
+      deadline: expect.any(Number),
+      questions: 2,
+      minutes: 0,
+      flexible: false,
+    });
     expect(JSON.stringify(pub)).not.toContain("secret-code");
     expect(pub).not.toHaveProperty("poster.id");
     expect(await getPublicJob("job_missing")).toBeNull();

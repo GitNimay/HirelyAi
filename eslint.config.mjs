@@ -17,7 +17,7 @@ const eslintConfig = defineConfig([
     "coverage/**",
     ".wrangler/**",
     "worker-configuration.d.ts",
-    "interview-agent/**",
+    "voice-agent/**",
   ]),
 ]);
 

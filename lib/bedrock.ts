@@ -8,18 +8,20 @@ import { capture } from "./analytics";
  * `task` names the call in PostHog's LLM analytics (cost, latency, failures per feature).
  */
 export async function bedrockJson(
-  task: "resume" | "questions" | "grading" | "changelog",
+  task: "resume" | "questions" | "grading" | "changelog" | "plan" | "summary" | "vision" | "evaluation" | "problem",
   system: string,
-  user: string,
+  user: string | unknown[], // text, or OpenAI content parts (text + image_url) for vision models
   maxTokens: number,
   temperature = 0,
+  model: string = env.BEDROCK_MODEL, // cheaper models for small jobs (lib/ai-interview/session.ts FAST)
+  extract: (text: string) => unknown = jsonObject, // how to read the reply; throws when it can't
 ): Promise<{ ok: false; reason: "busy" | "unparseable" } | { ok: true; value: unknown }> {
   const t0 = Date.now();
   const res = await fetch(`${env.BEDROCK_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${env.BEDROCK_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: env.BEDROCK_MODEL,
+      model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -37,7 +39,7 @@ export async function bedrockJson(
       $ai_trace_id: crypto.randomUUID(),
       $ai_span_name: task,
       $ai_provider: "bedrock",
-      $ai_model: env.BEDROCK_MODEL,
+      $ai_model: model,
       $ai_base_url: env.BEDROCK_BASE_URL,
       $ai_latency: (Date.now() - t0) / 1000,
       $ai_max_tokens: maxTokens,
@@ -60,12 +62,36 @@ export async function bedrockJson(
     $ai_http_status: res.status,
   };
   try {
-    const value: unknown = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1));
+    const value = extract(out);
     log(tokens);
     return { ok: true, value };
   } catch {
     console.error("bedrock: unparseable output", { chars: out.length }); // never log content: it can quote resumes and transcripts
     log({ ...tokens, $ai_is_error: true, $ai_error: "unparseable" });
     return { ok: false, reason: "unparseable" };
+  }
+}
+
+/**
+ * The JSON object in a model reply (first "{" to last "}"). Models often put raw newlines or tabs inside string
+ * values, which JSON forbids: those are escaped and the parse retried before giving up.
+ */
+export function jsonObject(text: string): unknown {
+  const raw = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    let out = "";
+    let inString = false;
+    let escaped = false;
+    for (const ch of raw) {
+      if (inString && !escaped && (ch === "\n" || ch === "\r" || ch === "\t"))
+        out += ch === "\n" ? "\\n" : ch === "\t" ? "\\t" : "";
+      else out += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = inString;
+      else if (ch === '"') inString = !inString;
+    }
+    return JSON.parse(out);
   }
 }
