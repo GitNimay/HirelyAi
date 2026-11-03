@@ -1249,6 +1249,9 @@ export class InterviewRoom extends DurableObject<Env> {
       case "chat":
         if (!s.fallback || typeof m.text !== "string" || !m.text.trim()) return;
         this.lastActivity = now;
+        // Same as a spoken line: counts as heard, and can ask for (or confirm) a skip
+        s.state = heard(s.state);
+        await this.onCandidateLine(m.text.slice(0, 2000), now);
         await this.utter("candidate", m.text.slice(0, 2000), now);
         this.log({ at: now, type: "chat", role: "candidate", text: m.text.slice(0, 2000) });
         return this.textReply();
@@ -1318,10 +1321,22 @@ export class InterviewRoom extends DurableObject<Env> {
     await this.finish("completed");
   }
 
+  /** Ends the interview once. If anything throws, the flags reset so the alarm or the End button can try again. */
   async finish(reason: string) {
     if (this.ending || this.finishing || !this.s || !this.room) return;
     this.finishing = true; // ending is set once the last bookkeeping pass is in
-    const s = this.s;
+    try {
+      await this.close(reason);
+    } catch (e) {
+      this.fail("finish", e);
+      this.finishing = false;
+      this.ending = false;
+    }
+  }
+
+  async close(reason: string) {
+    const s = this.s!;
+    const room = this.room!;
     this.stopTimer();
     this.closePhonic(); // nothing more is said; the goodbye has played
     // Last bookkeeping pass over the closing lines, so the evaluator gets their evidence too (bounded: it's best effort)
@@ -1335,7 +1350,7 @@ export class InterviewRoom extends DurableObject<Env> {
       s.state = advance(
         s.state,
         now,
-        this.room.plan.claims.map((c) => c.id),
+        room.plan.claims.map((c) => c.id),
       );
       this.log({ at: now, type: "phase", from, to: phaseOf(s.state), reason: "end" });
     }
@@ -1360,9 +1375,15 @@ export class InterviewRoom extends DurableObject<Env> {
     }
     this.log({ at: Date.now(), type: "session", what: "ended", detail: reason });
     this.closePhonic();
-    await this.flush();
+    // The tail of the event log must land before storage is wiped: retry a failed flush a few times
+    for (let i = 0; i < 3; i++) {
+      await this.flush();
+      if (!this.events.length) break;
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+    if (this.events.length) throw new Error("event log flush failed");
     await this.env.MEDIA.put(
-      `iv/${this.room.id}/final.json`,
+      `iv/${room.id}/final.json`,
       JSON.stringify({
         code: s.code,
         board: s.board?.raw ?? null,
@@ -1372,8 +1393,8 @@ export class InterviewRoom extends DurableObject<Env> {
       }),
       { httpMetadata: { contentType: "application/json" } },
     );
-    await finishAi(this.room.id, s.transcript, s.state);
-    capture(this.room.id, "interview completed", {
+    await finishAi(room.id, s.transcript, s.state);
+    capture(room.id, "interview completed", {
       kind: "ai",
       reason,
       minutes: Math.round((now - s.state.startedAt) / 60_000),

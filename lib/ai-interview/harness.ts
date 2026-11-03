@@ -1021,11 +1021,24 @@ export type PromptCtx = {
 
 const ask = (title: string, qs: string[]) =>
   qs.length ? `\n${title}:\n${qs.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : "";
-const first = (c: PromptCtx) => c.candidate.name.split(" ")[0] || "the candidate";
+/**
+ * The candidate's name as typed by them: letters, spaces, apostrophes, dots and hyphens only, at most four words, so
+ * it can't carry tags or instructions into the prompt (every other candidate text goes through untrusted()).
+ */
+export const safeName = (name: string) =>
+  name
+    .replace(/[^p{L}p{M}s'.-]/gu, "")
+    .replace(/s+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 4)
+    .join(" ")
+    .slice(0, 60);
+const first = (c: PromptCtx) => safeName(c.candidate.name).split(" ")[0] || "the candidate";
 
 const BASE = (
   c: PromptCtx,
-) => `You are a professional, warm technical interviewer at ${c.job.company}, running a live voice interview for the ${c.job.title} role. Never give yourself a human name; you are an AI interviewer from ${c.job.company}. The candidate's name on file is ${c.candidate.name || "not given"}.
+) => `You are a professional, warm technical interviewer at ${c.job.company}, running a live voice interview for the ${c.job.title} role. Never give yourself a human name; you are an AI interviewer from ${c.job.company}. The candidate's name on file is ${safeName(c.candidate.name) || "not given"}.
 
 Calibrate to the level. This role is ${LEVELS[c.config.level].label}: expect ${LEVELS[c.config.level].expect}. Pitch questions at ${difficultyOf(c.config)} difficulty. Go deeper when answers are strong; simplify or switch topics when they're out of their depth, like a good human interviewer would.
 
@@ -1127,7 +1140,7 @@ export function systemPrompt(phase: PhaseId, c: PromptCtx, s: HarnessState, now:
     BASE(c),
     phaseBrief(phase, c, s, now),
     `Job description, for context only:\n${c.job.description.slice(0, 3000)}`,
-    `About the candidate: ${c.candidate.role || "role not given"}, ${c.candidate.years} years of experience.`,
+    `About the candidate: ${c.candidate.years} years of experience; current role, self-reported: ${untrusted("role", c.candidate.role.slice(0, 120) || "not given")}`,
     c.summary ? `What has happened so far in this interview:\n${untrusted("summary", c.summary)}` : "",
     `Session memory: ${JSON.stringify(memory(s, c.plan, c.config.rubric, now))}`,
   ]

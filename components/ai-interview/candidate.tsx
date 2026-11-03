@@ -723,6 +723,8 @@ function Room({
         const mic = await navigator.mediaDevices.getUserMedia({
           audio: { ...CAPTURE, ...(media.mic && { deviceId: { exact: media.mic } }) },
         });
+        // Unmounted while the mic prompt was open: cleanup already ran, so release the device here
+        if (closed) return void mic.getTracks().forEach((t) => t.stop());
         cleanup.push(() => mic.getTracks().forEach((t) => t.stop()));
         micTrack.current = mic.getAudioTracks()[0] ?? null;
         const src = ctx.createMediaStreamSource(mic);
@@ -791,10 +793,15 @@ function Room({
           );
           cleanup.push(() => void r.stop());
         }
-        if (media.screen) {
-          const r = record(view.slug, "screen", media.screen, 300_000);
+        const recordScreen = (s: MediaStream) => {
+          const r = record(view.slug, "screen", s, 300_000);
           cleanup.push(() => void r.stop());
-        }
+        };
+        if (media.screen) recordScreen(media.screen);
+        // A re-shared screen (after the share was stopped) starts a new recording segment
+        const reshared = (e: Event) => recordScreen((e as CustomEvent<MediaStream>).detail);
+        window.addEventListener("screen-shared", reshared);
+        cleanup.push(() => window.removeEventListener("screen-shared", reshared));
       } catch (e) {
         setStage("failed");
         setError(
@@ -1217,10 +1224,11 @@ function PauseOverlay({ reason }: { reason: string }) {
               const s = await navigator.mediaDevices
                 .getDisplayMedia({ video: { displaySurface: "monitor", frameRate: 5 } })
                 .catch(() => null);
-              if (s && s.getVideoTracks()[0]?.getSettings().displaySurface !== "browser") {
-                media.screen = s;
-                window.dispatchEvent(new CustomEvent("screen-shared", { detail: s }));
-              }
+              if (!s) return;
+              // Same rule as the system check: the entire screen, never a window or tab
+              if (s.getVideoTracks()[0]?.getSettings().displaySurface !== "monitor") return s.getTracks().forEach((t) => t.stop());
+              media.screen = s;
+              window.dispatchEvent(new CustomEvent("screen-shared", { detail: s }));
             }}
           >
             Share screen again

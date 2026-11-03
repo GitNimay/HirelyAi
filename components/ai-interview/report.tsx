@@ -8,7 +8,7 @@ import type { AiReportData } from "@/lib/ai-interview/session";
 import { RECOMMENDATIONS, type Evidence } from "@/lib/ai-interview/evaluator";
 import { phaseLabel, type IvEvent, type PhaseId } from "@/lib/ai-interview/harness";
 import type { Language, RunResult } from "@/lib/ai-interview/workspace";
-import { ask } from "../kit";
+import { ask, toast } from "../kit";
 import { Avatar, btnGhost, btnOutline, btnPrimary, Icon, icons } from "../ui";
 
 const CodeView = dynamic(() => import("./workspace").then((m) => m.CodeView), { ssr: false });
@@ -640,7 +640,16 @@ function Pending({ status, jobId, applicantId }: { status: string; jobId: string
           aria-busy={busy}
           disabled={busy}
           className={`${btnOutline} h-9`}
-          onClick={async () => (setBusy(true), await retryInterview(jobId, applicantId), location.reload())}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await retryInterview(jobId, applicantId);
+              location.reload();
+            } catch {
+              setBusy(false);
+              toast("Something went wrong. Try again in a moment.", "error");
+            }
+          }}
         >
           Retry evaluation
         </button>
@@ -673,8 +682,12 @@ function DeleteRecordings({ jobId, applicantId }: { jobId: string; applicantId: 
           }))
         )
           return;
-        await removeRecordings(jobId, applicantId);
-        location.reload();
+        try {
+          await removeRecordings(jobId, applicantId);
+          location.reload();
+        } catch {
+          toast("Something went wrong. Try again in a moment.", "error");
+        }
       }}
     >
       <Icon d={icons.trash} size={14} />
@@ -694,7 +707,7 @@ function Decision({ data }: { data: AiReportData }) {
         onSubmit={async (e) => {
           e.preventDefault();
           setState("saving");
-          const r = await decideInterview(data.jobId, data.applicantId, value, note);
+          const r = await decideInterview(data.jobId, data.applicantId, value, note).catch(() => ({ error: "Something went wrong. Try again." }));
           setState("error" in r ? r.error : "saved");
         }}
       >

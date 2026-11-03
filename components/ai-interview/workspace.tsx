@@ -62,6 +62,8 @@ export function CodeWorkspace({
   }
 
   async function switchTo(next: Language) {
+    // A pending edit belongs to the old language: drop it so it can't land after the new starter
+    clearTimeout(timer.current);
     // Untouched starter code just swaps; real work asks first
     if (
       code.trim() !== starter[language].trim() &&
