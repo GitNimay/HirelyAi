@@ -13,8 +13,8 @@ import {
   submitTest,
   verifyCandidate,
   warmInterview,
-} from "@/lib/interview";
-import { cleanProfile } from "@/lib/interview-fields";
+} from "@/lib/screening/interview";
+import { cleanProfile } from "@/lib/screening/fields";
 
 // Candidates aren't signed in: the password gate issues a session cookie scoped to this interview's path.
 const COOKIE = "iv";

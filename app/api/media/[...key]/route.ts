@@ -13,6 +13,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   } catch {
     return new Response("Not found", { status: 404 }); // malformed %-escape
   }
+  // AI interview recordings and logs are only served through /api/iv (the job's poster)
+  if (key.startsWith("iv/")) return new Response("Not found", { status: 404 });
   // Resumes are private: only the applicant and posters of jobs they applied to with it
   const owner = keyOwner(key);
   const resume = key.startsWith("resumes/") || key.endsWith(".pdf");

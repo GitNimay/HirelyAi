@@ -26,6 +26,9 @@
     // PostHog project key: public by design (the browser bundle carries it too), it can only send events
     "POSTHOG_KEY": "phc_rTtErsBvXcrQRyKTx4KWsFNZjoZX74twxaqLNMbUK8Rv",
     "POSTHOG_HOST": "https://us.i.posthog.com",
+    // AI interview coding round (lib/ai-interview/sandbox.ts): Judge0's free public instance. Swap for the RapidAPI free tier
+    // (set the JUDGE0_KEY secret) or a self-hosted Judge0 without code changes.
+    "JUDGE0_URL": "https://ce.judge0.com",
   },
   "d1_databases": [
     {
@@ -38,8 +41,17 @@
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "hire-excellence-media" }],
   // Read-mostly cache (lib/profile.ts: the signed-in member's Clerk fields). Free tier allows ~1k writes/day: never write per request.
   "kv_namespaces": [{ "binding": "CACHE", "id": "129f69d9798e4a38a7c9e2d36d9ee34e" }],
-  "durable_objects": { "bindings": [{ "name": "FEED_HUB", "class_name": "FeedHub" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FeedHub"] }],
+  // INTERVIEW_ROOM: one per AI interview session (worker/ai-interview-room.ts): holds the Phonic socket and runs the harness
+  "durable_objects": {
+    "bindings": [
+      { "name": "FEED_HUB", "class_name": "FeedHub" },
+      { "name": "INTERVIEW_ROOM", "class_name": "InterviewRoom" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["FeedHub"] },
+    { "tag": "v2", "new_sqlite_classes": ["InterviewRoom"] },
+  ],
   // Background work (lib/tasks.ts): AI grading, invite emails, notification fan-out. Retried with backoff, then parked in the DLQ.
   "queues": {
     "producers": [{ "binding": "TASKS", "queue": "hire-excellence-tasks" }],
@@ -64,5 +76,5 @@
   ],
   // Every 15 minutes (worker/index.ts scheduled): close expired interviews, fail stuck gradings, sync the Clerk directory
   "triggers": { "crons": ["*/15 * * * *"] },
-  // Secrets (not in this file): CLERK_SECRET_KEY, BEDROCK_*, RESEND_API_KEY, MAIL_FROM, CLERK_WEBHOOK_SECRET, LIVEKIT_*, INTERVIEW_AGENT_SECRET, TURNSTILE_SECRET via `wrangler secret`, .env.local locally
+  // Secrets (not in this file): CLERK_SECRET_KEY, BEDROCK_*, RESEND_API_KEY, MAIL_FROM, CLERK_WEBHOOK_SECRET, LIVEKIT_*, INTERVIEW_AGENT_SECRET, TURNSTILE_SECRET, PHONIC_API_KEY, JUDGE0_KEY (optional) via `wrangler secret`, .env.local locally
 }

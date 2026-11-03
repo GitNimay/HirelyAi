@@ -1,6 +1,6 @@
 import { Agent, dedent, inference, type llm, tool, voice } from '@livekit/agents';
 
-/** Job metadata, set by the app when it issues the candidate's token (lib/interview.ts startInterview). */
+/** Job metadata, set by the app when it issues the candidate's token (lib/screening/interview.ts startInterview). */
 export type Meta = {
   sessionId: string;
   seconds: number;

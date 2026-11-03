@@ -4,8 +4,21 @@ import { env, waitUntil } from "cloudflare:workers";
 import { getFeed, getPost, type FeedTab, type Media } from "@/lib/feed";
 import { track } from "@/lib/analytics";
 import { aiWriter, Fail, failed, text, viewer, writer } from "@/lib/guard";
-import { generateMcq, insertInterview, interviewResult, parseInterview, retryEvaluation } from "@/lib/interview";
-import type { Kind } from "@/lib/interview-fields";
+import {
+  createAiSession,
+  decide,
+  deleteRecordingsFor,
+  deleteSessionFiles,
+  dismissFlag,
+} from "@/lib/ai-interview/session";
+import {
+  generateMcq,
+  insertInterview,
+  interviewResult,
+  parseInterview,
+  retryEvaluation,
+} from "@/lib/screening/interview";
+import type { Kind } from "@/lib/screening/fields";
 import {
   cleanFilters,
   JOB_TYPES,
@@ -583,17 +596,17 @@ async function editJob(id: string, input: Record<string, unknown>) {
     // Answers are graded against the stored questions, so changing them would re-score earlier candidates
     throw new Fail("Questions can't change after a candidate has started");
   }
+  // AI interview rounds and rubric lock too once someone has started: reports compare candidates on the same setup
+  const config = interview?.config && !current.started ? JSON.stringify(interview.config) : null;
   await env.DB.batch([
     env.DB.prepare(
       "UPDATE jobs SET title = ?, location = ?, workplace = ?, type = ?, level = ?, salary = ?, description = ? WHERE id = ? AND poster_id = ?",
     ).bind(job.title, job.location, job.workplace, job.type, job.level, job.salary, job.description, id, me),
     ...(interview
       ? [
-          env.DB.prepare("UPDATE interviews SET questions = ?, deadline = ? WHERE job_id = ?").bind(
-            JSON.stringify(interview.questions),
-            interview.deadline,
-            id,
-          ),
+          env.DB.prepare(
+            "UPDATE interviews SET questions = ?, deadline = ?, config = COALESCE(?, config) WHERE job_id = ?",
+          ).bind(JSON.stringify(interview.questions), interview.deadline, config, id),
         ]
       : []),
   ]);
@@ -607,8 +620,16 @@ async function editJob(id: string, input: Record<string, unknown>) {
 export async function deleteJob(jobId: string) {
   const me = await writer();
   const id = String(jobId);
+  // AI interview recordings and logs live in R2 under the session id: collect them before the rows cascade away
+  const { results: sessions } = await env.DB.prepare(
+    "SELECT s.id FROM interview_sessions s JOIN jobs j ON j.id = s.job_id AND j.poster_id = ? WHERE s.job_id = ?",
+  )
+    .bind(me, id)
+    .all<{ id: string }>();
   const del = await env.DB.prepare("DELETE FROM jobs WHERE id = ? AND poster_id = ?").bind(id, me).run();
   if (!del.meta.changes) throw new Error("Job not found");
+  if (sessions.length)
+    waitUntil(deleteSessionFiles(sessions.map((s) => s.id)).catch((e) => console.error("delete interview files", e)));
   // Every notification about it (new job, applicants, status changes) would lead to a missing listing
   const { results } = await env.DB.prepare("DELETE FROM notifications WHERE link IN (?1, ?2, ?3) RETURNING id, user_id")
     .bind(`/dashboard/jobs?id=${id}`, `/dashboard/jobs?tab=applied&id=${id}`, `/dashboard/jobs?tab=posted&id=${id}`)
@@ -721,6 +742,8 @@ async function apply(jobId: string, input: Record<string, unknown>) {
   });
   // Queued: Resend is slow-ish and can fail; the link is also on the job page, so the application never waits on it
   // Only to the account's own (Clerk-verified) address, so the form can't make us mail strangers. Others use the link on the job page.
+  // AI interview: the session (and its personal link) exists from now on, and the plan is built in the background
+  if (job?.interview?.kind === "ai") await createAiSession(jobId, me);
   const own = job?.interview && (await signedIn())?.account.email.toLowerCase() === email.toLowerCase();
   if (own) await enqueue({ t: "invite", jobId, to: email }).catch((e) => console.error("invite: enqueue failed", e));
   if (job) {
@@ -868,6 +891,35 @@ export async function retryInterview(jobId: string, applicantId: string) {
   const me = await writer();
   await retryEvaluation(me, String(jobId), String(applicantId));
   return interviewResult(me, String(jobId), String(applicantId));
+}
+
+/** AI interview report: the recruiter's decision, clearing an integrity flag, deleting recordings. */
+export async function decideInterview(jobId: string, applicantId: string, value: string, note: string) {
+  try {
+    if (value !== "advance" && value !== "hold" && value !== "reject") throw new Fail("Pick a decision");
+    await decide(await writer(), String(jobId), String(applicantId), value, text(note, 2000));
+    return { ok: true as const };
+  } catch (e) {
+    return failed(e);
+  }
+}
+
+export async function reviewFlag(jobId: string, applicantId: string, signal: string, dismissed: boolean) {
+  try {
+    await dismissFlag(await writer(), String(jobId), String(applicantId), String(signal), !!dismissed);
+    return { ok: true as const };
+  } catch (e) {
+    return failed(e);
+  }
+}
+
+export async function removeRecordings(jobId: string, applicantId: string) {
+  try {
+    await deleteRecordingsFor(await writer(), String(jobId), String(applicantId));
+    return { ok: true as const };
+  } catch (e) {
+    return failed(e);
+  }
 }
 
 const TOURS = ["welcome"];

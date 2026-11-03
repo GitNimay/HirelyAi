@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
-import { bedrockJson } from "./bedrock";
-import { esc, layout, MONO, MUTED, p } from "./email";
-import { Fail } from "./guard";
+import { evaluateAi } from "../ai-interview/session";
+import { bedrockJson } from "../bedrock";
+import { esc, layout, MONO, MUTED, p } from "../email";
+import { Fail } from "../guard";
 import {
   callKeyterms,
   cleanAnswers,
@@ -22,12 +23,21 @@ import {
   type McqReview,
   type Profile,
   type Report,
-} from "./interview-fields";
-import type { Job } from "./jobs";
-import { getResume } from "./resume";
-import { cleanResume, fmtRange, STATUSES, type Resume } from "./resume-fields";
-import { sendTo } from "./realtime";
-import { enqueue } from "./tasks";
+} from "./fields";
+import type { Job } from "../jobs";
+import { getResume } from "../resume";
+import { cleanResume, fmtRange, STATUSES, type Resume } from "../resume-fields";
+import {
+  capMinutes,
+  cleanConfig,
+  hasCoding,
+  totalMinutes,
+  type HarnessState,
+  type Plan,
+  type RoleConfig,
+} from "../ai-interview/harness";
+import { sendTo } from "../realtime";
+import { enqueue } from "../tasks";
 
 export type SessionStatus = "verified" | "onboarded" | "live" | "processing" | "done" | "failed";
 
@@ -35,6 +45,9 @@ export type SessionStatus = "verified" | "onboarded" | "live" | "processing" | "
 export type CandidateView = {
   slug: string;
   kind: Kind;
+  /** AI interview: its phases (id + minutes), for the overview; flexible: the minutes are a guide, up to the limit. */
+  phases: { id: string; minutes: number }[];
+  flexible: boolean;
   title: string;
   company: string;
   deadline: number;
@@ -59,6 +72,8 @@ export type InterviewResult = {
   report: Report | null;
   /** MCQ: every question with the key and the candidate's pick. */
   review: McqReview[];
+  /** AI interview: the plan (claims) and the harness's final state (claim results, notes, phases); the report has the rest. */
+  ai: { plan: Plan | null; state: HarnessState | null } | null;
   startedAt: number | null;
   endedAt: number | null;
 };
@@ -83,9 +98,19 @@ export function same(a: string, b: string) {
  */
 export function parseInterview(input: Record<string, unknown>, current?: { kind: Kind; deadline: number }) {
   const kind = (current?.kind ?? input.screening) as Kind | "none" | undefined;
-  if (kind !== "voice" && kind !== "mcq") return null;
+  if (kind !== "voice" && kind !== "mcq" && kind !== "ai") return null;
   let questions: string[] | Mcq[];
-  if (kind === "voice") {
+  let config: RoleConfig | null = null;
+  if (kind === "ai") {
+    // Everything (rounds, level, bar, questions per stage, coding problems, design topics, rubric) is in the config;
+    // the technical questions are also kept in `questions`, like the other screening kinds
+    try {
+      config = cleanConfig(JSON.parse(String(input.aiConfig ?? "{}")));
+    } catch (e) {
+      throw new Fail(e instanceof SyntaxError ? "Set up the interview" : (e as Error).message);
+    }
+    questions = config.questions.main;
+  } else if (kind === "voice") {
     questions = cleanQuestions(input.questions);
     if (!questions.length) throw new Fail("Add at least one interview question");
   } else {
@@ -101,17 +126,30 @@ export function parseInterview(input: Record<string, unknown>, current?: { kind:
     if (!questions.length) throw new Fail("Add at least one test question");
   }
   const deadline = Number(input.deadline);
-  if (current && Math.abs(deadline - current.deadline) < 60_000) return { kind, questions, deadline: current.deadline };
+  if (current && Math.abs(deadline - current.deadline) < 60_000)
+    return { kind, questions, config, deadline: current.deadline };
   if (!Number.isFinite(deadline) || deadline < Date.now() + 3_600_000)
     throw new Fail("Set the interview deadline at least an hour from now");
   if (deadline > Date.now() + 90 * 86_400_000) throw new Fail("The interview deadline must be within 90 days");
-  return { kind, questions, deadline };
+  return { kind, questions, config, deadline };
 }
 
-export const insertInterview = (jobId: string, iv: { kind: Kind; questions: string[] | Mcq[]; deadline: number }) =>
+export const insertInterview = (
+  jobId: string,
+  iv: { kind: Kind; questions: string[] | Mcq[]; config: RoleConfig | null; deadline: number },
+) =>
   env.DB.prepare(
-    "INSERT INTO interviews (job_id, slug, password, kind, questions, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).bind(jobId, code(12), `${code(4)}-${code(4)}`, iv.kind, JSON.stringify(iv.questions), iv.deadline, Date.now());
+    "INSERT INTO interviews (job_id, slug, password, kind, questions, config, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  ).bind(
+    jobId,
+    code(12),
+    `${code(4)}-${code(4)}`,
+    iv.kind,
+    JSON.stringify(iv.questions),
+    iv.config && JSON.stringify(iv.config),
+    iv.deadline,
+    Date.now(),
+  );
 
 const GENERATE = `You write multiple-choice screening questions for hiring. Reply with ONLY one JSON object:
 { "questions": [{ "q": "the question", "options": ["A", "B", "C", "D"], "answer": 0-based index of the one correct option }] }
@@ -153,7 +191,7 @@ const when = (ms: number) =>
  */
 export async function sendInvite(jobId: string, to: string) {
   const iv = await env.DB.prepare(
-    "SELECT i.slug, i.password, i.deadline, i.kind, json_array_length(i.questions) AS n, j.title, j.company FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.job_id = ?",
+    "SELECT i.slug, i.password, i.deadline, i.kind, i.config, json_array_length(i.questions) AS n, j.title, j.company FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.job_id = ?",
   )
     .bind(jobId)
     .first<{
@@ -161,11 +199,13 @@ export async function sendInvite(jobId: string, to: string) {
       password: string;
       deadline: number;
       kind: Kind;
+      config: string | null;
       n: number;
       title: string;
       company: string;
     }>();
   if (!iv) return;
+  if (iv.kind === "ai") return sendAiInvite(jobId, to, iv);
   const link = `${env.APP_URL}/interview/${iv.slug}`;
   const voice = iv.kind === "voice";
   const what = voice ? "voice interview" : "online test";
@@ -214,12 +254,76 @@ export async function sendInvite(jobId: string, to: string) {
   console.error("resend rejected", res.status, detail);
 }
 
+/** AI interview invite: a personal link (their session id), no password. */
+async function sendAiInvite(
+  jobId: string,
+  to: string,
+  iv: { slug: string; deadline: number; config: string | null; title: string; company: string },
+) {
+  const id = await env.DB.prepare(
+    "SELECT s.id FROM interview_sessions s JOIN applications a ON a.job_id = s.job_id AND a.applicant_id = s.applicant_id WHERE s.job_id = ? AND a.email = ? COLLATE NOCASE",
+  )
+    .bind(jobId, to)
+    .first<string>("id");
+  if (!id) return;
+  const config = cleanConfig(iv.config ? JSON.parse(iv.config) : null);
+  const length =
+    config.timing === "flexible" ? `up to ${capMinutes(config)} minutes` : `about ${totalMinutes(config)} minutes`;
+  const parts = [
+    "a conversation about your experience",
+    ...(config.design.enabled ? ["a system design sketch on a whiteboard"] : []),
+    ...(hasCoding(config) ? ["a coding exercise"] : []),
+  ];
+  const covers = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+  const link = `${env.APP_URL}/interview/${iv.slug}/enter?t=${id}`;
+  const lines = [
+    `We've received your application for ${iv.title} at ${iv.company}.`,
+    `The next step is a live technical interview with an AI interviewer, ${length}: ${covers}. Take it before ${when(iv.deadline)}.`,
+    `Start your interview: ${link}`,
+    "This link is personal: don't share it.",
+    "Use a laptop or desktop with Chrome or Edge, a microphone and a camera, in a quiet place. You'll share your screen and stay in full screen, and the session is recorded for the hiring team.",
+  ];
+  const html = layout({
+    art: "voice",
+    heading: "Thanks for applying",
+    body:
+      p(esc(lines[0]), 16) +
+      p(esc(lines[1])) +
+      p(
+        `<a href="${esc(link)}" style="color:#0068d6;text-decoration:underline">Start your interview →</a>`,
+        16,
+        "font-size:17px;font-weight:500",
+      ) +
+      p(esc(lines[3]), 24, `font-size:14px;line-height:22px;color:${MUTED}`) +
+      p(esc(lines[4])),
+    to,
+    reason: "You're receiving it because you applied for a job on Hire Excellence.",
+  });
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: env.MAIL_FROM,
+      to: [to],
+      subject: `Your AI interview for ${iv.title} at ${iv.company}`,
+      html,
+      text: lines.join("\n\n"),
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (res.ok) return;
+  const detail = await res.text().catch(() => "");
+  if (res.status === 429 || res.status >= 500) throw new Error(`resend ${res.status}: ${detail}`);
+  console.error("resend rejected", res.status, detail);
+}
+
 type IvRow = {
   job_id: string;
   slug: string;
   password: string;
   kind: Kind;
   questions: string;
+  config: string | null;
   deadline: number;
   title: string;
   company: string;
@@ -280,6 +384,8 @@ export async function candidateView(slug: string, sessionId: string | undefined)
   return {
     slug,
     kind: iv.kind,
+    phases: iv.kind === "ai" ? cleanConfig(iv.config ? JSON.parse(iv.config) : null).phases : [],
+    flexible: iv.kind === "ai" && cleanConfig(iv.config ? JSON.parse(iv.config) : null).timing === "flexible",
     title: iv.title,
     company: iv.company,
     deadline: iv.deadline,
@@ -321,6 +427,7 @@ function prefillFrom(
 export async function verifyCandidate(slug: string, email: string, password: string) {
   const iv = await interviewBySlug(slug);
   if (!iv) throw new Fail("This interview link isn't valid.");
+  if (iv.kind === "ai") throw new Fail("Open the personal link from your invitation email.");
   if (!isOpen(iv)) throw new Fail("This interview has closed.");
   const app = await env.DB.prepare(
     "SELECT applicant_id FROM applications WHERE job_id = ? AND email = ? COLLATE NOCASE LIMIT 1",
@@ -580,6 +687,12 @@ const resumeText = (r: Resume) =>
  * otherwise a failure is stored as "failed" (transcript kept) and the poster can retry.
  */
 export async function evaluate(sessionId: string, final = true) {
+  const kind = await env.DB.prepare(
+    "SELECT i.kind FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id WHERE s.id = ?",
+  )
+    .bind(sessionId)
+    .first<Kind>("kind");
+  if (kind === "ai") return evaluateAi(sessionId, final);
   const r = await env.DB.prepare(
     `SELECT s.transcript, s.profile, a.profile AS resume, s.job_id, s.applicant_id, i.questions, j.title, j.company, j.description, j.poster_id
      FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id JOIN jobs j ON j.id = s.job_id
@@ -649,6 +762,8 @@ export async function interviewResult(
         transcript: string | null;
         report: string | null;
         ended_at: number | null;
+        plan: string | null;
+        state: string | null;
       }
     >();
   if (!s) return null;
@@ -665,6 +780,8 @@ export async function interviewResult(
     transcript: parse(s.transcript) ?? [],
     report: parse(s.report),
     review,
+    // Claims only: the plan's generated coding problems carry hidden tests and never leave the server
+    ai: s.kind === "ai" ? { plan: { claims: parse<Plan>(s.plan)?.claims ?? [] }, state: parse(s.state) } : null,
     startedAt: s.started_at,
     endedAt: s.ended_at,
   };

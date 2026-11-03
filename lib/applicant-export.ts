@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { strToU8, zipSync } from "fflate";
-import { FITS, KINDS, type Kind, type Report } from "./interview-fields.ts";
+import { FITS, KINDS, type Kind, type Report } from "./screening/fields";
 import { STATUSES, type AppStatus } from "./job-fields.ts";
 import { getResume } from "./resume.ts";
 import { drawResume, pdfWriter } from "./resume-pdf.ts";
