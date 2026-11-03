@@ -1226,7 +1226,8 @@ function PauseOverlay({ reason }: { reason: string }) {
                 .catch(() => null);
               if (!s) return;
               // Same rule as the system check: the entire screen, never a window or tab
-              if (s.getVideoTracks()[0]?.getSettings().displaySurface !== "monitor") return s.getTracks().forEach((t) => t.stop());
+              if (s.getVideoTracks()[0]?.getSettings().displaySurface !== "monitor")
+                return s.getTracks().forEach((t) => t.stop());
               media.screen = s;
               window.dispatchEvent(new CustomEvent("screen-shared", { detail: s }));
             }}

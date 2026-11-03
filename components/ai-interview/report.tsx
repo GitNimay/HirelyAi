@@ -707,7 +707,9 @@ function Decision({ data }: { data: AiReportData }) {
         onSubmit={async (e) => {
           e.preventDefault();
           setState("saving");
-          const r = await decideInterview(data.jobId, data.applicantId, value, note).catch(() => ({ error: "Something went wrong. Try again." }));
+          const r = await decideInterview(data.jobId, data.applicantId, value, note).catch(() => ({
+            error: "Something went wrong. Try again.",
+          }));
           setState("error" in r ? r.error : "saved");
         }}
       >

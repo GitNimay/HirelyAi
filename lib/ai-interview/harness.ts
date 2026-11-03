@@ -1027,8 +1027,8 @@ const ask = (title: string, qs: string[]) =>
  */
 export const safeName = (name: string) =>
   name
-    .replace(/[^p{L}p{M}s'.-]/gu, "")
-    .replace(/s+/g, " ")
+    .replace(/[^\p{L}\p{M}\s'.-]/gu, "")
+    .replace(/\s+/g, " ")
     .trim()
     .split(" ")
     .slice(0, 4)
