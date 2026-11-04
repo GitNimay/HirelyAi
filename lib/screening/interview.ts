@@ -419,6 +419,7 @@ export async function verifyCandidate(slug: string, login: string, password: str
   const iv = await interviewBySlug(slug);
   if (!iv) throw new Fail("This interview link isn't valid.");
   if (!isOpen(iv)) throw new Fail("This interview has closed.");
+  if (login.includes("@")) return legacySignIn(iv, login, password);
   const s = await env.DB.prepare("SELECT id, pass FROM interview_sessions WHERE job_id = ? AND login = ?")
     .bind(iv.job_id, cleanLogin(login))
     .first<{ id: string; pass: string }>();
@@ -426,6 +427,35 @@ export async function verifyCandidate(slug: string, login: string, password: str
   if (!s || (await sha256(password.trim().toLowerCase())) !== s.pass)
     throw new Fail("Candidate ID or password is incorrect. Use the ones from your invitation email.");
   return s.id;
+}
+
+/**
+ * Voice/MCQ applicants invited before per-candidate sign-in (their session has no candidate ID): the email they applied
+ * with plus the job's old shared password still work, for them only.
+ * ponytail: remove with interviews.password once every interview created before 2026-11-04 is past its deadline (≤ 90 days).
+ */
+async function legacySignIn(iv: IvRow, email: string, password: string) {
+  const app = await env.DB.prepare(
+    `SELECT a.applicant_id, s.login FROM applications a
+     LEFT JOIN interview_sessions s ON s.job_id = a.job_id AND s.applicant_id = a.applicant_id
+     WHERE a.job_id = ? AND a.email = ? COLLATE NOCASE LIMIT 1`,
+  )
+    .bind(iv.job_id, email.trim())
+    .first<{ applicant_id: string; login: string | null }>();
+  const ok =
+    iv.kind !== "ai" &&
+    app &&
+    !app.login &&
+    (await sha256(password.trim().toLowerCase())) === (await sha256(iv.password));
+  if (!ok) throw new Fail("Candidate ID or password is incorrect. Use the ones from your invitation email.");
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO interview_sessions (id, job_id, applicant_id, created_at) VALUES (?, ?, ?, ?)",
+  )
+    .bind(crypto.randomUUID(), iv.job_id, app.applicant_id, Date.now())
+    .run();
+  return (await env.DB.prepare("SELECT id FROM interview_sessions WHERE job_id = ? AND applicant_id = ?")
+    .bind(iv.job_id, app.applicant_id)
+    .first<string>("id"))!;
 }
 
 async function sessionFor(slug: string, sessionId: string | undefined) {

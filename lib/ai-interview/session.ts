@@ -256,6 +256,23 @@ export async function bookkeep(o: {
   return { ...b, summary: b.summary || o.previous };
 }
 
+/**
+ * Old AI interview links (`/enter?t=<session id>`), from invites sent before per-candidate sign-in: they still sign in
+ * sessions that never got a candidate ID, while the interview is open (or to see a finished one).
+ * ponytail: remove once every AI interview created before 2026-11-04 is past its deadline (≤ 90 days).
+ */
+export async function enterLegacy(slug: string, token: string) {
+  const r = await env.DB.prepare(
+    `SELECT s.id, i.deadline, j.closed_at, s.status FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai'
+     JOIN jobs j ON j.id = s.job_id WHERE i.slug = ? AND s.id = ? AND s.login IS NULL`,
+  )
+    .bind(slug, token)
+    .first<{ id: string; deadline: number; closed_at: number | null; status: string }>();
+  if (!r) return null;
+  const done = ["processing", "done", "failed"].includes(r.status);
+  return done || (r.deadline > Date.now() && r.closed_at === null) ? r.id : null;
+}
+
 /** Session lookup for the room socket and recording uploads: the `iv` cookie must belong to this interview. */
 export async function aiSessionFor(slug: string, sessionId: string | undefined) {
   if (!sessionId) throw new Fail("Your session expired. Reload the page and sign in again.");

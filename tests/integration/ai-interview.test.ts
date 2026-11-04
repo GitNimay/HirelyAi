@@ -8,6 +8,7 @@ import {
   aiSessionFor,
   checkpoint,
   createAiSession,
+  enterLegacy,
   decide,
   deleteRecordings,
   dismissFlag,
@@ -169,6 +170,17 @@ describe("per-candidate sign-in", () => {
       .bind(Date.now() - 1, j)
       .run();
     await expect(verifyCandidate(slug, theirs.login, theirs.password)).rejects.toThrow("closed");
+  });
+
+  it("keeps old personal links working only for sessions invited before candidate IDs", async () => {
+    const { sessionId, slug, j, applicant } = await setup();
+    expect(await enterLegacy(slug, sessionId)).toBe(sessionId);
+    expect(await enterLegacy(slug, crypto.randomUUID())).toBeNull();
+    expect(await enterLegacy("otherslug123", sessionId)).toBeNull();
+    // No email + shared password for AI interviews: they never had one
+    await expect(verifyCandidate(slug, `${applicant}@mail.test`, "anything")).rejects.toThrow("incorrect");
+    await issueCredentials(j, applicant);
+    expect(await enterLegacy(slug, sessionId)).toBeNull();
   });
 
   it("never puts the interview link or credentials on the job page, except the link for the poster", async () => {

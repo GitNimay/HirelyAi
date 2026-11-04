@@ -496,7 +496,7 @@ export function Gate({
   return (
     <form onSubmit={signIn} className="space-y-5">
       <Head title={`${KINDS[view.kind]} for ${view.title}`} sub="Use the details from your invitation email." />
-      <F label="Candidate ID">
+      <F label="Candidate ID" hint="invited before 4 Nov? the email you applied with">
         <input
           name="login"
           required
