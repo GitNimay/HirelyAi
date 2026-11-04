@@ -32,7 +32,7 @@ export async function verify(slug: string, input: Record<string, unknown>) {
     if (!success) throw new Fail("Too many attempts. Try again in a minute.");
     if (!(await verifyTurnstile(input.token, ip === "local" ? null : ip)))
       throw new Fail("We couldn't verify you're human. Complete the check and try again.");
-    const id = await verifyCandidate(String(slug), text(input.login, 40), text(input.password, 40));
+    const id = await verifyCandidate(String(slug), text(input.login, 254), text(input.password, 40));
     (await cookies()).set(COOKIE, id, {
       httpOnly: true,
       secure: true,

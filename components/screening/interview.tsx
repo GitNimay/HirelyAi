@@ -496,11 +496,15 @@ export function Gate({
   return (
     <form onSubmit={signIn} className="space-y-5">
       <Head title={`${KINDS[view.kind]} for ${view.title}`} sub="Use the details from your invitation email." />
-      <F label="Candidate ID" hint="invited before 4 Nov? the email you applied with">
+      {/* Voice/MCQ invites from before candidate IDs used the application email (see legacySignIn); AI ones had a link */}
+      <F
+        label="Candidate ID"
+        hint={view.kind === "ai" ? undefined : "invited before 4 Nov? the email you applied with"}
+      >
         <input
           name="login"
           required
-          maxLength={40}
+          maxLength={254}
           autoComplete="username"
           autoCapitalize="characters"
           spellCheck={false}
