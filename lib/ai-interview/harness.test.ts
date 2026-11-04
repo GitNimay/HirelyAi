@@ -244,7 +244,16 @@ describe("transitions", () => {
         },
       ],
     };
-    expect(requestTransition(ran, T0 + 40_000, claimIds).ok).toBe(true);
+    // Ran the examples, but the final code wasn't tested and its complexity not discussed yet
+    expect(requestTransition(ran, T0 + 40_000, claimIds)).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("run_tests"),
+    });
+    const tested = {
+      ...ran,
+      runs: [...ran.runs, { ...ran.runs[0], at: T0 + 35_000, by: "agent" as const, suite: "hidden" as const }],
+    };
+    expect(requestTransition(tested, T0 + 40_000, claimIds).ok).toBe(true);
   });
 
   it("never lets wrap-up transition (end_interview ends it)", () => {
@@ -358,7 +367,7 @@ describe("tool phase-scoping", () => {
       "read_whiteboard",
       "close_whiteboard",
     ]);
-    expect(toolsFor("coding", on)).toEqual(["request_phase_transition", "switch_problem", "read_editor", "run_tests"]);
+    expect(toolsFor("coding", on)).toEqual(["request_phase_transition", "switch_problem", "run_tests"]);
     expect(toolsFor("wrapup", on)).toEqual(["request_phase_transition", "end_interview"]);
   });
 
@@ -383,7 +392,7 @@ describe("tool phase-scoping", () => {
       ok: false,
       error: "end_interview isn't available in the Intro phase.",
     });
-    expect(validateCall(s, "run_tests", { suite: "hidden" }, enums).ok).toBe(false);
+    expect(validateCall(s, "run_tests", {}, enums).ok).toBe(false);
     expect(validateCall(s, "rm_rf", {}, enums)).toEqual({ ok: false, error: "Unknown tool rm_rf." });
     expect(validateCall(s, "add_note", { rubric_item: "coding", observation: "x" }, enums)).toEqual({
       ok: false,

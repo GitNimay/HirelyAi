@@ -136,13 +136,13 @@ describe("AI interview setup", () => {
       design: { enabled: true },
       questions: { intro: ["Tell me about yourself"] },
     });
-    expect(sent).toEqual([{ t: "plan", sessionId }]);
+    expect(sent).toEqual([]); // planned when the invite goes out, not on apply
   });
 
   it("is idempotent: applying twice doesn't make a second session or plan", async () => {
     const { j, applicant, sent } = await setup();
     await createAiSession(j, applicant);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(0);
     expect((await row<{ n: number }>("SELECT COUNT(*) AS n FROM interview_sessions WHERE job_id = ?", j))?.n).toBe(1);
   });
 });

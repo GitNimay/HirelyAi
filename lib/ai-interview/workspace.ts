@@ -28,6 +28,8 @@ export type Problem = {
   visible: Test[];
   hidden: Test[];
   ladder: Ladder;
+  /** One sentence: the intended approach and its time/space complexity. Server and report only (publicProblem omits it). */
+  approach?: string;
 };
 /** What the candidate's browser may see: never the hidden tests or the ladder. */
 export type PublicProblem = Omit<Problem, "hidden" | "ladder">;

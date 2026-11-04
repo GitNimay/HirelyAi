@@ -101,6 +101,7 @@ function draft(raw: unknown, id: string, difficulty: Difficulty) {
   if (signature && params?.length && params.every((x) => signature.reads.some((rd) => readNames(rd).includes(x))))
     signature.args = params;
   const generator = str(r.generator, 4000);
+  const approach = str(r.approach, 300);
   const title = str(r.title, 80);
   const statement = str(r.statement, 1500);
   // A specific reason, so the repair round knows exactly what to fix
@@ -131,6 +132,7 @@ function draft(raw: unknown, id: string, difficulty: Difficulty) {
       visible: examples,
       hidden: tests,
       ladder: ladder.slice(0, 3) as Ladder,
+      ...(approach && { approach }),
     } satisfies Problem,
     solution,
     generator,
@@ -182,6 +184,7 @@ const FORMAT = `Reply with one JSON object, then two fenced Python blocks after 
   "input": "the input format of ONE test case",
   "output": "the output format of ONE test case: a single line",
   "constraints": "bounds on sizes and values",
+  "approach": "ONE sentence: the intended approach and its time and space complexity",
   "signature": { "reads": [...], "args": [...], "returns": "one sentence: what solve() returns" },
   "examples": [{ "input": "one case", "output": "its one-line answer" }, { "input": "...", "output": "..." }],
   "tests": [{ "name": "what it checks, e.g. empty input", "input": "one case" }, ... 4 to 6 of them],
@@ -203,7 +206,7 @@ How input works: each test case is a few lines, read in order by "signature.read
 - { "rows": "n", "fields": [["name", "str"], ["score", "int"]] }: n lines (n read earlier by "ints"), each with those fields; each field becomes an array
 "args" lists which of those names solve() takes, in order. Names are short lowerCamelCase, never reserved words (str, list, map, len, type, range...).
 Example signature: { "reads": [{ "ints": ["n", "target"] }, { "array": "nums" }], "args": ["nums", "target"], "returns": "the two indices as \\"i j\\"" }
-Rules: the python block is ONLY the def solve(...) function (plus any helpers it needs inside it) with the args in order, returning the answer as one line (str). No input(), no print, no code outside solve. Multi-line test inputs use \\n inside the JSON strings. Every example and test "input" is exactly ONE case in the signature's format (no count line, no output). solve()'s parameters are exactly "args", same names and order. Field types match the data ("int" fields hold integers only). Never use placeholders like __LARGE__ or "..." in any input. Tests are small (never more than 30 numbers each) and cover edge cases: smallest input, duplicates, boundaries. Never type out a large input: make_large() builds it: at most 10,000 numbers and under 100 KB of text, enough to expose a quadratic solution. It must be solvable in about 20 minutes. No markdown inside the JSON values.`;
+Rules: the expected output for every input must be unique: define tie-breaks and ordering in the statement (e.g. "if several answers exist, return the smallest index", "sorted ascending") so a correct solution can't differ from the reference. The python block is ONLY the def solve(...) function (plus any helpers it needs inside it) with the args in order, returning the answer as one line (str). No input(), no print, no code outside solve. Multi-line test inputs use \\n inside the JSON strings. Every example and test "input" is exactly ONE case in the signature's format (no count line, no output). solve()'s parameters are exactly "args", same names and order. Field types match the data ("int" fields hold integers only). Never use placeholders like __LARGE__ or "..." in any input. Tests are small (never more than 30 numbers each) and cover edge cases: smallest input, duplicates, boundaries. Never type out a large input: make_large() builds it: at most 10,000 numbers and under 100 KB of text, enough to expose a quadratic solution. It must be solvable in about 20 minutes. No markdown inside the JSON values.`;
 
 const THEMES: Record<Difficulty, string[]> = {
   easy: ["strings", "arrays and counting", "hash maps", "two pointers", "stacks"],
@@ -262,14 +265,14 @@ export const generatedAsk = (o: Pick<GenInput, "difficulty" | "background">, the
  * The candidate's problems: the recruiter's own (converted faithfully) or new ones for the role, level and
  * candidate, primary first, then backups. Falls back to the built-in bank so the coding round always has work.
  */
-export async function planProblems(o: GenInput, count = 3): Promise<Problem[]> {
+export async function planProblems(o: GenInput, count = 2): Promise<Problem[]> {
   const themes = [...THEMES[o.difficulty]].sort(() => Math.random() - 0.5);
   const asks = o.recruiter.length
     ? o.recruiter.map(
         (text) =>
           `Convert this recruiter's problem faithfully: keep its task, wording and intent, and fit it to the format.\n<recruiter_problem>\n${text.replaceAll("<", "‹")}\n</recruiter_problem>`,
       )
-    : Array.from({ length: count + 1 }, (_, i) => generatedAsk(o, themes[i % themes.length], i));
+    : Array.from({ length: count }, (_, i) => generatedAsk(o, themes[i % themes.length], i));
   const role = `Role: ${o.title} (${o.levelLabel}). Difficulty: ${o.difficulty}. Candidate's skills: ${o.skills.slice(0, 15).join(", ") || "not given"}.\nJob description:\n${o.description.slice(0, 1500)}`;
   const system = `You write coding problems for live technical interviews.\n${FORMAT}`;
   const made = await Promise.all(
