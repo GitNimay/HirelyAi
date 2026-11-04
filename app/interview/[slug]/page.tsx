@@ -12,6 +12,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ slug
   const { slug } = await params;
   const view = await candidateView(slug, (await cookies()).get("iv")?.value);
   if (!view) notFound();
-  if (view.kind === "ai") return <AiInterview view={view} />;
-  return <Interview view={view} turnstile={{ sitekey: env.TURNSTILE_SITEKEY, action: ACTION }} />;
+  const turnstile = { sitekey: env.TURNSTILE_SITEKEY, action: ACTION };
+  if (view.kind === "ai") return <AiInterview view={view} turnstile={turnstile} />;
+  return <Interview view={view} turnstile={turnstile} />;
 }

@@ -82,7 +82,7 @@ const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"; // no 0/o, 1/l/i: people ret
 const code = (n: number) =>
   Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => ALPHABET[b % ALPHABET.length]).join("");
 
-/** Constant-time string compare, for the shared password and the agent's bearer secret. */
+/** Constant-time string compare, for the agent's bearer secret. */
 export function same(a: string, b: string) {
   const [x, y] = [new TextEncoder().encode(a), new TextEncoder().encode(b)];
   // timingSafeEqual is a Workers extension, missing from the DOM typings
@@ -185,18 +185,45 @@ export async function generateMcq(input: Record<string, unknown>) {
 const when = (ms: number) =>
   `${new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} IST`;
 
+const sha256 = async (s: string) =>
+  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+/** Candidate IDs are typed back from an email: case, spaces and dashes don't matter. */
+const cleanLogin = (s: string) => s.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
 /**
- * Mails the interview link and password to a new applicant (Resend's REST API; the SDK adds nothing here).
+ * The applicant's own sign-in for this job's screening: a candidate ID and a password (only its hash is kept).
+ * Creates their session if needed; a second call (a queue retry) issues new ones, so only the latest email works.
+ */
+export async function issueCredentials(jobId: string, applicantId: string) {
+  const login = code(8);
+  const password = `${code(4)}-${code(4)}`;
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO interview_sessions (id, job_id, applicant_id, created_at) VALUES (?, ?, ?, ?)",
+    ).bind(crypto.randomUUID(), jobId, applicantId, Date.now()),
+    env.DB.prepare("UPDATE interview_sessions SET login = ?, pass = ? WHERE job_id = ? AND applicant_id = ?").bind(
+      login,
+      await sha256(password),
+      jobId,
+      applicantId,
+    ),
+  ]);
+  return { login: login.toUpperCase(), password };
+}
+
+/**
+ * Mails the interview link with the applicant's own candidate ID and password (Resend's REST API; the SDK adds nothing here).
  * Runs from the queue: throws on errors worth retrying (network, 429, 5xx); a rejected address is logged and dropped.
  */
-export async function sendInvite(jobId: string, to: string) {
+export async function sendInvite(jobId: string, to: string, applicantId?: string) {
   const iv = await env.DB.prepare(
-    "SELECT i.slug, i.password, i.deadline, i.kind, i.config, json_array_length(i.questions) AS n, j.title, j.company FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.job_id = ?",
+    "SELECT i.slug, i.deadline, i.kind, i.config, json_array_length(i.questions) AS n, j.title, j.company FROM interviews i JOIN jobs j ON j.id = i.job_id WHERE i.job_id = ?",
   )
     .bind(jobId)
     .first<{
       slug: string;
-      password: string;
       deadline: number;
       kind: Kind;
       config: string | null;
@@ -204,24 +231,50 @@ export async function sendInvite(jobId: string, to: string) {
       title: string;
       company: string;
     }>();
-  if (!iv) return;
-  if (iv.kind === "ai") return sendAiInvite(jobId, to, iv);
+  // Messages queued before applicantId was added carry only the application email
+  const who =
+    applicantId ??
+    (await env.DB.prepare("SELECT applicant_id FROM applications WHERE job_id = ? AND email = ? COLLATE NOCASE")
+      .bind(jobId, to)
+      .first<string>("applicant_id"));
+  if (!iv || !who) return;
+  const { login, password } = await issueCredentials(jobId, who);
   const link = `${env.APP_URL}/interview/${iv.slug}`;
-  const voice = iv.kind === "voice";
-  const what = voice ? "voice interview" : "online test";
-  const minutes = (voice ? INTERVIEW.seconds : mcqSeconds(iv.n)) / 60;
-  const signIn = "Sign in with the email this was sent to and this password:";
+  let what: string, intro: string, tips: string;
+  if (iv.kind === "ai") {
+    const config = cleanConfig(iv.config ? JSON.parse(iv.config) : null);
+    const length =
+      config.timing === "flexible" ? `up to ${capMinutes(config)} minutes` : `about ${totalMinutes(config)} minutes`;
+    const parts = [
+      "a conversation about your experience",
+      ...(config.design.enabled ? ["a system design sketch on a whiteboard"] : []),
+      ...(hasCoding(config) ? ["a coding exercise"] : []),
+    ];
+    const covers = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+    what = "interview";
+    intro = `a live technical interview with an AI interviewer, ${length}: ${covers}`;
+    tips =
+      "Use a laptop or desktop with Chrome or Edge, a microphone and a camera, in a quiet place. You'll share your screen and stay in full screen, and the session is recorded for the hiring team.";
+  } else {
+    const voice = iv.kind === "voice";
+    what = voice ? "voice interview" : "online test";
+    intro = `a short ${voice ? "AI voice interview" : "multiple-choice test"}: ${iv.n} question${iv.n === 1 ? "" : "s"}, ${voice ? "about " : ""}${(voice ? INTERVIEW.seconds : mcqSeconds(iv.n)) / 60} minutes`;
+    tips = voice
+      ? "You'll need a quiet place and a microphone. Chrome, Edge or Safari work best."
+      : "It's timed and you get one attempt, so keep the tab open until you submit. Your answers save as you go.";
+  }
+  const signIn = "Sign in with your candidate ID and password. They're personal: don't share them.";
   const lines = [
     `We've received your application for ${iv.title} at ${iv.company}.`,
-    `The next step is a short ${voice ? "AI voice interview" : "multiple-choice test"}: ${iv.n} question${iv.n === 1 ? "" : "s"}, ${voice ? "about " : ""}${minutes} minutes. Take it before ${when(iv.deadline)}.`,
+    `The next step is ${intro}. Take it before ${when(iv.deadline)}.`,
     `Start your ${what}: ${link}`,
-    `${signIn} ${iv.password}`,
-    voice
-      ? "You'll need a quiet place and a microphone. Chrome, Edge or Safari work best."
-      : "It's timed and you get one attempt, so keep the tab open until you submit. Your answers save as you go.",
+    `${signIn}\nCandidate ID: ${login}\nPassword: ${password}`,
+    tips,
   ];
+  const mono = `font-family:${MONO};font-size:24px;line-height:32px;font-weight:500;letter-spacing:0.06em`;
+  const label = `font-size:13px;line-height:20px;color:${MUTED}`;
   const html = layout({
-    art: voice ? "voice" : "mcq",
+    art: iv.kind === "mcq" ? "mcq" : "voice",
     heading: "Thanks for applying",
     body:
       p(esc(lines[0]), 16) +
@@ -231,8 +284,9 @@ export async function sendInvite(jobId: string, to: string) {
         32,
         "font-size:17px;font-weight:500",
       ) +
-      `<div style="border-top:1px solid #e4e4de;padding:24px 0 28px">${p(signIn, 6, `font-size:14px;line-height:22px;color:${MUTED}`)}${p(esc(iv.password), 0, `font-family:${MONO};font-size:26px;line-height:34px;font-weight:500;letter-spacing:0.06em`)}</div>` +
-      p(esc(lines[4])),
+      `<div style="border-top:1px solid #e4e4de;padding:24px 0 28px">${p(esc(signIn), 16, `font-size:14px;line-height:22px;color:${MUTED}`)}` +
+      `${p("Candidate ID", 2, label)}${p(esc(login), 14, mono)}${p("Password", 2, label)}${p(esc(password), 0, mono)}</div>` +
+      p(esc(tips)),
     to,
     reason: "You're receiving it because you applied for a job on Hire Excellence.",
   });
@@ -242,70 +296,7 @@ export async function sendInvite(jobId: string, to: string) {
     body: JSON.stringify({
       from: env.MAIL_FROM,
       to: [to],
-      subject: `Your ${what} for ${iv.title} at ${iv.company}`,
-      html,
-      text: lines.join("\n\n"),
-    }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (res.ok) return;
-  const detail = await res.text().catch(() => "");
-  if (res.status === 429 || res.status >= 500) throw new Error(`resend ${res.status}: ${detail}`);
-  console.error("resend rejected", res.status, detail);
-}
-
-/** AI interview invite: a personal link (their session id), no password. */
-async function sendAiInvite(
-  jobId: string,
-  to: string,
-  iv: { slug: string; deadline: number; config: string | null; title: string; company: string },
-) {
-  const id = await env.DB.prepare(
-    "SELECT s.id FROM interview_sessions s JOIN applications a ON a.job_id = s.job_id AND a.applicant_id = s.applicant_id WHERE s.job_id = ? AND a.email = ? COLLATE NOCASE",
-  )
-    .bind(jobId, to)
-    .first<string>("id");
-  if (!id) return;
-  const config = cleanConfig(iv.config ? JSON.parse(iv.config) : null);
-  const length =
-    config.timing === "flexible" ? `up to ${capMinutes(config)} minutes` : `about ${totalMinutes(config)} minutes`;
-  const parts = [
-    "a conversation about your experience",
-    ...(config.design.enabled ? ["a system design sketch on a whiteboard"] : []),
-    ...(hasCoding(config) ? ["a coding exercise"] : []),
-  ];
-  const covers = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
-  const link = `${env.APP_URL}/interview/${iv.slug}/enter?t=${id}`;
-  const lines = [
-    `We've received your application for ${iv.title} at ${iv.company}.`,
-    `The next step is a live technical interview with an AI interviewer, ${length}: ${covers}. Take it before ${when(iv.deadline)}.`,
-    `Start your interview: ${link}`,
-    "This link is personal: don't share it.",
-    "Use a laptop or desktop with Chrome or Edge, a microphone and a camera, in a quiet place. You'll share your screen and stay in full screen, and the session is recorded for the hiring team.",
-  ];
-  const html = layout({
-    art: "voice",
-    heading: "Thanks for applying",
-    body:
-      p(esc(lines[0]), 16) +
-      p(esc(lines[1])) +
-      p(
-        `<a href="${esc(link)}" style="color:#0068d6;text-decoration:underline">Start your interview →</a>`,
-        16,
-        "font-size:17px;font-weight:500",
-      ) +
-      p(esc(lines[3]), 24, `font-size:14px;line-height:22px;color:${MUTED}`) +
-      p(esc(lines[4])),
-    to,
-    reason: "You're receiving it because you applied for a job on Hire Excellence.",
-  });
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: env.MAIL_FROM,
-      to: [to],
-      subject: `Your AI interview for ${iv.title} at ${iv.company}`,
+      subject: `Your ${iv.kind === "ai" ? "AI interview" : what} for ${iv.title} at ${iv.company}`,
       html,
       text: lines.join("\n\n"),
     }),
@@ -423,30 +414,47 @@ function prefillFrom(
   };
 }
 
-/** Password gate: the shared password plus the email they applied with. Returns the session id (the cookie). */
-export async function verifyCandidate(slug: string, email: string, password: string) {
+/** Sign-in gate, the same for every kind: the candidate ID and password from their own invite. Returns the session id (the cookie). */
+export async function verifyCandidate(slug: string, login: string, password: string) {
   const iv = await interviewBySlug(slug);
   if (!iv) throw new Fail("This interview link isn't valid.");
-  if (iv.kind === "ai") throw new Fail("Open the personal link from your invitation email.");
   if (!isOpen(iv)) throw new Fail("This interview has closed.");
+  if (login.includes("@")) return legacySignIn(iv, login, password);
+  const s = await env.DB.prepare("SELECT id, pass FROM interview_sessions WHERE job_id = ? AND login = ?")
+    .bind(iv.job_id, cleanLogin(login))
+    .first<{ id: string; pass: string }>();
+  // One message for both, so the form can't be used to find out which IDs exist. Comparing hashes: timing leaks nothing.
+  if (!s || (await sha256(password.trim().toLowerCase())) !== s.pass)
+    throw new Fail("Candidate ID or password is incorrect. Use the ones from your invitation email.");
+  return s.id;
+}
+
+/**
+ * Voice/MCQ applicants invited before per-candidate sign-in (their session has no candidate ID): the email they applied
+ * with plus the job's old shared password still work, for them only.
+ * ponytail: remove with interviews.password once every interview created before 2026-11-04 is past its deadline (≤ 90 days).
+ */
+async function legacySignIn(iv: IvRow, email: string, password: string) {
   const app = await env.DB.prepare(
-    "SELECT applicant_id FROM applications WHERE job_id = ? AND email = ? COLLATE NOCASE LIMIT 1",
+    `SELECT a.applicant_id, s.login FROM applications a
+     LEFT JOIN interview_sessions s ON s.job_id = a.job_id AND s.applicant_id = a.applicant_id
+     WHERE a.job_id = ? AND a.email = ? COLLATE NOCASE LIMIT 1`,
   )
-    .bind(iv.job_id, email)
-    .first<string>("applicant_id");
-  // One message for both, so the form can't be used to find out who applied
-  if (!same(password.trim().toLowerCase(), iv.password) || !app) {
-    throw new Fail(
-      "Email or password is incorrect. Use the email you applied with and the password from your invitation.",
-    );
-  }
+    .bind(iv.job_id, email.trim())
+    .first<{ applicant_id: string; login: string | null }>();
+  const ok =
+    iv.kind !== "ai" &&
+    app &&
+    !app.login &&
+    (await sha256(password.trim().toLowerCase())) === (await sha256(iv.password));
+  if (!ok) throw new Fail("Candidate ID or password is incorrect. Use the ones from your invitation email.");
   await env.DB.prepare(
     "INSERT OR IGNORE INTO interview_sessions (id, job_id, applicant_id, created_at) VALUES (?, ?, ?, ?)",
   )
-    .bind(crypto.randomUUID(), iv.job_id, app, Date.now())
+    .bind(crypto.randomUUID(), iv.job_id, app.applicant_id, Date.now())
     .run();
   return (await env.DB.prepare("SELECT id FROM interview_sessions WHERE job_id = ? AND applicant_id = ?")
-    .bind(iv.job_id, app)
+    .bind(iv.job_id, app.applicant_id)
     .first<string>("id"))!;
 }
 
