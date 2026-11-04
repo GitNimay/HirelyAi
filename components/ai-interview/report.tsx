@@ -49,7 +49,9 @@ const SIGNALS: Record<string, string> = {
   camera_off: "Camera off",
   screen_share_stopped: "Screen share stopped",
   paste: "Large pastes",
+  editor_paste: "Pasted into the code editor",
 };
+const ENDED = { completed: "Completed", candidate: "Ended by candidate", abandoned: "Abandoned" };
 const CLAIM = {
   verified: { label: "Verified", tone: "text-success", d: icons.check },
   vague: { label: "Vague", tone: "text-foreground", d: glyph.minus },
@@ -203,6 +205,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
   const tests = finalHidden ?? finalVisible;
   const claims = ai?.claims ?? [];
   const verified = claims.filter((c) => c.status === "verified").length;
+  const facts = ai?.integrity.facts;
   const openSignals = ai?.integrity.signals.filter((s) => !data.dismissed.includes(s.signal)) ?? [];
   const integrity = !ai ? null : openSignals.length ? ai.integrity.level : "none";
   // The whiteboard sits under the round it was drawn in (Technical now; older interviews drew in Design or Experience)
@@ -266,6 +269,8 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
             <p className="text-xs text-muted" suppressHydrationWarning>
               AI interview{date ? ` · ${date}` : ""}
               {end > start ? ` · ${minutes(end - start)}` : ""}
+              {facts && ` · ${ENDED[facts.ended]}${facts.fallback ? ", switched to text chat after voice failed" : ""}`}
+              {facts?.reconnects ? ` · ${facts.reconnects} reconnect${facts.reconnects > 1 ? "s" : ""}` : ""}
             </p>
           </div>
           {ai && (
@@ -280,6 +285,12 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
                     size={14}
                   />
                   {RECOMMENDATIONS[ai.recommendation]}
+                </p>
+              )}
+              <p className="text-xs text-muted">AI-generated: you decide</p>
+              {!!ai.incomplete?.length && (
+                <p className="max-w-[18rem] text-center text-xs text-danger">
+                  Incomplete assessment: {ai.incomplete.join(", ")} not assessed
                 </p>
               )}
             </div>
@@ -314,7 +325,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
                     ],
                     [
                       "Integrity",
-                      integrity === "none" ? "Clear" : integrity === "high" ? "High concern" : "Some flags",
+                      integrity === "none" ? "None flagged" : integrity === "high" ? "High concern" : "Some flags",
                       `${openSignals.reduce((n, s) => n + s.count, 0)} signals`,
                       integrity === "high" ? "text-danger" : integrity === "none" ? "text-success" : null,
                     ],
@@ -1074,7 +1085,7 @@ function Integrity({
       ) : (
         <p className="flex items-center gap-2 text-sm text-success">
           <Icon d={icons.check} size={16} />
-          No integrity issues detected.
+          No issues flagged by the automated checks.
         </p>
       )}
     </Section>

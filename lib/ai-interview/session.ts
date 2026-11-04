@@ -68,17 +68,16 @@ export async function buildPlan(resume: Resume, job: { title: string; level: str
 }
 
 /**
- * 'ai' screening: the session exists from the moment they apply, so the interview plan is built in the background
- * before they sign in (the invite adds their candidate ID and password to it). Idempotent.
+ * 'ai' screening: the session exists from the moment they apply (the invite adds their candidate ID and password to it).
+ * The plan is built when the invite goes out (sendInvite), not here, so applicants who never take it cost nothing. Idempotent.
  */
 export async function createAiSession(jobId: string, applicantId: string) {
   const id = crypto.randomUUID();
-  const ins = await env.DB.prepare(
+  await env.DB.prepare(
     "INSERT OR IGNORE INTO interview_sessions (id, job_id, applicant_id, created_at) VALUES (?, ?, ?, ?)",
   )
     .bind(id, jobId, applicantId, Date.now())
     .run();
-  if (ins.meta.changes) await enqueue({ t: "plan", sessionId: id });
 }
 
 /** Queue task: build and store the plan. Throws while Bedrock is busy (the queue retries); the last try stores an empty plan. */
@@ -224,11 +223,11 @@ export const checkpoint = (sessionId: string, state: HarnessState, transcript: L
     .run();
 
 /** End of the interview: keep the transcript and final state, then queue the evaluator. False if already ended. */
-export async function finishAi(sessionId: string, transcript: Line[], state: HarnessState) {
+export async function finishAi(sessionId: string, transcript: Line[], state: HarnessState, reason?: string) {
   const upd = await env.DB.prepare(
-    "UPDATE interview_sessions SET status = 'processing', transcript = ?, state = ?, ended_at = ? WHERE id = ? AND status = 'live'",
+    "UPDATE interview_sessions SET status = 'processing', transcript = ?, state = ?, ended_at = ?, end_reason = ? WHERE id = ? AND status = 'live'",
   )
-    .bind(JSON.stringify(cleanTranscript(transcript)), JSON.stringify(state), Date.now(), sessionId)
+    .bind(JSON.stringify(cleanTranscript(transcript)), JSON.stringify(state), Date.now(), reason ?? null, sessionId)
     .run();
   if (!upd.meta.changes) return false;
   await enqueue({ t: "evaluate", sessionId });

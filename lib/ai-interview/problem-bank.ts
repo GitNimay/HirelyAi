@@ -10,6 +10,7 @@ const big = (n: number, f: (i: number) => number) => Array.from({ length: n }, (
 export const PROBLEMS: Problem[] = [
   {
     id: "pair-sum",
+    approach: "Hash map of value to index while scanning once: O(n) time, O(n) space.",
     title: "Pair with target sum",
     difficulty: "easy",
     statement:
@@ -39,6 +40,7 @@ export const PROBLEMS: Problem[] = [
   },
   {
     id: "balanced-brackets",
+    approach: "Stack of openers, pop and match on each closer: O(n) time, O(n) space.",
     title: "Balanced brackets",
     difficulty: "easy",
     statement: "Given a string of brackets ()[]{}, decide whether every bracket is closed in the correct order.",
@@ -64,6 +66,7 @@ export const PROBLEMS: Problem[] = [
   },
   {
     id: "merge-intervals",
+    approach: "Sort by start, then sweep merging overlaps: O(n log n) time, O(n) space.",
     title: "Merge meeting times",
     difficulty: "medium",
     statement:
@@ -102,6 +105,7 @@ export const PROBLEMS: Problem[] = [
   },
   {
     id: "longest-unique",
+    approach: "Sliding window with a last-seen map: O(n) time, O(k) space for k distinct characters.",
     title: "Longest substring without repeats",
     difficulty: "medium",
     statement: "Given a string, return the length of the longest substring with no repeated characters.",
@@ -131,6 +135,7 @@ export const PROBLEMS: Problem[] = [
   },
   {
     id: "rate-limiter",
+    approach: "Per-key deque of recent timestamps, evicting those outside the window: O(1) amortized per request.",
     title: "Sliding-window rate limiter",
     difficulty: "hard",
     statement:
