@@ -1916,7 +1916,12 @@ function AiSummary({ r, jobId, applicantId }: { r: InterviewResult; jobId: strin
           </p>
         )}
         {r.status !== "verified" && r.status !== "onboarded" && (
-          <Link href={`/dashboard/report/${jobId}/${applicantId}`} className={`${btnPrimary} h-10 sm:h-8`}>
+          <Link
+            href={`/report/${jobId}/${applicantId}`}
+            target="_blank"
+            rel="noopener"
+            className={`${btnPrimary} h-10 sm:h-8`}
+          >
             Open full report
           </Link>
         )}
