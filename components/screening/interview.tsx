@@ -50,7 +50,7 @@ function stepOf(v: CandidateView): Step {
 }
 
 /**
- * The candidate's side, no account needed: shared password + application email → a few details → then either
+ * The candidate's side, no account needed: their own candidate ID + password from the invite → a few details → then either
  * a mic check and a live voice call with the AI interviewer (LiveKit, capped at five minutes; the agent reports the
  * transcript), or instructions and a timed MCQ test whose picks save as they're made.
  */
@@ -72,8 +72,6 @@ export function Interview({
   const [endsAt, setEndsAt] = useState(0); // 0 until the interviewer is in the call
   const [muted, setMuted] = useState(false); // the browser blocked autoplay (Safari, mostly)
   const [agreed, setAgreed] = useState(false); // read the overview
-  const [human, setHuman] = useState(""); // Turnstile token for the sign-in form
-  const [resetHuman, setResetHuman] = useState(0);
   const room = useRef<Room | null>(null);
   const go = (s: Step | null) => (setError(""), setLocal(s), window.scrollTo({ top: 0 }));
   // Just finished (not a revisit of the done screen): the browser event a PostHog survey can be triggered by
@@ -85,20 +83,6 @@ export function Interview({
   useEffect(() => {
     if (step === "mic" && view.kind === "voice") void (warm(view.slug), import("livekit-client")); // waits through the overview too
   }, [step, view.kind, view.slug]);
-
-  async function signIn(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = Object.fromEntries(new FormData(e.currentTarget));
-    setBusy(true);
-    setError("");
-    const r = await verify(view.slug, { ...fd, token: human }).catch(() => ({
-      error: "Couldn't reach the server. Check your connection.",
-    }));
-    setBusy(false);
-    if ("error" in r) return (setError(r.error), setHuman(""), setResetHuman((n) => n + 1)); // the token is spent either way
-    go(null); // the refreshed view knows the session
-    router.refresh();
-  }
 
   async function startTest() {
     setBusy(true);
@@ -171,44 +155,7 @@ export function Interview({
   const j = view.job;
 
   const card: Record<Step, React.ReactNode> = {
-    gate: (
-      <form onSubmit={signIn} className="space-y-5">
-        <Head title={`${KINDS[view.kind]} for ${view.title}`} sub="Use the details from your invitation email." />
-        <F label="Email" hint="the one you applied with">
-          <input
-            name="email"
-            type="email"
-            required
-            maxLength={254}
-            autoComplete="email"
-            autoFocus
-            className={field(false)}
-          />
-        </F>
-        <F label="Interview password">
-          <input
-            name="password"
-            required
-            maxLength={40}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="xxxx-xxxx"
-            className={`${field(false)} font-mono`}
-          />
-        </F>
-        <TurnstileField {...turnstile} onToken={setHuman} reset={resetHuman} />
-        {error && <Alert>{error}</Alert>}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
-          <p className="text-xs text-muted" suppressHydrationWarning>
-            Open until {date(view.deadline)}
-          </p>
-          <button aria-busy={busy} type="submit" className={primary} disabled={busy || !human}>
-            Continue
-            <Icon d={chevron} size={16} />
-          </button>
-        </div>
-      </form>
-    ),
+    gate: <Gate view={view} turnstile={turnstile} onDone={() => (go(null), router.refresh())} />,
     details: (
       <Details
         initial={view.session?.prefill ?? {}}
@@ -519,3 +466,75 @@ export function Details({ slug, initial, onDone }: { slug: string; initial: Part
 }
 
 /** Live input level from the chosen mic, plus a device picker. `children` gets whether they may start: we heard them, or a quiet mic had 10 s. */
+
+/** Sign-in for every screening kind: the candidate ID and password from the applicant's own invite email. */
+export function Gate({
+  view,
+  turnstile,
+  onDone,
+}: {
+  view: CandidateView;
+  turnstile: { sitekey: string; action: string };
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [human, setHuman] = useState(""); // Turnstile token
+  const [resetHuman, setResetHuman] = useState(0);
+  async function signIn(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.currentTarget));
+    setBusy(true);
+    setError("");
+    const r = await verify(view.slug, { ...fd, token: human }).catch(() => ({
+      error: "Couldn't reach the server. Check your connection.",
+    }));
+    setBusy(false);
+    if ("error" in r) return (setError(r.error), setHuman(""), setResetHuman((n) => n + 1)); // the token is spent either way
+    onDone(); // the refreshed view knows the session
+  }
+  return (
+    <form onSubmit={signIn} className="space-y-5">
+      <Head title={`${KINDS[view.kind]} for ${view.title}`} sub="Use the details from your invitation email." />
+      {/* Voice/MCQ invites from before candidate IDs used the application email (see legacySignIn); AI ones had a link */}
+      <F
+        label="Candidate ID"
+        hint={view.kind === "ai" ? undefined : "invited before 4 Nov? the email you applied with"}
+      >
+        <input
+          name="login"
+          required
+          maxLength={254}
+          autoComplete="username"
+          autoCapitalize="characters"
+          spellCheck={false}
+          autoFocus
+          placeholder="XXXXXXXX"
+          className={`${field(false)} font-mono uppercase`}
+        />
+      </F>
+      <F label="Password">
+        <input
+          name="password"
+          required
+          maxLength={40}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="xxxx-xxxx"
+          className={`${field(false)} font-mono`}
+        />
+      </F>
+      <TurnstileField {...turnstile} onToken={setHuman} reset={resetHuman} />
+      {error && <Alert>{error}</Alert>}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
+        <p className="text-xs text-muted" suppressHydrationWarning>
+          Open until {date(view.deadline)}
+        </p>
+        <button aria-busy={busy} type="submit" className={primary} disabled={busy || !human}>
+          Continue
+          <Icon d={chevron} size={16} />
+        </button>
+      </div>
+    </form>
+  );
+}

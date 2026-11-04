@@ -12,6 +12,7 @@ import {
   searchJobs,
 } from "@/lib/jobs";
 import { cleanFilters } from "@/lib/job-fields";
+import { issueCredentials, verifyCandidate } from "@/lib/screening/interview";
 import { company, job, uid, user, verifyWorkEmail } from "./factories";
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: vi.fn() }));
@@ -114,21 +115,34 @@ describe("searchJobs", () => {
 });
 
 describe("screening credentials", () => {
-  it("show the link and password to the poster and applicants only", async () => {
+  it("show the link to the poster only: applicants get it, with their own sign-in, by email", async () => {
     const [poster, applicant, stranger] = [await user(), await user(), await user()];
     const j = await job(poster);
     await withScreening(j);
     await apply(j, applicant);
 
-    for (const who of [poster, applicant]) {
-      expect((await getJob(who, j))?.interview).toMatchObject({ password: "secret-code", slug: expect.any(String) });
+    expect((await getJob(poster, j))?.interview).toMatchObject({ slug: expect.any(String) });
+    for (const who of [applicant, stranger]) {
+      expect((await getJob(who, j))?.interview).toMatchObject({ kind: "voice", questions: 2, slug: null });
+      expect(JSON.stringify(await getJob(who, j))).not.toContain("secret-code");
     }
-    expect((await getJob(stranger, j))?.interview).toMatchObject({
-      kind: "voice",
-      questions: 2,
-      slug: null,
-      password: null,
-    });
+  });
+
+  it("still let applicants invited before candidate IDs in with their email + the old shared password", async () => {
+    const [poster, applicant, late] = [await user(), await user(), await user()];
+    const j = await job(poster);
+    await withScreening(j);
+    await apply(j, applicant);
+    await apply(j, late);
+    const slug = (await env.DB.prepare("SELECT slug FROM interviews WHERE job_id = ?").bind(j).first<string>("slug"))!;
+    const id = await verifyCandidate(slug, ` ${applicant.toUpperCase()}@MAIL.TEST`, "SECRET-CODE");
+    expect(await verifyCandidate(slug, `${applicant}@mail.test`, "secret-code")).toBe(id); // same session again
+    await expect(verifyCandidate(slug, `${applicant}@mail.test`, "wrong")).rejects.toThrow("incorrect");
+    await expect(verifyCandidate(slug, "nobody@mail.test", "secret-code")).rejects.toThrow("incorrect");
+    // Anyone who got their own candidate ID must use it
+    const { login, password } = await issueCredentials(j, late);
+    await expect(verifyCandidate(slug, `${late}@mail.test`, "secret-code")).rejects.toThrow("incorrect");
+    expect(await verifyCandidate(slug, login, password)).not.toBe(id);
   });
 
   it("never reach the public share page", async () => {

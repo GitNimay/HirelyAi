@@ -8,6 +8,7 @@ import {
   createAiSession,
   decide,
   deleteRecordingsFor,
+  shareReport,
   deleteSessionFiles,
   dismissFlag,
 } from "@/lib/ai-interview/session";
@@ -740,12 +741,14 @@ async function apply(jobId: string, input: Record<string, unknown>) {
     resume_attached: !!resumeKey,
     interview: job?.interview?.kind ?? null,
   });
-  // Queued: Resend is slow-ish and can fail; the link is also on the job page, so the application never waits on it
-  // Only to the account's own (Clerk-verified) address, so the form can't make us mail strangers. Others use the link on the job page.
-  // AI interview: the session (and its personal link) exists from now on, and the plan is built in the background
+  // AI interview: the session exists from now on, so the plan is built in the background before they sign in
   if (job?.interview?.kind === "ai") await createAiSession(jobId, me);
-  const own = job?.interview && (await signedIn())?.account.email.toLowerCase() === email.toLowerCase();
-  if (own) await enqueue({ t: "invite", jobId, to: email }).catch((e) => console.error("invite: enqueue failed", e));
+  // Queued: Resend is slow-ish and can fail, so the application never waits on it. The invite carries their own candidate
+  // ID and password (never shown on the job page), and goes only to the account's Clerk-verified address, so the form
+  // can't make us mail strangers.
+  const to = job?.interview && (await signedIn())?.account.email;
+  if (to)
+    await enqueue({ t: "invite", jobId, to, applicantId: me }).catch((e) => console.error("invite: enqueue failed", e));
   if (job) {
     sendTo(job.poster.id, { t: "app", jobId, applicantId: me, status: "submitted" });
     await notifyUsers([job.poster.id], {
@@ -917,6 +920,15 @@ export async function removeRecordings(jobId: string, applicantId: string) {
   try {
     await deleteRecordingsFor(await writer(), String(jobId), String(applicantId));
     return { ok: true as const };
+  } catch (e) {
+    return failed(e);
+  }
+}
+
+/** Turns the report's public share link on or off; returns the token (null when off). */
+export async function shareInterview(jobId: string, applicantId: string, on: boolean) {
+  try {
+    return { token: await shareReport(await writer(), String(jobId), String(applicantId), !!on) };
   } catch (e) {
     return failed(e);
   }

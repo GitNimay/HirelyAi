@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { env } from "cloudflare:workers";
-import { recordingChunks } from "@/lib/ai-interview/session";
+import { recordingChunks, recordingSession } from "@/lib/ai-interview/session";
 
 /**
- * One recording segment of an AI interview (camera or screen), for the job's poster. The browser uploaded it as
+ * One recording segment of an AI interview (camera or screen), for the job's poster (or a signed-in share link holder). The browser uploaded it as
  * 10 s WebM chunks; they're served as one continuous file with Range support, so the report's player can seek.
  */
 export async function GET(
@@ -15,11 +15,8 @@ export async function GET(
   const { jobId, applicantId, track, segment } = await params;
   if ((track !== "cam" && track !== "screen") || !/^\d{10,15}$/.test(segment))
     return new Response("Not found", { status: 404 });
-  const s = await env.DB.prepare(
-    "SELECT s.id FROM interview_sessions s JOIN jobs j ON j.id = s.job_id AND j.poster_id = ? WHERE s.job_id = ? AND s.applicant_id = ?",
-  )
-    .bind(userId, jobId, applicantId)
-    .first<string>("id");
+  // The poster, or a signed-in member holding the report's share link (?k=)
+  const s = await recordingSession(userId, jobId, applicantId, new URL(request.url).searchParams.get("k"));
   if (!s) return new Response("Not found", { status: 404 });
   const chunks = await recordingChunks(s, track, segment);
   if (!chunks.length) return new Response("Not found", { status: 404 });

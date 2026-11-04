@@ -207,3 +207,12 @@ export function sceneChange(before: Scene, after: Scene) {
     .join("; ")
     .slice(0, 1000);
 }
+
+/**
+ * Phones and tablets can't take the AI interview: no whole-screen sharing, no reliable full screen or monitor check,
+ * and too small for the editor and whiteboard. User-Agent Client Hints first (`Sec-CH-UA-Mobile: ?1`), the UA string
+ * as the fallback. iPadOS reports a desktop UA, so the browser check adds a touch test (see onPhone in candidate.tsx).
+ */
+export const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|BlackBerry|Opera Mini|IEMobile/i;
+export const mobileRequest = (ua: string | null, chMobile: string | null) =>
+  chMobile === "?1" || MOBILE_UA.test(ua ?? "");

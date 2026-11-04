@@ -19,6 +19,8 @@ export const config = {
     "/sso-callback",
     "/post/:path*",
     "/job/:path*",
+    "/report/:path*",
+    "/r/:path*",
     "/(api|trpc)(.*)",
     "/__clerk/:path*",
   ],

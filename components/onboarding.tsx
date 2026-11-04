@@ -411,7 +411,7 @@ export function StepFrame({
 
         <main className="border-dashed border-border px-4 py-8 sm:py-10 lg:border-x lg:px-6">
           <p className="mb-2 text-xs text-muted lg:hidden">
-            Step {current + 1} of {steps.length} · {steps[current]}
+            {current < steps.length ? `Step ${current + 1} of ${steps.length} · ${steps[current]}` : "All steps done"}
           </p>
           <ol className="mb-6 flex items-center gap-2 lg:hidden" aria-hidden>
             {steps.map((label, i) => (

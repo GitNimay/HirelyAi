@@ -68,8 +68,8 @@ export async function buildPlan(resume: Resume, job: { title: string; level: str
 }
 
 /**
- * 'ai' screening: the session exists from the moment they apply (each candidate gets their own link, which is the
- * session id), and the interview plan is built in the background. Idempotent.
+ * 'ai' screening: the session exists from the moment they apply, so the interview plan is built in the background
+ * before they sign in (the invite adds their candidate ID and password to it). Idempotent.
  */
 export async function createAiSession(jobId: string, applicantId: string) {
   const id = crypto.randomUUID();
@@ -119,20 +119,6 @@ export async function planSession(sessionId: string, final: boolean) {
   await env.DB.prepare("UPDATE interview_sessions SET plan = ? WHERE id = ? AND plan IS NULL")
     .bind(JSON.stringify(plan), sessionId)
     .run();
-}
-
-/** The emailed link: validates the token (session id) for this interview and returns it for the cookie. */
-export async function enterAi(slug: string, token: string) {
-  const r = await env.DB.prepare(
-    `SELECT s.id, i.deadline, j.closed_at, s.status FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai'
-     JOIN jobs j ON j.id = s.job_id WHERE i.slug = ? AND s.id = ?`,
-  )
-    .bind(slug, token)
-    .first<{ id: string; deadline: number; closed_at: number | null; status: string }>();
-  if (!r) return null;
-  const done = ["processing", "done", "failed"].includes(r.status);
-  if (!done && (r.deadline <= Date.now() || r.closed_at !== null)) return null;
-  return r.id;
 }
 
 /** Everything the room needs for one session. Null when the session isn't an 'ai' one or can't be (re)joined. */
@@ -270,15 +256,32 @@ export async function bookkeep(o: {
   return { ...b, summary: b.summary || o.previous };
 }
 
+/**
+ * Old AI interview links (`/enter?t=<session id>`), from invites sent before per-candidate sign-in: they still sign in
+ * sessions that never got a candidate ID, while the interview is open (or to see a finished one).
+ * ponytail: remove once every AI interview created before 2026-11-04 is past its deadline (≤ 90 days).
+ */
+export async function enterLegacy(slug: string, token: string) {
+  const r = await env.DB.prepare(
+    `SELECT s.id, i.deadline, j.closed_at, s.status FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai'
+     JOIN jobs j ON j.id = s.job_id WHERE i.slug = ? AND s.id = ? AND s.login IS NULL`,
+  )
+    .bind(slug, token)
+    .first<{ id: string; deadline: number; closed_at: number | null; status: string }>();
+  if (!r) return null;
+  const done = ["processing", "done", "failed"].includes(r.status);
+  return done || (r.deadline > Date.now() && r.closed_at === null) ? r.id : null;
+}
+
 /** Session lookup for the room socket and recording uploads: the `iv` cookie must belong to this interview. */
 export async function aiSessionFor(slug: string, sessionId: string | undefined) {
-  if (!sessionId) throw new Fail("Your session expired. Open the link from your invitation email again.");
+  if (!sessionId) throw new Fail("Your session expired. Reload the page and sign in again.");
   const s = await env.DB.prepare(
     `SELECT s.id, s.status FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai' WHERE i.slug = ? AND s.id = ?`,
   )
     .bind(slug, sessionId)
     .first<{ id: string; status: string }>();
-  if (!s) throw new Fail("Your session expired. Open the link from your invitation email again.");
+  if (!s) throw new Fail("Your session expired. Reload the page and sign in again.");
   return s;
 }
 
@@ -467,36 +470,40 @@ export async function recordingSegments(sessionId: string) {
   return [...seg.values()].sort((a, b) => a.start - b.start);
 }
 
-/** Events the report replays (drops tool chatter and wakes; keeps what a recruiter watches). */
-const REPLAYED = new Set([
-  "utterance",
-  "chat",
-  "phase",
-  "integrity",
-  "run",
-  "code",
-  "board",
-  "assign",
-  "session",
-  "paste",
-]);
+/**
+ * Who is reading a report: the job's poster (everything, plus the decision and sharing), a signed-in member holding
+ * the share link (recording and transcript too), or anyone with the link (scores and work only).
+ */
+export type ReportAccess = "owner" | "member" | "public";
 
-/** Everything the report page needs, for the job's poster only (null otherwise). */
-export async function aiReport(posterId: string, jobId: string, applicantId: string) {
+/** The report for the job's poster only (null otherwise). */
+export const aiReport = (posterId: string, jobId: string, applicantId: string) =>
+  loadReport("j.poster_id = ?1 AND s.job_id = ?2 AND s.applicant_id = ?3", [posterId, jobId, applicantId], "owner");
+
+/** The same report through its share link; null when the link was never made or was turned off. */
+export const sharedReport = (token: string, signedIn: boolean) =>
+  /^[0-9a-f]{32}$/.test(token)
+    ? loadReport("s.share_token = ?1", [token], signedIn ? "member" : "public")
+    : Promise.resolve(null);
+
+/** Everything the report page shows, cut to what `access` may see (no transcript or recordings for the public). */
+async function loadReport(where: string, binds: string[], access: ReportAccess) {
   const s = await env.DB.prepare(
-    `SELECT s.id, s.status, s.report, s.plan, s.state, s.profile, s.started_at, s.ended_at, s.decision, s.decision_note, s.decided_at, s.review, s.media_deleted_at,
+    `SELECT s.id, s.job_id, s.applicant_id, s.status, s.report, s.plan, s.state, s.started_at, s.ended_at, s.decision,
+            s.decision_note, s.decided_at, s.review, s.media_deleted_at, s.share_token,
             i.config, u.name, u.image_url, u.headline, j.title, j.company
-     FROM interview_sessions s JOIN jobs j ON j.id = s.job_id AND j.poster_id = ?1 JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai'
-     JOIN users u ON u.id = s.applicant_id WHERE s.job_id = ?2 AND s.applicant_id = ?3`,
+     FROM interview_sessions s JOIN jobs j ON j.id = s.job_id JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai'
+     JOIN users u ON u.id = s.applicant_id WHERE ${where}`,
   )
-    .bind(posterId, jobId, applicantId)
+    .bind(...binds)
     .first<{
       id: string;
+      job_id: string;
+      applicant_id: string;
       status: string;
       report: string | null;
       plan: string | null;
       state: string | null;
-      profile: string | null;
       started_at: number | null;
       ended_at: number | null;
       decision: "advance" | "hold" | "reject" | null;
@@ -504,6 +511,7 @@ export async function aiReport(posterId: string, jobId: string, applicantId: str
       decided_at: number | null;
       review: string | null;
       media_deleted_at: number | null;
+      share_token: string | null;
       config: string | null;
       name: string;
       image_url: string | null;
@@ -512,14 +520,31 @@ export async function aiReport(posterId: string, jobId: string, applicantId: str
       company: string;
     }>();
   if (!s) return null;
+  const full = access !== "public";
   const [events, segments, work] = await Promise.all([
     readEvents(s.id),
-    s.media_deleted_at ? Promise.resolve([]) : recordingSegments(s.id),
+    full && !s.media_deleted_at ? recordingSegments(s.id) : Promise.resolve([]),
     readFinal(s.id),
   ]);
+  const of = <T extends IvEvent["type"]>(type: T) =>
+    events.filter((e): e is Extract<IvEvent, { type: T }> => e.type === type);
+  const state = s.state ? (JSON.parse(s.state) as HarnessState) : null;
+  const plan = s.plan ? (JSON.parse(s.plan) as Plan) : null;
+  const assigns = of("assign");
+  // The problems the candidate saw, in order, as they saw them: never the hidden tests
+  const tried = state?.assigned.tried ?? (state?.assigned.problem ? [state.assigned.problem] : []);
+  const problems = tried.flatMap((id) => {
+    const p = plan?.problems?.find((x) => x.id === id);
+    if (!p) return [];
+    const at = assigns.find((a) => a.what === "problem" && a.id === id)?.at ?? null;
+    const { title, difficulty, statement, input, output, constraints, visible } = p;
+    return [{ id, title, difficulty, statement, input, output, constraints, visible, at }];
+  });
+  const lastCode = of("code").at(-1);
   return {
-    jobId,
-    applicantId,
+    access,
+    jobId: s.job_id,
+    applicantId: s.applicant_id,
     status: s.status,
     candidate: { name: s.name, imageUrl: s.image_url, headline: s.headline },
     job: { title: s.title, company: s.company },
@@ -527,16 +552,47 @@ export async function aiReport(posterId: string, jobId: string, applicantId: str
     endedAt: s.ended_at,
     report: s.report ? (JSON.parse(s.report) as AiReport) : null,
     rubric: cleanConfig(s.config ? JSON.parse(s.config) : null).rubric,
-    state: s.state ? (JSON.parse(s.state) as HarnessState) : null,
-    events: events.filter((e) => REPLAYED.has(e.type)),
+    phases: state?.log ?? [],
+    /** Transcript lines (speech, or chat when voice fell back): signed-in readers only. */
+    lines: full ? events.filter((e) => e.type === "utterance" || e.type === "chat") : [],
+    flags: of("integrity").filter((e) => !e.signal.endsWith(" cleared")),
+    runs: of("run"),
+    problems,
+    code: work?.code ?? (lastCode ? { language: lastCode.language as Language, code: lastCode.code } : null),
+    /** The whiteboard as it was left: the last snapshot's raw elements. */
+    board: of("board").at(-1)?.elements ?? null,
+    design: state?.assigned.design ?? null,
     segments,
-    final: work,
-    decision: s.decision ? { value: s.decision, note: s.decision_note ?? "", at: s.decided_at! } : null,
+    decision:
+      access === "owner" && s.decision ? { value: s.decision, note: s.decision_note ?? "", at: s.decided_at! } : null,
     dismissed: (s.review ? (JSON.parse(s.review) as { dismissed?: string[] }).dismissed : null) ?? [],
     mediaDeleted: !!s.media_deleted_at,
+    shareToken: access === "owner" ? s.share_token : null,
   };
 }
-export type AiReportData = NonNullable<Awaited<ReturnType<typeof aiReport>>>;
+export type AiReportData = NonNullable<Awaited<ReturnType<typeof loadReport>>>;
+
+/** Turns the report's share link on (keeping an existing one) or off. Returns the token, or null when off. */
+export async function shareReport(posterId: string, jobId: string, applicantId: string, on: boolean) {
+  const s = await sessionOf(posterId, jobId, applicantId);
+  if (!s) throw new Fail("Not found");
+  const token = on ? crypto.randomUUID().replaceAll("-", "") : null;
+  const row = await env.DB.prepare(
+    "UPDATE interview_sessions SET share_token = CASE WHEN ?1 IS NULL THEN NULL ELSE COALESCE(share_token, ?1) END WHERE id = ?2 RETURNING share_token",
+  )
+    .bind(token, s.id)
+    .first<{ share_token: string | null }>();
+  return row?.share_token ?? null;
+}
+
+/** May this signed-in user stream the session's recordings: its poster, or anyone holding its live share link. */
+export const recordingSession = (userId: string, jobId: string, applicantId: string, key: string | null) =>
+  env.DB.prepare(
+    `SELECT s.id FROM interview_sessions s JOIN jobs j ON j.id = s.job_id
+     WHERE s.job_id = ?1 AND s.applicant_id = ?2 AND (j.poster_id = ?3 OR (?4 IS NOT NULL AND s.share_token = ?4))`,
+  )
+    .bind(jobId, applicantId, userId, key && /^[0-9a-f]{32}$/.test(key) ? key : null)
+    .first<string>("id");
 
 const sessionOf = (posterId: string, jobId: string, applicantId: string) =>
   env.DB.prepare(

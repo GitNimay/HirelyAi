@@ -1,7 +1,7 @@
 "use client";
 
 import "@excalidraw/excalidraw/index.css";
-import { Excalidraw, exportToBlob } from "@excalidraw/excalidraw";
+import { Excalidraw, exportToBlob, exportToSvg } from "@excalidraw/excalidraw";
 import Editor from "@monaco-editor/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -93,12 +93,12 @@ export function CodeWorkspace({
           ["Constraints", problem.constraints],
         ].map(([k, v]) => (
           <div key={k}>
-            <h3 className="text-xs font-medium tracking-wide text-muted uppercase">{k}</h3>
+            <h3 className="font-medium">{k}</h3>
             <p className="whitespace-pre-wrap">{v}</p>
           </div>
         ))}
         <div className="space-y-2">
-          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">Examples</h3>
+          <h3 className="font-medium">Examples</h3>
           {problem.visible.map((t) => (
             <div key={t.name} className="grid grid-cols-2 gap-2 font-mono text-xs">
               <pre className="overflow-x-auto rounded-md bg-surface p-2 whitespace-pre">{`1\n${t.input}`}</pre>
@@ -244,11 +244,14 @@ export function Whiteboard({
   design,
   initial,
   onSnapshot,
+  bare,
 }: {
   socket: RoomSocket;
   design: { title: string; prompt: string; requirements: string[] };
   initial: unknown[];
   onSnapshot: (fn: (id: string) => void) => void;
+  /** The prompt is shown elsewhere (the room's side panel): canvas only. */
+  bare?: boolean;
 }) {
   const isDark = useDark();
   const api = useRef<ExApi | null>(null);
@@ -290,7 +293,7 @@ export function Whiteboard({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <section className="shrink-0 space-y-1 border-b border-border px-4 py-3 text-sm">
+      <section className={`shrink-0 space-y-1 border-b border-border px-4 py-3 text-sm ${bare ? "hidden" : ""}`}>
         <h2 className="font-medium">{design.title}</h2>
         {design.prompt && <p className="text-muted">{design.prompt}</p>}
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
@@ -320,48 +323,32 @@ export function Whiteboard({
   );
 }
 
-/** Read-only board for the report's whiteboard timeline. */
-export function BoardView({ elements }: { elements: unknown[] }) {
-  const isDark = useDark();
-  const api = useRef<{ updateScene(o: object): void } | null>(null);
-  useEffect(() => api.current?.updateScene({ elements }), [elements]);
-  return (
-    <Excalidraw
-      excalidrawAPI={(a) => void (api.current = a as never)}
-      initialData={{ elements: elements as never, scrollToContent: true }}
-      viewModeEnabled
-      zenModeEnabled
-      theme={isDark ? "dark" : "light"}
-      UIOptions={{
-        canvasActions: {
-          loadScene: false,
-          saveToActiveFile: false,
-          export: false,
-          saveAsImage: false,
-          changeViewBackgroundColor: false,
-          clearCanvas: false,
-          toggleTheme: false,
-        },
-      }}
-    />
-  );
-}
-
-/** Read-only code for the report's code timeline. */
-export function CodeView({ code, language }: { code: string; language: Language }) {
-  const isDark = useDark();
-  return (
-    <Editor
-      language={LANGUAGES[language]?.monaco ?? "plaintext"}
-      value={code}
-      theme={isDark ? "vs-dark" : "light"}
-      options={{
-        readOnly: true,
-        minimap: { enabled: false },
-        fontSize: 13,
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-      }}
-    />
-  );
+/**
+ * The whiteboard as the candidate left it, as a static picture (SVG on white, like a screenshot): crisp on screen and
+ * in the printed PDF, and nothing to scroll or zoom by accident.
+ */
+export function BoardSnapshot({ elements }: { elements: unknown[] }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    exportToSvg({
+      elements: elements as never,
+      files: null,
+      exportPadding: 24,
+      appState: { exportBackground: true, viewBackgroundColor: "#ffffff", exportWithDarkMode: false } as never,
+    })
+      .then((svg: SVGSVGElement) => {
+        if (!live || !box.current) return;
+        svg.removeAttribute("width");
+        svg.removeAttribute("height");
+        svg.setAttribute("role", "img");
+        svg.setAttribute("aria-label", "Final whiteboard");
+        svg.style.cssText = "display:block;width:100%;height:auto;max-height:20rem";
+        box.current.replaceChildren(svg);
+      })
+      .catch(() => live && setFailed(true));
+    return () => void (live = false);
+  }, [elements]);
+  return failed ? <p className="p-4 text-sm text-muted">The whiteboard couldn&apos;t be drawn.</p> : <div ref={box} />;
 }

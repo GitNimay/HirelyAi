@@ -35,7 +35,7 @@ export type Job = {
   poster: { id: string; name: string; imageUrl: string | null; headline: string | null };
   saved: boolean;
   application: { status: AppStatus; at: number } | null;
-  /** Screening (voice interview or MCQ test). Link and password only for the poster and applicants; `status` is the viewer's own attempt. */
+  /** Screening (voice, MCQ or AI interview). Link only for the poster: applicants get it with their own sign-in by email. `status` is the viewer's own attempt. */
   interview: {
     kind: Kind;
     deadline: number;
@@ -43,8 +43,6 @@ export type Job = {
     minutes: number; // AI interview length (sum of its phases, or the flexible limit); 0 for voice/MCQ
     flexible: boolean; // AI interview with flexible timing: `minutes` is its upper limit
     slug: string | null;
-    /** Voice/MCQ: the shared password. AI interview: the viewing applicant's personal link token (their session id). */
-    password: string | null;
     status: SessionStatus | null;
   } | null;
 };
@@ -100,7 +98,6 @@ type Row = {
   iv_minutes: number | null;
   iv_flexible: number | null;
   iv_slug: string | null;
-  iv_password: string | null;
   iv_status: SessionStatus | null;
 };
 
@@ -116,12 +113,10 @@ const SELECT = `
          co.size AS co_size, co.hq AS co_hq, co.follower_count AS co_followers,
          EXISTS (SELECT 1 FROM company_verifications v WHERE v.company_id = j.company_id AND v.user_id = j.poster_id) AS co_verified,
          i.kind AS iv_kind, i.deadline AS iv_deadline, json_array_length(i.questions) AS iv_questions, ivs.status AS iv_status,
-         CASE WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.slug END AS iv_slug,
+         CASE WHEN j.poster_id = ?1 THEN i.slug END AS iv_slug,
          CASE WHEN json_extract(i.config, '$.timing') = 'flexible' THEN ${LIMITS_IV.flexibleMinutes}
            ELSE (SELECT SUM(json_extract(p.value, '$.minutes')) FROM json_each(i.config, '$.phases') p) END AS iv_minutes,
-         json_extract(i.config, '$.timing') = 'flexible' AS iv_flexible,
-         CASE WHEN i.kind = 'ai' THEN CASE WHEN a.applicant_id IS NOT NULL THEN ivs.id END
-              WHEN j.poster_id = ?1 OR a.applicant_id IS NOT NULL THEN i.password END AS iv_password
+         json_extract(i.config, '$.timing') = 'flexible' AS iv_flexible
   FROM jobs j
   JOIN users u ON u.id = j.poster_id
   LEFT JOIN companies co ON co.id = j.company_id
@@ -168,7 +163,6 @@ const toJob = (r: Row): Job => ({
           minutes: r.iv_minutes ?? 0,
           flexible: !!r.iv_flexible,
           slug: r.iv_slug,
-          password: r.iv_password,
           status: r.iv_status,
         },
 });

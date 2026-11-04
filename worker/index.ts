@@ -4,7 +4,8 @@ import app from "vinext/server/app-router-entry";
 import { capture } from "../lib/analytics";
 import { writePendingReleases } from "../lib/changelog";
 import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../lib/human";
-import { aiSessionFor, enterAi, planSession, sweepRecordings } from "../lib/ai-interview/session";
+import { aiSessionFor, enterLegacy, planSession, sweepRecordings } from "../lib/ai-interview/session";
+import { mobileRequest } from "../lib/ai-interview/workspace";
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/screening/interview";
 import { cleanTranscript } from "../lib/screening/fields";
 import { syncDirectory } from "../lib/network";
@@ -55,7 +56,7 @@ async function runTask(task: Task, attempts: number) {
     case "plan":
       return planSession(task.sessionId, attempts >= 4);
     case "invite":
-      return sendInvite(task.jobId, task.to);
+      return sendInvite(task.jobId, task.to, task.applicantId);
     case "notify":
       return deliverNotifications(task.to, task.spec);
   }
@@ -71,14 +72,14 @@ const REC_WINDOW_MS = 24 * 3600_000; // segment ids are the browser clock: withi
 
 /**
  * AI interview routes, all under /interview/<slug>/ so the candidate's `iv` cookie (path-scoped) comes along:
- * enter  — the emailed per-candidate link: sets the cookie, then a clean redirect
+ * enter  — old personal links (invites before per-candidate sign-in): sets the cookie for those sessions, then the page
  * room   — the interview WebSocket, handed to the session's InterviewRoom Durable Object
  * rec    — recording chunks (camera and screen) into R2
  * warm   — pre-opens the voice connection during the overview, so the interviewer joins right after Start
  */
 async function interviewRoute(request: Request, env: Env, url: URL, slug: string, action: string) {
   if (action === "enter" && request.method === "GET") {
-    const id = await enterAi(slug, url.searchParams.get("t") ?? "");
+    const id = await enterLegacy(slug, url.searchParams.get("t") ?? "");
     const headers = new Headers({
       Location: `/interview/${slug}`,
       "Cache-Control": "no-store",
@@ -93,6 +94,12 @@ async function interviewRoute(request: Request, env: Env, url: URL, slug: string
   }
   // Same-origin only: browsers don't apply CORS to WebSockets, and uploads carry the session cookie
   if (request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
+  // The page already blocks phones and tablets; this keeps a spoofed or stale page from starting the room on one
+  if (
+    (action === "room" || action === "warm") &&
+    mobileRequest(request.headers.get("User-Agent"), request.headers.get("Sec-CH-UA-Mobile"))
+  )
+    return new Response("Use a laptop or desktop for this interview", { status: 403 });
   const s = await aiSessionFor(slug, ivCookie(request)).catch(() => null);
   if (!s) return new Response("Unauthorized", { status: 401 });
   if (action === "room") {
