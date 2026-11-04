@@ -336,3 +336,117 @@ describe("hidden tests stay on the server", () => {
     expect(readFileSync(file, "utf8")).not.toMatch(/(from|import)\s*\(?\s*["'][^"']*problem-(bank|gen)/);
   });
 });
+
+describe("trustworthy scores", () => {
+  const hidden = (passed: number, total: number, names: string[] = [], status = "Wrong Answer"): IvEvent => ({
+    at: T0 + 20_000,
+    type: "run",
+    by: "agent",
+    language: "python",
+    result: {
+      suite: "hidden",
+      passed,
+      total,
+      cases: Array.from({ length: total }, (_, i) => ({ name: names[i] ?? `t${i}`, passed: i < passed })),
+      status,
+      error: "",
+      time: 0.1,
+      memory: 1,
+    },
+  });
+  const unavailable: IvEvent = {
+    at: T0 + 30_000,
+    type: "run",
+    by: "agent",
+    language: "python",
+    result: {
+      suite: "hidden",
+      passed: 0,
+      total: 4,
+      cases: [],
+      status: "unavailable",
+      error: "",
+      time: null,
+      memory: null,
+    },
+  };
+  const input = (evs: IvEvent[]) =>
+    evalInput({ job: { title: "BE", level: "Mid", description: "" }, config, plan, state, events: evs, final: null });
+  const report = (evs: IvEvent[], raw: unknown, rubric = config.rubric) =>
+    cleanAiReport(raw, {
+      rubric,
+      refs: input(evs).refs,
+      phases: ["coding"],
+      plan,
+      state,
+      integrity: integrityOf(evs),
+      startedAt: T0,
+    });
+  const coding = (score: number) => ({
+    competencies: [{ id: "coding", score, evidence: [{ ref: "r1" }] }],
+    sections: [{ phase: "coding", score }],
+  });
+
+  it("an unavailable runner is not a failure and not evidence", () => {
+    const evs = [hidden(4, 4, [], "Accepted"), unavailable];
+    const { text } = input(evs);
+    expect(text).toContain("hidden tests: not measured (runner unavailable)");
+    expect(text).toContain("Last hidden pass rate: 100% (4/4)"); // the outage didn't replace the real run
+    expect(input([unavailable]).text).toContain("Last hidden pass rate: not measured");
+  });
+
+  it("clamps Coding by the last hidden pass rate and leaves it alone with no hidden run", () => {
+    const all = [hidden(4, 4, [], "Accepted")];
+    expect(report(all, coding(1)).ai.competencies.find((c) => c.id === "coding")!.score).toBe(3);
+    expect(report(all, coding(1)).ai.sections[0].score).toBe(3);
+    const none = [hidden(1, 5)];
+    expect(report(none, coding(5)).ai.competencies.find((c) => c.id === "coding")!.score).toBe(2);
+    expect(report(none, coding(5)).ai.sections[0].score).toBe(2);
+    expect(report([hidden(3, 5)], coding(5)).ai.competencies.find((c) => c.id === "coding")!.score).toBe(5);
+    expect(report([unavailable], coding(5)).ai.competencies.find((c) => c.id === "coding")!.score).toBe(5);
+  });
+
+  it("calls a large-input-only failure correct but too slow", () => {
+    const evs = [hidden(3, 4, ["a", "b", "c", "large input"])];
+    expect(input(evs).text).toContain("correct but too slow");
+    expect(input([hidden(3, 4, ["a", "b", "large input", "d"])]).text).not.toContain("too slow");
+  });
+
+  it("marks the assessment incomplete when a weighted competency in a round that ran has no evidence", () => {
+    const rubric = config.rubric.map((c) => (c.id === "coding" ? { ...c, weight: 3 } : c));
+    const raw = { competencies: [{ id: "experience", score: 5, evidence: [{ ref: "u2" }] }] };
+    const r = report(events, raw, rubric);
+    expect(r.ai.incomplete).toEqual(["Coding"]);
+    expect(r.ai.overall).toBe(5);
+    expect(r.ai.recommendation).toBe("lean_no");
+    expect(report(events, raw).ai.incomplete).toEqual([]); // default weight 1: not required
+  });
+
+  it("an editor paste over 300 chars, or half the final code, is high; chat pastes never reach high", () => {
+    const code = (n: number): IvEvent => ({ at: T0 + 5, type: "code", language: "python", code: "x".repeat(n) });
+    const paste = (chars: number, into?: "editor"): IvEvent =>
+      ({ at: T0 + 1, type: "paste", chars, into }) as unknown as IvEvent;
+    expect(integrityOf([paste(301, "editor"), code(5000)]).level).toBe("high");
+    expect(integrityOf([paste(120, "editor"), code(200)]).level).toBe("high");
+    expect(integrityOf([paste(120, "editor"), code(5000)]).level).toBe("medium");
+    expect(integrityOf([paste(100, "editor"), paste(100, "editor"), code(5000)]).signals[0]).toMatchObject({
+      signal: "editor_paste",
+      count: 2,
+    });
+    expect(integrityOf([paste(900), paste(900), paste(900)]).level).toBe("medium");
+    // the generic listener logs the same editor paste too: counted once
+    expect(integrityOf([paste(120, "editor"), paste(120), code(5000)]).level).toBe("medium");
+    expect(input([paste(120, "editor"), code(400)]).text).toContain("Editor pastes: 1, largest 120 chars");
+  });
+
+  it("reads how the session ended and the reconnects", () => {
+    const f = integrityOf([
+      { at: 1, type: "session", what: "disconnected" },
+      { at: 2, type: "session", what: "disconnected" },
+      { at: 3, type: "session", what: "fallback" },
+      { at: 4, type: "session", what: "ended", detail: "candidate ended the interview" },
+    ]).facts;
+    expect(f).toMatchObject({ ended: "candidate", reconnects: 2, fallback: true });
+    expect(integrityOf([]).facts?.ended).toBe("completed");
+  });
+});

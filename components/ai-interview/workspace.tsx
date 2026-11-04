@@ -134,6 +134,12 @@ export function CodeWorkspace({
             language={LANGUAGES[language].monaco}
             value={code}
             onChange={(v) => edit(v ?? "")}
+            onMount={(ed) =>
+              ed.onDidPaste((e) => {
+                const text = ed.getModel()?.getValueInRange(e.range) ?? "";
+                socket.send({ t: "paste", chars: text.length, lines: text.split("\n").length, into: "editor" });
+              })
+            }
             theme={isDark ? "vs-dark" : "light"}
             options={{
               minimap: { enabled: false },
