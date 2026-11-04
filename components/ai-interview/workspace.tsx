@@ -93,12 +93,12 @@ export function CodeWorkspace({
           ["Constraints", problem.constraints],
         ].map(([k, v]) => (
           <div key={k}>
-            <h3 className="text-xs font-medium tracking-wide text-muted uppercase">{k}</h3>
+            <h3 className="font-medium">{k}</h3>
             <p className="whitespace-pre-wrap">{v}</p>
           </div>
         ))}
         <div className="space-y-2">
-          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">Examples</h3>
+          <h3 className="font-medium">Examples</h3>
           {problem.visible.map((t) => (
             <div key={t.name} className="grid grid-cols-2 gap-2 font-mono text-xs">
               <pre className="overflow-x-auto rounded-md bg-surface p-2 whitespace-pre">{`1\n${t.input}`}</pre>
@@ -244,11 +244,14 @@ export function Whiteboard({
   design,
   initial,
   onSnapshot,
+  bare,
 }: {
   socket: RoomSocket;
   design: { title: string; prompt: string; requirements: string[] };
   initial: unknown[];
   onSnapshot: (fn: (id: string) => void) => void;
+  /** The prompt is shown elsewhere (the room's side panel): canvas only. */
+  bare?: boolean;
 }) {
   const isDark = useDark();
   const api = useRef<ExApi | null>(null);
@@ -290,7 +293,7 @@ export function Whiteboard({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <section className="shrink-0 space-y-1 border-b border-border px-4 py-3 text-sm">
+      <section className={`shrink-0 space-y-1 border-b border-border px-4 py-3 text-sm ${bare ? "hidden" : ""}`}>
         <h2 className="font-medium">{design.title}</h2>
         {design.prompt && <p className="text-muted">{design.prompt}</p>}
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">

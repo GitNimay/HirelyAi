@@ -5,6 +5,7 @@ import { capture } from "../lib/analytics";
 import { writePendingReleases } from "../lib/changelog";
 import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../lib/human";
 import { aiSessionFor, enterLegacy, planSession, sweepRecordings } from "../lib/ai-interview/session";
+import { mobileRequest } from "../lib/ai-interview/workspace";
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/screening/interview";
 import { cleanTranscript } from "../lib/screening/fields";
 import { syncDirectory } from "../lib/network";
@@ -93,6 +94,12 @@ async function interviewRoute(request: Request, env: Env, url: URL, slug: string
   }
   // Same-origin only: browsers don't apply CORS to WebSockets, and uploads carry the session cookie
   if (request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
+  // The page already blocks phones and tablets; this keeps a spoofed or stale page from starting the room on one
+  if (
+    (action === "room" || action === "warm") &&
+    mobileRequest(request.headers.get("User-Agent"), request.headers.get("Sec-CH-UA-Mobile"))
+  )
+    return new Response("Use a laptop or desktop for this interview", { status: 403 });
   const s = await aiSessionFor(slug, ivCookie(request)).catch(() => null);
   if (!s) return new Response("Unauthorized", { status: 401 });
   if (action === "room") {
