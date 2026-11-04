@@ -1094,7 +1094,6 @@ function Transcript({
   onClose: () => void;
   onSeek?: (ms: number) => void;
 }) {
-  const list = useRef<HTMLOListElement>(null);
   // Each line knows its round, so a heading goes in where the round changes
   const rows = useMemo(
     () =>
@@ -1107,7 +1106,7 @@ function Transcript({
   );
   return (
     <Modal title="Transcript" onClose={onClose} wide>
-      <ol ref={list} className="max-h-[70dvh] space-y-1 overflow-y-auto p-3 text-sm">
+      <ol className="max-h-[70dvh] space-y-1 overflow-y-auto p-3 text-sm">
         {rows.map((l, i) => {
           const body = (
             <>
