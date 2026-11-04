@@ -13,3 +13,6 @@ next-env.d.ts
 package-lock.json
 *.tsbuildinfo
 coverage/
+
+# Vendored verbatim from mattpocock/skills (see ai-review in ci.yml)
+.opencode/skills/code-review/
