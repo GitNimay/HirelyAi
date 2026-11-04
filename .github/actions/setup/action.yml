@@ -1,0 +1,20 @@
+name: Setup
+description: Node + root node_modules, cached by lockfile. A cache hit skips npm ci entirely (it was 15-55s per job).
+inputs:
+  node-version:
+    default: "22"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: ${{ inputs.node-version }}
+    # Exact key only, no restore-keys: a stale node_modules would hide lockfile drift that npm ci catches
+    - id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: node_modules
+        key: nm-${{ runner.os }}-${{ runner.arch }}-node${{ inputs.node-version }}-${{ hashFiles('package-lock.json') }}
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci
