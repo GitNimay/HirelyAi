@@ -42,7 +42,8 @@
     "tailwind-merge": "^3.7.0",
     "thinking-orbs": "^0.3.2",
     "unpdf": "^1.9.1",
-    "vinext": "^1.4.0"
+    "vinext": "^1.4.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.66.0",

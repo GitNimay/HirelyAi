@@ -7,7 +7,7 @@ import { decideInterview, removeRecordings, retryInterview, reviewFlag, shareInt
 import type { AiReportData } from "@/lib/ai-interview/session";
 import { RECOMMENDATIONS, type Evidence } from "@/lib/ai-interview/evaluator";
 import { phaseLabel, type PhaseId } from "@/lib/ai-interview/harness";
-import { LANGUAGES, type Language, type RunResult } from "@/lib/ai-interview/workspace";
+import { ENVS, LANGUAGES, type Language, type RunResult } from "@/lib/ai-interview/workspace";
 import { ThemeToggle } from "../account-menu";
 import { Logo } from "../auth";
 import { ask, Modal, toast } from "../kit";
@@ -874,6 +874,7 @@ function Coding({ data, start }: { data: AiReportData; start: number }) {
               </h4>
               <span className={`text-xs font-medium capitalize ${DIFFICULTY[p.difficulty] ?? "text-muted"}`}>
                 {p.difficulty}
+                {p.env && <span className="font-normal text-muted normal-case"> · {ENVS[p.env].label}</span>}
               </span>
               {i < last && p.at !== null && data.problems[i + 1].at !== null && (
                 <span className="text-xs text-muted">Switched after {mmss(data.problems[i + 1].at! - p.at)}</span>
@@ -907,7 +908,17 @@ function Coding({ data, start }: { data: AiReportData; start: number }) {
                       </div>
                     ))}
                 </dl>
-                {p.visible.length > 0 && (
+                {p.visible.length > 0 && p.env && ENVS[p.env].grade === "checks" && (
+                  <div>
+                    <p className="mb-1 text-xs text-muted">Requirements</p>
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      {p.visible.map((x) => (
+                        <li key={x.name}>{x.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {p.visible.length > 0 && !(p.env && ENVS[p.env].grade === "checks") && (
                   <div className="grid gap-3 sm:grid-cols-2 print:grid-cols-2">
                     {p.visible.slice(0, 2).map((x, j) => (
                       <div key={j} className="rounded-lg bg-surface p-3">

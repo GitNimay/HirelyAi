@@ -5,6 +5,7 @@ import { Excalidraw, exportToBlob, exportToSvg } from "@excalidraw/excalidraw";
 import Editor from "@monaco-editor/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  ENVS,
   LANGUAGES,
   type BoardElement,
   type Language,
@@ -43,13 +44,19 @@ export function CodeWorkspace({
 }: {
   socket: RoomSocket;
   problem: PublicProblem;
-  starter: Record<Language, string>;
+  starter: Partial<Record<Language, string>>;
   initial: { language: Language; code: string } | null;
   run: { running: boolean; result: RunResult | null };
 }) {
   const isDark = useDark();
-  const [language, setLanguage] = useState<Language>(initial?.language ?? "python");
-  const [code, setCode] = useState(initial?.code ?? starter[initial?.language ?? "python"]);
+  // Code problems offer all six languages; an environment problem has exactly one (its own file)
+  const langs = (Object.keys(LANGUAGES) as Language[]).filter((l) => l in starter);
+  const [language, setLanguage] = useState<Language>(
+    initial && initial.language in starter ? initial.language : langs[0],
+  );
+  const [code, setCode] = useState(initial?.code ?? starter[language] ?? "");
+  const env = problem.env ? ENVS[problem.env] : null;
+  const checks = env?.grade === "checks";
   const timer = useRef(0);
 
   const push = (language: Language, code: string) => socket.send({ t: "code", language, code });
@@ -66,7 +73,7 @@ export function CodeWorkspace({
     clearTimeout(timer.current);
     // Untouched starter code just swaps; real work asks first
     if (
-      code.trim() !== starter[language].trim() &&
+      code.trim() !== (starter[language] ?? "").trim() &&
       !(await ask({
         title: `Switch to ${LANGUAGES[next].label}?`,
         body: "Your current code will be replaced with the starter code.",
@@ -75,8 +82,8 @@ export function CodeWorkspace({
     )
       return;
     setLanguage(next);
-    setCode(starter[next]);
-    push(next, starter[next]);
+    setCode(starter[next] ?? "");
+    push(next, starter[next] ?? "");
   }
 
   return (
@@ -84,40 +91,72 @@ export function CodeWorkspace({
       <section className="min-h-0 space-y-4 overflow-y-auto border-b border-border p-4 text-sm leading-relaxed lg:border-r lg:border-b-0">
         <div>
           <h2 className="font-display text-xl font-normal">{problem.title}</h2>
-          <p className={`text-xs font-medium capitalize ${TONE[problem.difficulty]}`}>{problem.difficulty}</p>
+          <p className={`text-xs font-medium capitalize ${TONE[problem.difficulty]}`}>
+            {problem.difficulty}
+            {env && <span className="font-normal text-muted"> · {env.label}</span>}
+          </p>
         </div>
         <p className="whitespace-pre-wrap">{problem.statement}</p>
-        {[
-          ["Input", `Line 1: T, the number of test cases. Then each case. ${problem.input}`],
-          ["Output", `One line per test case. ${problem.output}`],
-          ["Constraints", problem.constraints],
-        ].map(([k, v]) => (
-          <div key={k}>
-            <h3 className="font-medium">{k}</h3>
-            <p className="whitespace-pre-wrap">{v}</p>
+        {checks ? (
+          <div>
+            <h3 className="font-medium">Requirements</h3>
+            <ul className="mt-1 space-y-1">
+              {problem.visible.map((t) => (
+                <li key={t.name} className="flex gap-2">
+                  <Icon d={icons.check} size={14} className="mt-1 shrink-0 text-muted" />
+                  {t.name}
+                </li>
+              ))}
+            </ul>
           </div>
-        ))}
-        <div className="space-y-2">
-          <h3 className="font-medium">Examples</h3>
-          {problem.visible.map((t) => (
-            <div key={t.name} className="grid grid-cols-2 gap-2 font-mono text-xs">
-              <pre className="overflow-x-auto rounded-md bg-surface p-2 whitespace-pre">{`1\n${t.input}`}</pre>
-              <pre className="overflow-x-auto rounded-md bg-surface p-2 whitespace-pre">{t.output}</pre>
+        ) : (
+          <>
+            {[
+              ["Input", env ? problem.input : `Line 1: T, the number of test cases. Then each case. ${problem.input}`],
+              ["Output", env ? problem.output : `One line per test case. ${problem.output}`],
+              ["Constraints", problem.constraints],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <h3 className="font-medium">{k}</h3>
+                <p className="whitespace-pre-wrap">{v}</p>
+              </div>
+            ))}
+            <div className="space-y-2">
+              <h3 className="font-medium">Examples</h3>
+              {problem.visible.map((t) => (
+                <div key={t.name} className="grid grid-cols-2 gap-2 font-mono text-xs">
+                  <pre className="overflow-x-auto rounded-md bg-surface p-2 whitespace-pre">
+                    {env ? t.input : `1\n${t.input}`}
+                  </pre>
+                  <pre className="overflow-x-auto rounded-md bg-surface p-2 whitespace-pre">{t.output}</pre>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted">There are also hidden tests your interviewer may run.</p>
+          </>
+        )}
+        <p className="text-xs text-muted">
+          {checks
+            ? "Your interviewer also checks a few things that aren't listed."
+            : "There are also hidden tests your interviewer may run."}
+        </p>
       </section>
 
       <section className="flex min-h-0 flex-col">
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
-          <Select
-            aria-label="Language"
-            value={language}
-            onChange={(v) => void switchTo(v as Language)}
-            className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
-            options={Object.entries(LANGUAGES).map(([value, l]) => ({ value, label: l.label }))}
-          />
+          {langs.length > 1 ? (
+            <Select
+              aria-label="Language"
+              value={language}
+              onChange={(v) => void switchTo(v as Language)}
+              className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
+              options={langs.map((value) => ({ value, label: LANGUAGES[value].label }))}
+            />
+          ) : (
+            <p className="min-w-0 truncate text-sm">
+              <span className="font-medium">{LANGUAGES[language].label}</span>
+              {env && <span className="ml-2 font-mono text-xs text-muted">{env.file}</span>}
+            </p>
+          )}
           <button
             type="button"
             aria-busy={run.running}
@@ -126,7 +165,7 @@ export function CodeWorkspace({
             onClick={() => (clearTimeout(timer.current), push(language, code), socket.send({ t: "run" }))}
           >
             <Icon d="M6 4l14 8-14 8z" size={14} />
-            {run.running ? "Running…" : "Run"}
+            {run.running ? (checks ? "Checking…" : "Running…") : checks ? "Check" : "Run"}
           </button>
         </div>
         <div className="min-h-0 flex-1">
@@ -145,31 +184,35 @@ export function CodeWorkspace({
               minimap: { enabled: false },
               fontSize: 14,
               scrollBeyondLastLine: false,
-              tabSize: 4,
+              tabSize: env ? 2 : 4,
               automaticLayout: true,
             }}
           />
         </div>
-        <Results run={run} />
+        <Results run={run} checks={checks} />
       </section>
     </div>
   );
 }
 
-function Results({ run }: { run: { running: boolean; result: RunResult | null } }) {
+function Results({ run, checks }: { run: { running: boolean; result: RunResult | null }; checks: boolean }) {
   const r = run.result;
   return (
     <div className="max-h-56 shrink-0 overflow-y-auto border-t border-border p-3 text-sm" aria-live="polite">
       {run.running ? (
-        <p className="text-muted">Running your code…</p>
+        <p className="text-muted">{checks ? "Checking your file…" : "Running your code…"}</p>
       ) : !r ? (
-        <p className="text-muted">Run your code to test it against the examples.</p>
+        <p className="text-muted">
+          {checks ? "Check your file against the requirements." : "Run your code to test it against the examples."}
+        </p>
       ) : (
         <div className="space-y-2">
           <p className={`font-medium ${r.status === "Accepted" ? "text-success" : "text-danger"}`}>
             {r.status === "unavailable"
               ? "Code execution is unavailable right now"
-              : `${r.status} · ${r.passed}/${r.total} passed`}
+              : r.status === "Invalid file"
+                ? r.status
+                : `${r.status} · ${r.passed}/${r.total} passed`}
             {r.time != null && (
               <span className="ml-2 text-xs font-normal text-muted">
                 {r.time}s · {Math.round((r.memory ?? 0) / 1024)} MB

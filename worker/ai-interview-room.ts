@@ -37,6 +37,7 @@ import {
   untrusted,
   validateCall,
   WORKSPACE_TOOLS,
+  nextProblem,
   type HarnessState,
   type IvEvent,
   type PhaseId,
@@ -45,7 +46,7 @@ import {
 } from "../lib/ai-interview/harness";
 import type { Line } from "../lib/screening/fields";
 import { runSuite } from "../lib/ai-interview/sandbox";
-import { starters } from "../lib/ai-interview/starters";
+import { startersFor } from "../lib/ai-interview/starters";
 import {
   diffLines,
   LANGUAGES,
@@ -389,7 +390,7 @@ export class InterviewRoom extends DurableObject<Env> {
     const p = this.problem(this.s?.state.assigned.problem);
     return [
       ...new Set([
-        ...(p ? [p.title, ...p.signature.args] : []),
+        ...(p ? [p.title, ...(p.signature?.args ?? []), ...(p.env ? [LANGUAGES[p.env].label] : [])] : []),
         ...room.candidate.skills,
         room.job.company,
         ...CS_TERMS,
@@ -489,10 +490,13 @@ export class InterviewRoom extends DurableObject<Env> {
       ...s.state,
       assigned: { ...s.state.assigned, problem: p.id, tried: [...(s.state.assigned.tried ?? []), p.id] },
     };
-    s.code = { language: s.code?.language ?? "python", code: starters(p.signature)[s.code?.language ?? "python"] };
+    // Their language carries over between code problems; an environment problem fixes its own
+    const files = startersFor(p);
+    const language = (s.code && s.code.language in files ? s.code.language : Object.keys(files)[0]) as Language;
+    s.code = { language, code: files[language] ?? "" };
     this.lastCodeRead = s.code.code; // the agent knows the starter: only the candidate's changes are news
     this.log({ at: Date.now(), type: "assign", what: "problem", id: p.id });
-    this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
+    this.send({ t: "problem", problem: publicProblem(p), starter: files, code: s.code });
   }
 
   /** The harness puts the round's work on screen itself (deterministic, nothing for the agent to narrate). */
@@ -819,7 +823,7 @@ export class InterviewRoom extends DurableObject<Env> {
     this.log({ at: now, type: "tool_call", id, name, args: params });
     const v = validateCall(s.state, name, params, enumsFor(room.config, room.plan));
     let result: unknown;
-    let effect: "advance" | "switch" | "end" | undefined;
+    let effect: "advance" | "switch" | "easier" | "end" | undefined;
     if (!v.ok) result = { error: v.error };
     else if (WORKSPACE_TOOLS.includes(v.name)) result = await this.workspaceTool(v.name, v.args);
     else {
@@ -839,21 +843,27 @@ export class InterviewRoom extends DurableObject<Env> {
           next: "Say one short transition sentence, then follow the Harness brief for this phase.",
         };
     }
-    if (effect === "switch") result = this.switchProblem(String(v.ok && v.args.reason));
+    if (effect === "switch" || effect === "easier")
+      result = this.switchProblem(String(v.ok && v.args.reason), effect === "easier");
     this.log({ at: Date.now(), type: "tool_result", id, name, result });
     this.persistSoon();
     if (effect === "end") setTimeout(() => void this.endAfterGoodbye(), 0);
     return result;
   }
 
-  /** Puts the next backup problem on screen and re-briefs the agent with its hints. */
-  switchProblem(reason: string) {
+  /** Puts the next backup problem on screen (an easier one when asked) and re-briefs the agent with its hints. */
+  switchProblem(reason: string, easier = false) {
     const s = this.s!;
-    const tried = s.state.assigned.tried ?? [];
-    const next = this.room!.plan.problems?.find((p) => !tried.includes(p.id));
+    const current = this.problem(s.state.assigned.problem);
+    const next = nextProblem(this.room!.plan.problems ?? [], s.state.assigned.tried ?? [], current, easier);
     if (!next) return { error: "No backup problem left. Simplify the current one with a hint instead." };
     this.showProblem(next);
-    this.log({ at: Date.now(), type: "session", what: "resumed", detail: `problem switched: ${reason.slice(0, 120)}` });
+    this.log({
+      at: Date.now(),
+      type: "session",
+      what: "resumed",
+      detail: `problem switched${easier ? " (easier)" : ""}: ${reason.slice(0, 120)}`,
+    });
     this.sendPhonic({
       type: "add_system_message",
       system_message: phaseBrief("coding", this.promptCtx(), s.state, Date.now()),
@@ -861,8 +871,10 @@ export class InterviewRoom extends DurableObject<Env> {
     return {
       ok: true,
       title: next.title,
+      difficulty: next.difficulty,
+      environment: next.env ? LANGUAGES[next.env].label : "code (any language)",
       statement: next.statement,
-      note: "The new problem is on their screen with fresh starter code. Introduce it in one or two sentences.",
+      note: `The new problem is on their screen with fresh starter code. Introduce it in one or two sentences.${easier && current && next.difficulty === current.difficulty ? " It's the simplest one left (same difficulty label, smaller scope)." : ""}`,
     };
   }
 
@@ -885,8 +897,11 @@ export class InterviewRoom extends DurableObject<Env> {
       if (answer === "yes") {
         s.state = { ...s.state, confirm: null };
         this.log({ at: now, type: "session", what: "confirm", detail: `${c.action} confirmed` });
-        if (c.action === "switch") {
-          const r = this.switchProblem("the candidate asked for a different problem");
+        if (c.action !== "skip") {
+          const r = this.switchProblem(
+            `the candidate asked for ${c.action === "easier" ? "an easier" : "a different"} problem`,
+            c.action === "easier",
+          );
           if ("ok" in r)
             this.wake(
               "phase",
@@ -1276,6 +1291,9 @@ export class InterviewRoom extends DurableObject<Env> {
     switch (m.t) {
       case "code": {
         if (typeof m.code !== "string" || !Object.hasOwn(LANGUAGES, String(m.language))) return;
+        // Only the languages this problem offers (an environment problem has exactly one)
+        const offered = this.problem(s.state.assigned.problem);
+        if (offered && !(String(m.language) in startersFor(offered))) return;
         const code = m.code.slice(0, 100_000);
         if (s.code?.code === code && s.code.language === m.language) return;
         s.code = { language: m.language as Language, code };
@@ -1508,7 +1526,7 @@ export class InterviewRoom extends DurableObject<Env> {
     if (s.state.runs.some((r) => r.suite === "hidden" && r.at > (this.lastCodeAt ?? 0))) return null;
     const p = this.problem(s.state.assigned.problem);
     // Untouched starter code has nothing to test
-    if (!p || s.code.code.trim() === starters(p.signature)[s.code.language].trim()) return null;
+    if (!p || s.code.code.trim() === (startersFor(p)[s.code.language] ?? "").trim()) return null;
     const r = await runSuite(s.code.language, s.code.code, p.hidden, "hidden");
     if (r.status === "unavailable") return null;
     return { at: Date.now(), type: "run", by: "agent", language: s.code.language, result: { ...r, final: true } };
@@ -1553,7 +1571,7 @@ export class InterviewRoom extends DurableObject<Env> {
   restoreWorkspace() {
     const s = this.s!;
     const p = this.problem(s.state.assigned.problem);
-    if (p) this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
+    if (p) this.send({ t: "problem", problem: publicProblem(p), starter: startersFor(p), code: s.code });
     const w = s.whiteboard;
     if (w?.open)
       this.send({

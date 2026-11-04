@@ -3,7 +3,7 @@
  * multi-case stdin is already parsed into typed variables, so the candidate only writes solve(). Pure; the
  * signature is public (it describes the input format, never the tests).
  */
-import type { Language } from "./workspace";
+import type { CodeLanguage, Language, Problem } from "./workspace";
 
 /** One line (or block) of a test case's input. Rows become one parallel array per field. */
 export type Read =
@@ -233,7 +233,14 @@ ${body
 `;
 }
 
-export function starters(sig: Signature): Record<Language, string> {
+/**
+ * The files a problem starts from, by language: every general-purpose language for a code problem, or the one file
+ * of an environment problem. The candidate's language picker offers exactly these keys.
+ */
+export const startersFor = (p: Pick<Problem, "signature" | "env" | "starter">): Partial<Record<Language, string>> =>
+  p.env ? { [p.env]: p.starter ?? "" } : p.signature ? starters(p.signature) : {};
+
+export function starters(sig: Signature): Record<CodeLanguage, string> {
   return {
     python: python(sig),
     javascript: js(sig, false),
