@@ -9,7 +9,7 @@ import type { CandidateView } from "@/lib/screening/interview";
 import { LIMITS, PHASES, phaseLabel, type PhaseId } from "@/lib/ai-interview/harness";
 import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
 import type { PublicProblem, RunResult, Language } from "@/lib/ai-interview/workspace";
-import { Details } from "../screening/interview";
+import { Details, Gate } from "../screening/interview";
 import { MicCheck } from "../screening/voice";
 import { ask } from "../kit";
 import { Alert, Head, primary, StepFrame, ThemeToggle } from "../onboarding";
@@ -27,16 +27,16 @@ const Whiteboard = dynamic(() => import("./workspace").then((m) => memo(m.Whiteb
   loading: () => <Loading what="whiteboard" />,
 });
 
-type Step = "nolink" | "details" | "check" | "consent" | "brief" | "room" | "done" | "closed";
-const STEPS = ["Your details", "System check", "Consent", "Overview", "Interview"];
+type Step = "gate" | "details" | "check" | "consent" | "brief" | "room" | "done" | "closed";
+const STEPS = ["Sign in", "Your details", "System check", "Consent", "Overview", "Interview"];
 const INDEX: Record<Step, number> = {
-  nolink: 0,
-  details: 0,
-  check: 1,
-  consent: 2,
-  brief: 3,
-  room: 4,
-  done: 5,
+  gate: 0,
+  details: 1,
+  check: 2,
+  consent: 3,
+  brief: 4,
+  room: 5,
+  done: 6,
   closed: 0,
 };
 type AgentState = "connecting" | "listening" | "thinking" | "speaking";
@@ -53,11 +53,10 @@ const mmss = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.ma
 
 function stepOf(v: CandidateView): Step {
   const s = v.session?.status;
-  if (!v.session) return "nolink";
   if (s === "processing" || s === "done" || s === "failed") return "done";
   if (s === "live") return "check"; // dropped mid-interview: re-check devices (screen share needs a click), then rejoin
   if (!v.open) return "closed";
-  return s === "onboarded" ? "check" : "details";
+  return s === "onboarded" ? "check" : s === "verified" ? "details" : "gate";
 }
 
 /**
@@ -71,9 +70,15 @@ const rejoins = { n: 0 };
 
 /**
  * The candidate's side of the AI interview: details → system check (browser, mic, camera, screen, monitors, network)
- * → consent and recording notice → overview → the interview room. Reached from the personal link in the invite email.
+ * → consent and recording notice → overview → the interview room. Signed in with the candidate ID + password from the invite.
  */
-export function AiInterview({ view }: { view: CandidateView }) {
+export function AiInterview({
+  view,
+  turnstile,
+}: {
+  view: CandidateView;
+  turnstile: { sitekey: string; action: string };
+}) {
   const router = useRouter();
   const [local, setLocal] = useState<Step | null>(null);
   const step = local ?? stepOf(view);
@@ -104,15 +109,7 @@ export function AiInterview({ view }: { view: CandidateView }) {
 
   const minutes = view.phases.reduce((s, p) => s + p.minutes, 0);
   const card: Record<Exclude<Step, "room">, React.ReactNode> = {
-    nolink: (
-      <div className="space-y-3 py-6 text-center">
-        <h2 className="font-display text-xl font-normal">Open your personal link</h2>
-        <p className="text-sm text-muted">
-          This interview starts from the link in your invitation email. Applied already? Find the email from Hire
-          Excellence, or open the job page while signed in.
-        </p>
-      </div>
-    ),
+    gate: <Gate view={view} turnstile={turnstile} onDone={() => (setLocal(null), router.refresh())} />,
     details: <Details initial={view.session?.prefill ?? {}} slug={view.slug} onDone={() => go("check")} />,
     check: <SystemCheck rejoin={rejoin} onDone={() => go(rejoin ? "room" : "consent")} />,
     consent: <Consent company={view.company} onDone={() => go("brief")} onBack={() => go("check")} />,
