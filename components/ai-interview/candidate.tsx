@@ -920,6 +920,13 @@ function Room({
     return () => {
       closed = true;
       cleanup.reverse().forEach((f) => f());
+      // Finished: turn the camera and screen share off (recorders above were already told to stop, so nothing is lost).
+      // A drop or retry keeps them for the rejoin.
+      if (ended.current) {
+        for (const s of [media.camera, media.screen]) s?.getTracks().forEach((t) => t.stop());
+        media.camera = media.screen = null;
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      }
     };
   }, [view.slug]);
 
@@ -959,6 +966,16 @@ function Room({
   const workspace = fallback ? "chat" : phase === "coding" && code ? "code" : board ? "board" : "talk";
   // Talk rounds put both tiles centre stage; a workspace docks them into a side panel
   const dock = workspace !== "talk";
+  // In full screen the browser takes Escape to exit it, so the whiteboard (deselect, drop the arrow tool) and editor
+  // (close suggestions) never saw it and the interview paused. Keyboard Lock hands Escape to the page while one is
+  // open; holding Esc still exits full screen. Chrome/Edge only, which is all the interview supports.
+  useEffect(() => {
+    if (workspace !== "board" && workspace !== "code") return;
+    const kb = (navigator as Navigator & { keyboard?: { lock(keys: string[]): Promise<void>; unlock(): void } })
+      .keyboard;
+    kb?.lock(["Escape"]).catch(() => {});
+    return () => kb?.unlock();
+  }, [workspace]);
   // The editor and whiteboard are heavy to mount: wait until the tiles have finished moving so the move never drops frames
   const reduce = useReducedMotion();
   const [settled, setSettled] = useState(dock);
