@@ -47,7 +47,22 @@ flowchart TD
     REP --> P["Poster sees /report/job/applicant<br/>(share link /r/token, PDF)"]
 ```
 
-If the plan task hasn't finished when the candidate joins, `roomContext` builds claims on the spot and uses two built-in problems from `problem-bank.ts` instead of generated ones.
+If the plan task hasn't finished when the candidate joins, `roomContext` builds claims on the spot and uses three built-in problems from `problem-bank.ts` instead of generated ones.
+
+### Coding tracks and environments
+
+The coding round is about one or more **tracks**: general code (any of six languages, the candidate picks) or a DevOps / data environment with a fixed file: Bash, SQL (SQLite), YAML (Kubernetes, CI/CD, Compose), Dockerfile, Terraform, JSON (IAM policies). The recruiter can pin up to three in the post form; otherwise `pickTracks()` reads them from the job description (weighted double) and the resume. An infrastructure or data role leads with its environments and never gets algorithms only.
+
+`planProblems` writes three problems: the primary (main track, role level), a like-for-like backup (next track), and an easier one (main track, one level down). A slot whose problem is rejected after three tries is filled in place from the bank, so the order always holds.
+
+| Environment           | How it's graded                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| code                  | Judge0, multi-case stdin, line by line (unchanged)                                                                                    |
+| Bash, SQL             | Judge0's Bash image (it has sqlite3), one submission: a driver splits stdin per case and runs the file on each; whole output per case |
+| YAML, JSON            | `lib/ai-interview/checks.ts` in the Worker: parsed, then path assertions (`spec.template.spec.containers[*].resources.limits.memory`) |
+| Dockerfile, Terraform | `checks.ts`: regex assertions on the text (no parser or binary on the free tier)                                                      |
+
+Generated environment problems are proven like code ones: script references run on Judge0 to produce every hidden output and must reproduce the examples; config references must pass every check and the starter must fail at least two. `npm run eval` includes `tests/evals/env-problems.eval.ts`, which generates a DevOps and an SRE round on the real models.
 
 ---
 
@@ -185,7 +200,7 @@ sequenceDiagram
 | Tool                       | Phases                   | Params                                               | Run by                  | Timeout | What it does                                                                                                              |
 | -------------------------- | ------------------------ | ---------------------------------------------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `request_phase_transition` | all                      | `initiated_by` goal_met \| candidate_asked, `reason` | harness (`applyTool`)   | 10 s    | Ask to move on. Gated (5c). If approved the move happens **inside** the call.                                             |
-| `switch_problem`           | coding                   | `reason`                                             | harness + room          | 10 s    | Swap to a backup problem. Needs the candidate's confirmation (two-step).                                                  |
+| `switch_problem`           | coding                   | `level` similar \| easier, `reason`                  | harness + room          | 10 s    | Swap to a backup (similar) or the easier problem. Needs the candidate's confirmation (two-step). At most two swaps.       |
 | `read_editor`              | coding                   | —                                                    | room                    | 10 s    | Current code (≤8 000 chars), diff since last look, idle seconds.                                                          |
 | `run_tests`                | coding                   | `suite` visible \| hidden                            | room → Judge0           | 60 s    | Runs code. Agent gets pass counts + **names** of failing cases, never hidden inputs/outputs.                              |
 | `open_whiteboard`          | technical (if design on) | `topic`, `requirements` (`;`-separated)              | room                    | 10 s    | Opens Excalidraw with the question; new topic = clean board.                                                              |
@@ -340,7 +355,7 @@ sequenceDiagram
 
     C->>P: "can we skip this / move on?"
     P-->>DO: input_text
-    DO->>DO: skipIntent() regex → "skip" (or "switch" in coding)
+    DO->>DO: skipIntent() regex → "skip" (or "switch" / "easier" in coding)
     DO->>DO: openConfirm: state.confirm = {action, heard, at}
     DO->>P: add_system_message "ask them to confirm in one sentence,<br/>don't call any tool, it moves on by itself"
     P->>C: "Just to confirm, you'd like to move on? We can't come back to it."

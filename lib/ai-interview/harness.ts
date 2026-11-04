@@ -5,7 +5,7 @@
  * The LLM only *requests* things (a transition, a claim result); the harness approves, denies or forces.
  */
 
-import type { Difficulty, Problem } from "./workspace";
+import { ENVS, isTrack, type Difficulty, type Problem, type Track } from "./workspace";
 
 // ── Phases ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -197,6 +197,8 @@ export const weightOf = (c: Competency) => c.weight ?? 1;
  * - design: a system design discussion on the whiteboard during the Experience round (topics optional: empty =
  *   the interviewer picks one from the candidate's projects and the role, and switches if they don't know it).
  * - coding.problems: the recruiter's own problem statements; empty = generated for this role, level and candidate.
+ * - coding.tracks: what the coding round is about (general code, Bash, SQL, Kubernetes YAML, Terraform…); empty =
+ *   read from the job description and the candidate's resume (pickTracks).
  */
 export type RoleConfig = {
   phases: { id: PhaseId; minutes: number }[];
@@ -204,7 +206,7 @@ export type RoleConfig = {
   difficulty: Difficulty | "auto";
   bar: Bar;
   design: { enabled: boolean; topics: string[] };
-  coding: { problems: string[] };
+  coding: { problems: string[]; tracks: Track[] };
   questions: { intro: string[]; main: string[]; wrapup: string[] };
   rubric: Competency[];
   /**
@@ -225,7 +227,7 @@ export const defaultConfig = (level: Level = "mid"): RoleConfig => ({
   difficulty: "auto",
   bar: "balanced",
   design: { enabled: level !== "intern", topics: [] },
-  coding: { problems: [] },
+  coding: { problems: [], tracks: [] },
   questions: { intro: [], main: [], wrapup: [] },
   rubric: DEFAULT_RUBRIC,
   timing: "fixed",
@@ -282,7 +284,10 @@ export function cleanConfig(input: unknown): RoleConfig {
       enabled: typeof d.enabled === "boolean" ? d.enabled : level !== "intern",
       topics: lines(d.topics, LIMITS.topics, 200),
     },
-    coding: { problems: lines(c.problems, LIMITS.problems, LIMITS.problemChars, true) },
+    coding: {
+      problems: lines(c.problems, LIMITS.problems, LIMITS.problemChars, true),
+      tracks: [...new Set(Array.isArray(c.tracks) ? c.tracks.filter(isTrack) : [])].slice(0, 3),
+    },
     questions: {
       intro: lines(q.intro, LIMITS.questions, LIMITS.questionChars),
       main: lines(q.main, LIMITS.questions, LIMITS.questionChars),
@@ -389,7 +394,7 @@ export type HarnessState = {
    * A skip or problem switch the candidate asked for, waiting for their explicit yes: the agent must ask "are you
    * sure?" and the candidate must answer (heard moves past `heard`) before the second request is approved.
    */
-  confirm?: { action: "skip" | "switch"; heard: number; at: number } | null;
+  confirm?: { action: Confirmable; heard: number; at: number } | null;
   /** problem: the current problem id; tried: every problem shown so far; design: the whiteboard topic, if one was opened. */
   assigned: { problem?: string; tried?: string[]; design?: string };
   design: boolean; // a system design discussion is part of this interview
@@ -597,26 +602,39 @@ export function requestTransition(
   return { ok: true };
 }
 
+/** What the candidate can ask for that needs their yes first: skip the section, a different problem, an easier one. */
+export type Confirmable = "skip" | "switch" | "easier";
+/** The two kinds of problem change: like for like, or one step down. */
+const isSwap = (a: Confirmable) => a !== "skip";
+
 /** What to say before a skip or switch the candidate asked for. The harness carries out a clear yes by itself. */
 const AFTER =
   "Say only that, without calling any tool or mentioning one: when they say yes, the interview moves on by itself. If their answer is unclear but they do want it, call request_phase_transition with initiated_by candidate_asked.";
-const CONFIRM_ASK: Record<"skip" | "switch", (p: PhaseId) => string> = {
+const CONFIRM_ASK: Record<Confirmable, (p: PhaseId) => string> = {
   skip: (p) =>
     p === "coding"
       ? `Don't move on yet, and don't argue either. Offer help and ask for confirmation in one or two sentences, e.g. "Would a hint help, or would you rather we move on from coding? We can't come back to it." ${AFTER}`
       : `Don't move on yet, and don't argue either. Ask the candidate to confirm in one sentence, e.g. "Just to confirm, you'd like to move on from the ${PHASES[p].label.toLowerCase()} section? We can't come back to it." ${AFTER}`,
   switch: () =>
     `Don't switch yet. Ask in one sentence, e.g. "Would a hint help, or would you prefer a different problem?" Say only that, without calling any tool or mentioning one: when they say they want a different problem, it appears by itself. If they want a hint, give the next hint level instead.`,
+  easier: () =>
+    `Don't switch yet, and don't judge. Ask in one sentence, e.g. "Sure. Would a hint help first, or shall I give you an easier problem?" Say only that, without calling any tool or mentioning one: when they say yes to an easier problem, it appears by itself. If they want a hint, give the next hint level instead.`,
 };
 
 const SWITCH =
-  /\b(different|another|other|easier|new) (problem|question|one)\b|\b(switch|change) (the )?(problem|question)\b/i;
+  /\b(different|another|other|new) (problem|question|one|task)\b|\b(switch|change|swap) (the |this )?(problem|question|task)\b|\bnot (comfortable|familiar) with (this|that|it|the (problem|question|task))\b/i;
+const EASIER =
+  /\b(easier|simpler|less (hard|difficult)|too (hard|difficult|tough))\b|\b(an? )?easy (one|problem|question|task)\b/i;
 const SKIP =
   /\b(skip|move on|moving on|go to the next|next (section|part|round|phase)|wrap (it |this )?up|(end|stop) (this|the) (section|round|part))\b/i;
 
-/** The candidate asking (in so many words) to skip this section or swap the coding problem: the harness asks them to confirm. */
-export function skipIntent(text: string, phase: PhaseId | null): "skip" | "switch" | null {
+/**
+ * The candidate asking (in so many words) to skip this section, swap the coding problem, or get an easier one: the
+ * harness asks them to confirm.
+ */
+export function skipIntent(text: string, phase: PhaseId | null): Confirmable | null {
   if (!phase || phase === "wrapup") return null;
+  if (phase === "coding" && EASIER.test(text)) return "easier";
   if (phase === "coding" && SWITCH.test(text)) return "switch";
   return SKIP.test(text) ? "skip" : null;
 }
@@ -639,13 +657,17 @@ export function confirmAnswer(text: string): "yes" | "no" | null {
  */
 export function openConfirm(
   s: HarnessState,
-  action: "skip" | "switch",
+  action: Confirmable,
   now: number,
 ): { state: HarnessState; note: string } | null {
   const phase = phaseOf(s);
   if (!phase || (s.confirm && now - s.confirm.at < CONFIRM_MS)) return null;
   const what =
-    action === "switch" ? "switch to a different problem" : `skip the rest of the ${PHASES[phase].label} section`;
+    action === "switch"
+      ? "switch to a different problem"
+      : action === "easier"
+        ? "get an easier problem"
+        : `skip the rest of the ${PHASES[phase].label} section`;
   return {
     state: { ...s, confirm: { action, heard: s.heard, at: now } },
     note: `Harness: the candidate just asked to ${what}. ${CONFIRM_ASK[action](phase)}`,
@@ -658,17 +680,34 @@ export function openConfirm(
  */
 export function confirmStep(
   s: HarnessState,
-  action: "skip" | "switch",
+  action: Confirmable,
   now: number,
 ): { state: HarnessState; ok: true } | { state: HarnessState; ok: false; reason: string } {
   const c = s.confirm;
-  if (c?.action === action && s.heard > c.heard && now - c.at < CONFIRM_MS)
-    return { state: { ...s, confirm: null }, ok: true };
+  // A swap request answers a swap confirmation whichever kind it was (they said "easier", the agent heard "different")
+  const same = c && (c.action === action || (isSwap(c.action) && isSwap(action)));
+  if (same && s.heard > c.heard && now - c.at < CONFIRM_MS) return { state: { ...s, confirm: null }, ok: true };
   return {
     state: { ...s, confirm: { action, heard: s.heard, at: now } },
     ok: false,
     reason: CONFIRM_ASK[action](phaseOf(s)!),
   };
+}
+
+export const RANK: Record<Difficulty, number> = { easy: 0, medium: 1, hard: 2 };
+/** The environment a problem is in, as the interviewer says it. */
+export const envLabel = (p: Pick<Problem, "env">) => (p.env ? ENVS[p.env].label : "code");
+
+/**
+ * The problem to swap to. Easier: the easiest one left below the current level; at the bottom level the planned easier
+ * problem (last in the plan). Similar: the closest level, in plan order, so the easier backup stays for "easier".
+ */
+export function nextProblem(problems: Problem[], tried: string[], current: Problem | undefined, easier: boolean) {
+  const left = problems.filter((p) => !tried.includes(p.id));
+  if (!left.length) return undefined;
+  const r = current ? RANK[current.difficulty] : RANK.medium;
+  if (easier) return left.reduce((a, b) => (RANK[b.difficulty] <= RANK[a.difficulty] ? b : a));
+  return left.reduce((a, b) => (Math.abs(RANK[b.difficulty] - r) < Math.abs(RANK[a.difficulty] - r) ? b : a));
 }
 
 // ── Wake triggers ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -710,9 +749,12 @@ export const TOOLS = {
   },
   switch_problem: {
     description:
-      "Replace the coding problem with a backup of similar level, when the candidate doesn't understand it or doesn't know the technique. They'll be asked to confirm first; offer a hint before switching if it's just hard.",
+      "Replace the coding problem with a backup, when the candidate asks for a different or an easier one, isn't comfortable with it, or doesn't know the technique. level similar: a different problem at the same level (another topic or environment); easier: one step down. They'll be asked to confirm first; offer a hint before switching if it's just hard.",
     phases: ["coding"],
-    params: { reason: { type: "string", description: "Why the problem is being switched.", max: 200 } },
+    params: {
+      level: { type: "string", description: "similar or easier.", enum: ["similar", "easier"] },
+      reason: { type: "string", description: "Why the problem is being switched.", max: 200 },
+    },
   },
   run_tests: {
     description:
@@ -855,7 +897,7 @@ export function applyTool(
   a: Record<string, string | number>,
   ctx: ToolCtx,
   now: number,
-): { state: HarnessState; result: unknown; effect?: "advance" | "switch" | "end" } {
+): { state: HarnessState; result: unknown; effect?: "advance" | "switch" | "easier" | "end" } {
   const claimIds = ctx.plan.claims.map((c) => c.id);
   switch (name) {
     case "request_phase_transition": {
@@ -881,9 +923,12 @@ export function applyTool(
         : { state: s, result: { approved: false, reason: r.reason } };
     }
     case "switch_problem": {
-      const c = confirmStep(s, "switch", now);
+      const want = a.level === "easier" ? "easier" : "switch";
+      // What the candidate asked for wins over the agent's guess at it
+      const asked = s.confirm && isSwap(s.confirm.action) ? s.confirm.action : want;
+      const c = confirmStep(s, want, now);
       return c.ok
-        ? { state: c.state, result: { ok: true }, effect: "switch" }
+        ? { state: c.state, result: { ok: true }, effect: asked === "easier" ? "easier" : "switch" }
         : { state: c.state, result: { switched: false, reason: c.reason } };
     }
     case "end_interview":
@@ -1097,30 +1142,39 @@ When the goal is met, call request_phase_transition with initiated_by goal_met.`
       if (!p)
         return `${head}
 No coding problem is available: ask how they'd approach a recent technical problem from their work, then call request_phase_transition with initiated_by goal_met.`;
+      const checks = p.env && ENVS[p.env].grade === "checks";
+      const what = !p.env
+        ? "with starter code (the input is parsed for them; they only write solve, in the language they pick)"
+        : `as a ${ENVS[p.env].label} file (${ENVS[p.env].file}) to ${checks ? "fix or complete: nothing runs; Check grades it against the listed requirements and a few unlisted ones" : "write: it runs on each test's input"}`;
+      const shown = checks
+        ? `${p.statement.slice(0, 1500)}\nRequirements: ${p.visible.map((t) => t.name).join("; ")}${p.constraints ? `\nConstraints: ${p.constraints.slice(0, 300)}` : ""}\nStarter file:\n${(p.starter ?? "").slice(0, 1500)}`
+        : `${p.statement.slice(0, 1500)}\nInput: ${p.input.slice(0, 300)}\nOutput: ${p.output.slice(0, 300)}\nConstraints: ${p.constraints.slice(0, 300)}\n${p.visible
+            .slice(0, 2)
+            .map((t) => `Example "${t.name}": input ${t.input.slice(0, 200)} → output ${t.output.slice(0, 200)}`)
+            .join("\n")}`;
+      const tried = s.assigned.tried ?? [];
+      const backups = (c.plan.problems ?? []).filter((x) => x.id !== p.id && !tried.includes(x.id));
+      const swaps = backups.length
+        ? `Backups ready (switch_problem): ${backups.map((x) => `${x.difficulty} ${envLabel(x)}${RANK[x.difficulty] < RANK[p.difficulty] ? " (easier)" : ""}`).join("; ")}.`
+        : "No backups are left: if they ask for another or an easier problem, say kindly that this is the last one, simplify it with the next hint, and help them make progress.";
       return `${head}
-The problem "${p.title}" is on their screen with starter code (the input is parsed for them; they only write solve). What they see:
-${untrusted(
-  "problem",
-  `${p.statement.slice(0, 1500)}\nInput: ${p.input.slice(0, 300)}\nOutput: ${p.output.slice(0, 300)}\nConstraints: ${p.constraints.slice(0, 300)}\n${p.visible
-    .slice(0, 2)
-    .map((t) => `Example "${t.name}": input ${t.input.slice(0, 200)} → output ${t.output.slice(0, 200)}`)
-    .join("\n")}`,
-)}
-${p.approach ? `Intended approach (private, never reveal): ${p.approach.slice(0, 300)}\n` : ""}Kinds of hidden cases (private, use them as edge cases to probe): ${p.hidden
+The problem "${p.title}" (${p.difficulty}, ${envLabel(p)}) is on their screen ${what}. What they see:
+${untrusted("problem", shown)}
+${p.approach ? `Intended approach (private, never reveal): ${p.approach.slice(0, 300)}\n` : ""}Kinds of hidden ${checks ? "checks" : "cases"} (private, use them as edge cases to probe): ${p.hidden
         .map((t) => t.name)
         .slice(0, 8)
         .join(", ")}.
 Run it like a real interviewer, one step at a time:
-1. Introduce it in one or two sentences, connecting it to their background where it fits, without reading it out. Let them ask clarifying questions.
-2. Ask for their approach and its complexity before they code. If the approach is clearly wrong or too slow for the constraints, ask a question that exposes it instead of saying so.
-3. While they code, stay quiet unless they talk to you. Thinking out loud ("hmm", "so this loops...") is not a question: let them work. Their latest code and every test run they do arrive privately; when they pause, ask about one specific line or choice ("why a dictionary here?", "what if the input is empty?").
-4. When they say they're done, call run_tests (it runs the examples and the hidden tests together). You may say "let me run that" for this tool only. For hidden failures, only name the kind of case that fails.
-5. Ask them to walk through one example by hand if a test fails, then the time and space complexity of their final code.
-Never dictate code or the solution. If they're stuck, give the next hint, one level at a time, and only after they say they're stuck or after a long silence:
+1. Introduce it in one or two sentences, connecting it to their background where it fits, without reading it out. Mention once that they can ask for a hint, or for a different or easier problem if this one isn't a fit. Let them ask clarifying questions.
+2. ${checks ? "Ask what they'd change and why before they edit." : p.env ? "Ask how they'd approach it before they write it." : "Ask for their approach and its complexity before they code."} If the approach is clearly wrong${p.env ? "" : " or too slow for the constraints"}, ask a question that exposes it instead of saying so.
+3. While they work, stay quiet unless they talk to you. Thinking out loud ("hmm", "so this...") is not a question: let them work. Their latest ${p.env ? "file" : "code"} and every ${checks ? "check" : "test run"} they do arrive privately; when they pause, ask about one specific line or choice (${checks ? '"why that setting?", "what breaks without it?"' : p.env ? '"why that flag?", "what if the input is empty?"' : '"why a dictionary here?", "what if the input is empty?"'}).
+4. When they say they're done, call run_tests (it ${checks ? "checks the requirements and the unlisted checks together" : "runs the examples and the hidden tests together"}). You may say "let me run that" for this tool only. For hidden failures, only name the kind of ${checks ? "check" : "case"} that fails.
+5. ${checks ? "Then ask them to explain one choice they made and what would happen in production without it." : p.env ? "If a test fails, ask them to walk through it by hand; then ask how it would behave on a much bigger input." : "Ask them to walk through one example by hand if a test fails, then the time and space complexity of their final code."}
+Never dictate ${p.env ? "the file" : "code"} or the solution. If they're stuck, give the next hint, one level at a time, and only after they say they're stuck or after a long silence:
 Hint 1 (nudge): ${p.ladder[0]}
 Hint 2 (scale or edge case): ${p.ladder[2]}
 If they finish early, raise this extension instead (not a hint): ${p.ladder[1]}
-If they clearly don't understand the problem or don't know the technique, offer a different problem (switch_problem; a backup of similar level is ready).
+If they say they're not comfortable with it, ask for a different problem, or ask for an easier one, offer a hint first; if they still want the change, call switch_problem with level similar or easier. Never make them feel judged for asking. ${swaps}
 Then call request_phase_transition with initiated_by goal_met.`;
     }
     case "wrapup": {

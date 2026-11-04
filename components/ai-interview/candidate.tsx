@@ -692,7 +692,7 @@ type Workspace =
   | {
       kind: "code";
       problem: PublicProblem;
-      starter: Record<Language, string>;
+      starter: Partial<Record<Language, string>>;
       code: { language: Language; code: string } | null;
     }
   | {
@@ -785,7 +785,7 @@ function Room({
         return setCode({
           kind: "code",
           problem: m.problem as PublicProblem,
-          starter: m.starter as Record<Language, string>,
+          starter: m.starter as Partial<Record<Language, string>>,
           code: m.code as never,
         });
       case "design":
@@ -1195,6 +1195,8 @@ function Room({
                     />
                   ) : workspace === "code" && code ? (
                     <CodeWorkspace
+                      // A switched problem starts fresh: its own starter file and language (state lives inside)
+                      key={code.problem.id}
                       socket={socket}
                       problem={code.problem}
                       starter={code.starter}

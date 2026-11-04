@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { jsonObject } from "../bedrock";
-import { cleanSignature, generatedAsk, readReply, withSolution } from "./problem-gen";
+import {
+  cleanSignature,
+  draftEnv,
+  generatedAsk,
+  readEnvReply,
+  readReply,
+  slots,
+  trackOf,
+  validateEnv,
+  withSolution,
+} from "./problem-gen";
 import { starters } from "./starters";
 
 const NL = "\n";
@@ -127,5 +137,75 @@ describe("tolerant JSON", () => {
     const raw = `noise { "input": "1 2${NL}3 4", "tab": "a\tb", "ok": true } trailing`;
     expect(jsonObject(raw)).toEqual({ input: `1 2${NL}3 4`, tab: "a\tb", ok: true });
     expect(jsonObject('{ "a": [1, 2] }')).toEqual({ a: [1, 2] });
+  });
+});
+
+describe("environment problems", () => {
+  const reply = [
+    '{ "problem": { "title": "Fix the web Deployment", "statement": "The Deployment never becomes ready.", "constraints": "keep the name web", "approach": "match labels, add limits",',
+    '"checks": [',
+    '{ "name": "Selector matches the pod labels", "visible": true, "path": "spec.selector.matchLabels.app", "op": "eq", "value": "web" },',
+    '{ "name": "Memory limit on every container", "visible": true, "path": "spec.template.spec.containers[*].resources.limits.memory", "op": "exists" },',
+    '{ "name": "At least 2 replicas", "visible": true, "path": "spec.replicas", "op": "gte", "value": 2 },',
+    '{ "name": "Image pinned to a version", "visible": false, "path": "spec.template.spec.containers[*].image", "op": "no_match", "value": ":latest$" }],',
+    '"ladder": ["look at the selector", "add a readiness probe", "what if a node dies?"] } }',
+    `${FENCE}starter`,
+    "spec:\n  replicas: 1\n  selector:\n    matchLabels:\n      app: api\n  template:\n    spec:\n      containers:\n        - image: web:latest",
+    FENCE,
+    `${FENCE}reference`,
+    "spec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: web\n  template:\n    spec:\n      containers:\n        - image: web:1.4\n          resources:\n            limits:\n              memory: 256Mi",
+    FENCE,
+  ].join(NL);
+
+  it("reads the JSON, the starter and the reference from separate fences", () => {
+    const r = readEnvReply(reply, "yaml");
+    expect(r.problem.title).toBe("Fix the web Deployment");
+    expect(r.starter).toContain("app: api");
+    expect(r.reference).toContain("memory: 256Mi");
+    // An unlabelled reply still works: the last block in the environment's language is the reference
+    const bare = readEnvReply(`{ "problem": { "title": "t" } }${NL}${FENCE}bash${NL}echo hi${NL}${FENCE}`, "bash");
+    expect(bare.reference).toBe("echo hi");
+    expect(() => readEnvReply('{ "problem": {} }', "sql")).toThrow();
+  });
+
+  it("keeps a config problem only when the reference passes every check and the starter fails some", async () => {
+    const d = draftEnv(readEnvReply(reply, "yaml"), "g1", "medium", "yaml");
+    if (typeof d === "string") throw new Error(d);
+    expect(d.problem.visible.map((t) => t.name)).toHaveLength(3);
+    expect(d.problem.hidden[0]).toMatchObject({ name: "Image pinned to a version", check: { op: "no_match" } });
+    expect(await validateEnv(d)).toMatchObject({ id: "g1", env: "yaml", starter: expect.stringContaining("app: api") });
+    // A check the reference itself fails is rejected with its name, so the repair round can fix it
+    const bad = { ...d, reference: d.reference.replace("replicas: 2", "replicas: 1") };
+    expect(await validateEnv(bad)).toContain('"At least 2 replicas"');
+    // A starter that already passes means the checks don't measure the task
+    const easy = { ...d, problem: { ...d.problem, starter: d.reference } };
+    expect(await validateEnv(easy)).toContain("starter must fail");
+  });
+
+  it("rejects malformed checks with a reason", () => {
+    const broken = reply.replace('"op": "gte", "value": 2', '"op": "gte"');
+    expect(draftEnv(readEnvReply(broken, "yaml"), "g1", "medium", "yaml")).toContain("At least 2 replicas");
+  });
+
+  it("plans a primary, a like-for-like backup in the next track, and an easier one", () => {
+    const s = slots({ difficulty: "medium", background: "Ran EKS clusters", tracks: ["yaml", "bash"] }, 3);
+    expect(s.map((x) => [x.track, x.difficulty])).toEqual([
+      ["yaml", "medium"],
+      ["bash", "medium"],
+      ["yaml", "easy"],
+    ]);
+    expect(s[2].ask).toContain("deliberately simpler");
+    expect(s[0].ask).toContain("Ran EKS clusters");
+    expect(slots({ difficulty: "hard", tracks: ["code"] }, 3).map((x) => x.difficulty)).toEqual([
+      "hard",
+      "hard",
+      "medium",
+    ]);
+  });
+
+  it("reads a recruiter's own problem's environment from its text", () => {
+    expect(trackOf("Write a Kubernetes Deployment manifest for our API")).toBe("yaml");
+    expect(trackOf("Write a Terraform module for an S3 bucket")).toBe("terraform");
+    expect(trackOf("Given an array of integers, return the longest run")).toBe("code");
   });
 });

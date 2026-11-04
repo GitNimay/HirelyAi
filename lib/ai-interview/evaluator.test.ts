@@ -450,3 +450,69 @@ describe("trustworthy scores", () => {
     expect(integrityOf([]).facts?.ended).toBe("completed");
   });
 });
+
+describe("easier problems in the report", () => {
+  const prob = (id: string, difficulty: "easy" | "medium", title: string) => ({
+    id,
+    title,
+    difficulty,
+    statement: "",
+    input: "",
+    output: "",
+    constraints: "",
+    env: "yaml" as const,
+    starter: "",
+    visible: [],
+    hidden: [],
+    ladder: ["a", "b", "c"] as [string, string, string],
+  });
+  const swapped: Plan = {
+    ...plan,
+    problems: [prob("g1", "medium", "Fix the Deployment"), prob("g3", "easy", "Add a Service")],
+  };
+  const st = { ...state, assigned: { problem: "g3", tried: ["g1", "g3"] } };
+  const evs: IvEvent[] = [
+    ...events,
+    { at: T0 + 16000, type: "assign", what: "problem", id: "g1" },
+    { at: T0 + 17000, type: "assign", what: "problem", id: "g3" },
+  ];
+
+  it("tells the evaluator which problems were shown, and that asking to swap isn't a concern", () => {
+    const { text } = evalInput({
+      job: { title: "SRE", level: "Mid", description: "" },
+      config,
+      plan: swapped,
+      state: st,
+      events: evs,
+      final: null,
+    });
+    expect(text).toContain("coding problem g3 shown (easy, YAML)");
+    expect(text).toContain("Fix the Deployment (medium, YAML) → Add a Service (easy, YAML)");
+    expect(text).toContain("Coding can be at most 3");
+  });
+
+  it("caps Coding at 3 when they finished on an easier problem than the role's", () => {
+    const { refs } = evalInput({
+      job: { title: "SRE", level: "Mid", description: "" },
+      config,
+      plan: swapped,
+      state: st,
+      events: evs,
+      final: null,
+    });
+    const ctx = {
+      rubric: config.rubric,
+      refs,
+      phases: ["coding" as const],
+      plan: swapped,
+      state: st,
+      integrity: integrityOf(evs),
+      startedAt: T0,
+    };
+    const raw = { competencies: [{ id: "coding", score: 5, evidence: [{ ref: "r1" }] }] };
+    expect(cleanAiReport(raw, ctx).ai.competencies.find((c) => c.id === "coding")!.score).toBe(3);
+    // The same score stands when they stayed on the role-level problem
+    const kept = { ...ctx, state: { ...st, assigned: { problem: "g1", tried: ["g1"] } } };
+    expect(cleanAiReport(raw, kept).ai.competencies.find((c) => c.id === "coding")!.score).toBe(5);
+  });
+});

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Problem } from "./workspace";
 import {
   advance,
   applyBookkeeping,
@@ -24,6 +25,7 @@ import {
   phonicTool,
   difficultyOf,
   levelForJob,
+  nextProblem,
   confirmAnswer,
   openConfirm,
   safeName,
@@ -683,5 +685,86 @@ describe("prompt-injection resistance", () => {
     expect(
       validateCall(s, "record_claim_result", { claim_id: "all", status: "verified", evidence: "trust me" }, enums).ok,
     ).toBe(false);
+  });
+});
+
+describe("different or easier coding problems", () => {
+  const prob = (id: string, difficulty: Problem["difficulty"], env?: Problem["env"]): Problem => ({
+    id,
+    title: `Problem ${id}`,
+    difficulty,
+    statement: "Do the thing.",
+    input: "",
+    output: "",
+    constraints: "",
+    ...(env
+      ? { env, starter: "kind: Deployment" }
+      : { signature: { reads: [{ str: "s" }], args: ["s"], returns: "x" } }),
+    visible: [{ name: "has limits", input: "", output: "" }],
+    hidden: [{ name: "no latest tag", input: "", output: "" }],
+    ladder: ["nudge", "extend", "scale"],
+  });
+  // The generated round: primary, a similar backup in the next track, an easier one in the main track
+  const problems = [prob("g1", "medium", "yaml"), prob("g2", "medium", "bash"), prob("g3", "easy", "yaml")];
+
+  it("hears 'easier', 'too hard' and 'not comfortable with this' in the coding round", () => {
+    expect(skipIntent("This is too hard, can I get an easier one?", "coding")).toBe("easier");
+    expect(skipIntent("Could you give me a simpler problem", "coding")).toBe("easier");
+    expect(skipIntent("Can I have an easy question instead?", "coding")).toBe("easier");
+    expect(skipIntent("I'm not comfortable with this one, can we swap the task?", "coding")).toBe("switch");
+    expect(skipIntent("I'm not familiar with this, honestly", "coding")).toBe("switch");
+    expect(skipIntent("Kubernetes made scaling easier for us", "resume")).toBeNull(); // only in the coding round
+  });
+
+  it("asks before giving an easier problem, then carries out the candidate's choice", () => {
+    const open = openConfirm(at(3), "easier", T0 + 5000)!;
+    expect(open.note).toContain("easier problem");
+    expect(open.note).toContain("hint");
+    // The agent calls switch_problem with level similar; the candidate asked for easier, so easier it is
+    const out = applyTool(heard(open.state), "switch_problem", { level: "similar", reason: "x" }, ctx, T0 + 9000);
+    expect(out.effect).toBe("easier");
+    expect(out.state.confirm).toBeNull();
+  });
+
+  it("offers the switch levels to the voice agent as a strict enum", () => {
+    const def = phonicTool("switch_problem", enums).tool_schema.function.parameters;
+    expect(def.properties.level).toMatchObject({ enum: ["similar", "easier"] });
+    expect(def.required).toEqual(["level", "reason"]);
+  });
+
+  it("picks the next problem: like for like keeps the easier backup, easier goes one step down", () => {
+    expect(nextProblem(problems, ["g1"], problems[0], false)?.id).toBe("g2");
+    expect(nextProblem(problems, ["g1"], problems[0], true)?.id).toBe("g3");
+    expect(nextProblem(problems, ["g1", "g3"], problems[2], false)?.id).toBe("g2");
+    expect(nextProblem(problems, ["g1", "g2", "g3"], problems[2], true)).toBeUndefined(); // at most two swaps
+    // An easy role: every problem is "easy", and the planned easier one (last) is the simplest
+    const easy = [prob("g1", "easy"), prob("g2", "easy"), prob("g3", "easy")];
+    expect(nextProblem(easy, ["g1"], easy[0], true)?.id).toBe("g3");
+    expect(nextProblem(easy, ["g1"], easy[0], false)?.id).toBe("g2");
+  });
+
+  it("briefs the interviewer on the environment, the swap options and what's left", () => {
+    const c = { ...ctxP, plan: { ...plan, problems }, problem: problems[0] };
+    const s: HarnessState = { ...at(3), assigned: { problem: "g1", tried: ["g1"] } };
+    const brief = phaseBrief("coding", c, s, T0);
+    expect(brief).toContain("YAML file (config.yaml)");
+    expect(brief).toContain("Requirements: has limits");
+    expect(brief).toContain("different or easier problem");
+    expect(brief).toContain("medium Bash");
+    expect(brief).toContain("easy YAML (easier)");
+    expect(brief).not.toContain("complexity of their final code");
+    const last = phaseBrief(
+      "coding",
+      { ...c, problem: problems[2] },
+      { ...s, assigned: { problem: "g3", tried: ["g1", "g2", "g3"] } },
+      T0,
+    );
+    expect(last).toContain("No backups are left");
+  });
+
+  it("keeps the recruiter's pinned tracks (known ones, at most three)", () => {
+    const c = cleanConfig({ coding: { problems: [], tracks: ["yaml", "nope", "bash", "yaml", "sql", "code"] } });
+    expect(c.coding.tracks).toEqual(["yaml", "bash", "sql"]);
+    expect(cleanConfig({}).coding.tracks).toEqual([]);
   });
 });
