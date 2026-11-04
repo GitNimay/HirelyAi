@@ -61,7 +61,7 @@ import {
 } from "../lib/ai-interview/workspace";
 
 const PHONIC = "https://api.phonic.ai/v1/sts/ws";
-const VOICE = "eleanor"; // female, no regional accent, "grounded, patient, reassuring" per Phonic
+const VOICE = "sabrina"; // female, "cheerful" per Phonic
 const GRACE_MS = 5 * 60_000; // a dropped candidate can rejoin within this, with the clock paused
 const KEEP_VOICE_MS = 30_000; // a brief drop (tab flip, network blip) keeps the conversation: no re-greeting on rejoin
 const IDLE_MS = 60_000; // coding/design: no speech and no edits for this long wakes the agent
