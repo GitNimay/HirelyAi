@@ -2,15 +2,15 @@
 
 Traced from the code on `feat/interview-room-v2`. Main files:
 
-| Piece | File |
-| --- | --- |
-| Routes (`/interview/<slug>/room\|warm\|rec\|enter`) | `worker/index.ts` |
-| The room (Durable Object `InterviewRoom`) | `worker/ai-interview-room.ts` |
-| Harness: phases, clock, gates, tools, wakes, prompts | `lib/ai-interview/harness.ts` |
-| Plan, room context, bookkeeping, text fallback, evaluator I/O | `lib/ai-interview/session.ts` |
-| Evaluator (pure scoring) | `lib/ai-interview/evaluator.ts` |
-| Coding problems / sandbox | `lib/ai-interview/problem-gen.ts`, `problem-bank.ts`, `sandbox.ts` (Judge0) |
-| Candidate UI (steps, audio worklets, proctoring, recording) | `components/ai-interview/candidate.tsx`, `workspace.tsx` |
+| Piece                                                         | File                                                                        |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Routes (`/interview/<slug>/room\|warm\|rec\|enter`)           | `worker/index.ts`                                                           |
+| The room (Durable Object `InterviewRoom`)                     | `worker/ai-interview-room.ts`                                               |
+| Harness: phases, clock, gates, tools, wakes, prompts          | `lib/ai-interview/harness.ts`                                               |
+| Plan, room context, bookkeeping, text fallback, evaluator I/O | `lib/ai-interview/session.ts`                                               |
+| Evaluator (pure scoring)                                      | `lib/ai-interview/evaluator.ts`                                             |
+| Coding problems / sandbox                                     | `lib/ai-interview/problem-gen.ts`, `problem-bank.ts`, `sandbox.ts` (Judge0) |
+| Candidate UI (steps, audio worklets, proctoring, recording)   | `components/ai-interview/candidate.tsx`, `workspace.tsx`                    |
 
 The core idea: **Phonic is only the voice and the conversational model.** Everything that decides anything (which phase, which tools exist, whether a move is allowed, when to speak unprompted, what gets scored) lives in the harness inside the Durable Object. The browser never talks to Phonic and never sees a tool call, so it can't forge one.
 
@@ -182,16 +182,16 @@ sequenceDiagram
 
 `toolsFor(phase, {design})` decides; the DO sends that subset in `config` and again with `update_tools_subset` on every phase change. Every tool is a Phonic `custom_websocket` tool, `execution_mode: sync`, strict OpenAI function schema.
 
-| Tool | Phases | Params | Run by | Timeout | What it does |
-| --- | --- | --- | --- | --- | --- |
-| `request_phase_transition` | all | `initiated_by` goal_met \| candidate_asked, `reason` | harness (`applyTool`) | 10 s | Ask to move on. Gated (5c). If approved the move happens **inside** the call. |
-| `switch_problem` | coding | `reason` | harness + room | 10 s | Swap to a backup problem. Needs the candidate's confirmation (two-step). |
-| `read_editor` | coding | — | room | 10 s | Current code (≤8 000 chars), diff since last look, idle seconds. |
-| `run_tests` | coding | `suite` visible \| hidden | room → Judge0 | 60 s | Runs code. Agent gets pass counts + **names** of failing cases, never hidden inputs/outputs. |
-| `open_whiteboard` | technical (if design on) | `topic`, `requirements` (`;`-separated) | room | 10 s | Opens Excalidraw with the question; new topic = clean board. |
-| `read_whiteboard` | technical (if design on) | — | room (+ Bedrock vision) | 30 s | Board as components + connections; if freehand strokes exist, asks the browser for a PNG and has gemma-3-12b describe it. |
-| `close_whiteboard` | technical (if design on) | — | room | 10 s | Closes the board (also auto-closed when leaving Technical). |
-| `end_interview` | wrap-up | — | harness | 10 s | Ends after the goodbye finishes playing. |
+| Tool                       | Phases                   | Params                                               | Run by                  | Timeout | What it does                                                                                                              |
+| -------------------------- | ------------------------ | ---------------------------------------------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `request_phase_transition` | all                      | `initiated_by` goal_met \| candidate_asked, `reason` | harness (`applyTool`)   | 10 s    | Ask to move on. Gated (5c). If approved the move happens **inside** the call.                                             |
+| `switch_problem`           | coding                   | `reason`                                             | harness + room          | 10 s    | Swap to a backup problem. Needs the candidate's confirmation (two-step).                                                  |
+| `read_editor`              | coding                   | —                                                    | room                    | 10 s    | Current code (≤8 000 chars), diff since last look, idle seconds.                                                          |
+| `run_tests`                | coding                   | `suite` visible \| hidden                            | room → Judge0           | 60 s    | Runs code. Agent gets pass counts + **names** of failing cases, never hidden inputs/outputs.                              |
+| `open_whiteboard`          | technical (if design on) | `topic`, `requirements` (`;`-separated)              | room                    | 10 s    | Opens Excalidraw with the question; new topic = clean board.                                                              |
+| `read_whiteboard`          | technical (if design on) | —                                                    | room (+ Bedrock vision) | 30 s    | Board as components + connections; if freehand strokes exist, asks the browser for a PNG and has gemma-3-12b describe it. |
+| `close_whiteboard`         | technical (if design on) | —                                                    | room                    | 10 s    | Closes the board (also auto-closed when leaving Technical).                                                               |
+| `end_interview`            | wrap-up                  | —                                                    | harness                 | 10 s    | Ends after the goodbye finishes playing.                                                                                  |
 
 ### 5b. The path of every tool call
 
@@ -280,7 +280,7 @@ stateDiagram-v2
 
 Defaults sum to 25 min (`LIMITS.maxTotalMinutes`); the poster can drop coding or technical, and `cleanConfig` shrinks longer configs proportionally.
 
-**The clock** (`syncClock`) runs only when *all* hold: candidate connected, interviewer ready (or standby / resuming / text fallback), no proctoring pause. So reconnects and pauses never eat the candidate's time.
+**The clock** (`syncClock`) runs only when _all_ hold: candidate connected, interviewer ready (or standby / resuming / text fallback), no proctoring pause. So reconnects and pauses never eat the candidate's time.
 
 **Every 1 s `onTick`:**
 
