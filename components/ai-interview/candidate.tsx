@@ -717,7 +717,13 @@ function Room({
       case "cap": {
         const text = String(m.text);
         // Pin the interviewer's latest question beside the editor, so it stays readable after the caption moves on
-        const asked = m.who === "agent" ? text.match(/[^.?!]*\?/g)?.at(-1)?.trim() : "";
+        const asked =
+          m.who === "agent"
+            ? text
+                .match(/[^.?!]*\?/g)
+                ?.at(-1)
+                ?.trim()
+            : "";
         if (asked) setQuestion(asked);
         return setCaption((c) => ({ ...c, [m.who as string]: text }));
       }
@@ -942,7 +948,10 @@ function Room({
             ))}
           </ol>
           <div className="flex items-center justify-end gap-4 text-[13px]">
-            <span className="flex items-center gap-1.5 text-xs font-medium text-danger" title="This session is recorded">
+            <span
+              className="flex items-center gap-1.5 text-xs font-medium text-danger"
+              title="This session is recorded"
+            >
               <span className="size-1.5 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />
               REC
             </span>
