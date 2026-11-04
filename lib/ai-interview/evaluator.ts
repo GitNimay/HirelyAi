@@ -6,8 +6,10 @@
 import { fitFor, type Fit, type Report } from "../screening/fields";
 import {
   BARS,
+  envLabel,
   LEVELS,
   phaseLabel,
+  RANK,
   untrusted,
   weightOf,
   type Bar,
@@ -188,6 +190,19 @@ function pasteLine(events: IvEvent[]) {
     : "Editor pastes: none";
 }
 
+/** Problems the candidate asked to swap, and whether they finished on an easier one than the role's (capped below). */
+export function easierFinish(plan: Plan, state: HarnessState) {
+  const tried = (state.assigned.tried ?? []).map((id) => plan.problems?.find((p) => p.id === id)).filter((p) => !!p);
+  const first = tried[0];
+  const last = tried.at(-1);
+  return { tried, easier: !!first && !!last && RANK[last.difficulty] < RANK[first.difficulty] };
+}
+function swapLine(plan: Plan, state: HarnessState) {
+  const { tried, easier } = easierFinish(plan, state);
+  if (tried.length < 2) return "";
+  return `Coding problems, in order (the candidate may ask for a different or easier one; asking is not a concern): ${tried.map((p) => `${p.title} (${p.difficulty}, ${envLabel(p)})`).join(" → ")}.${easier ? " They finished on an easier problem than the role's level: Coding can be at most 3." : ""}`;
+}
+
 export type Refs = Map<string, { at: number; kind: EvidenceKind; quote: string }>;
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 
@@ -240,8 +255,9 @@ export function evalInput(o: {
       refs.set(id, { at: e.at, kind: "whiteboard", quote: e.change.slice(0, 300) });
       lines.push(`[${id} ${t}] (whiteboard) ${e.change.replaceAll("<", "‹")}`);
     } else if (e.type === "assign") {
+      const p = o.plan.problems?.find((x) => x.id === e.id);
       lines.push(
-        `(${t}: ${e.what === "problem" ? `coding problem ${e.id} shown` : `whiteboard opened: ${e.id.replaceAll("<", "‹")}`})`,
+        `(${t}: ${e.what === "problem" ? `coding problem ${e.id} shown${p ? ` (${p.difficulty}, ${envLabel(p)})` : ""}` : `whiteboard opened: ${e.id.replaceAll("<", "‹")}`})`,
       );
     } else if (e.type === "phase" && e.to)
       lines.push(
@@ -264,6 +280,7 @@ export function evalInput(o: {
     `Phases run: ${state.log.map((l) => `${phaseLabel(l.phase)} ${clock((l.end ?? last) - l.start)}`).join(", ")}`,
     `Resume claims and the interviewer's recorded outcome:\n${untrusted("claims", o.plan.claims.map((c) => `${c.id}: ${c.text} → ${state.claims[c.id]?.status ?? "not_reached"}${state.claims[c.id]?.evidence ? ` (${state.claims[c.id]!.evidence})` : ""}`).join("\n") || "(none)")}`,
     `Interviewer notes (observations, not scores):\n${untrusted("notes", state.notes.map((n, i) => `n${i + 1} [${n.rubric}] ${n.text}`).join("\n") || "(none)")}`,
+    swapLine(o.plan, state),
     `Hints given: ${state.hints.length ? state.hints.map((h) => `L${h.level} in ${phaseLabel(h.phase)}`).join(", ") : "none"}`,
     testLines(events),
     pasteLine(events),
@@ -387,8 +404,11 @@ export function cleanAiReport(
         : hid.passed / hid.total < 0.3
           ? Math.min(s, 2)
           : s;
-  competencies.forEach((c) => c.id === "coding" && (c.score = bound(c.score)));
-  sections.forEach((s) => s.phase === "coding" && (s.score = bound(s.score)));
+  // Solving an easier problem than the role's shows less than the level asks for: Coding meets the bar at most
+  const easier = easierFinish(o.plan, o.state).easier;
+  const capped = (s: number | null) => (s !== null && easier ? Math.min(s, 3) : s);
+  competencies.forEach((c) => c.id === "coding" && (c.score = capped(bound(c.score))));
+  sections.forEach((s) => s.phase === "coding" && (s.score = capped(bound(s.score))));
   // A weighted competency whose round ran but couldn't be assessed means an incomplete assessment, never a good one
   const incomplete = competencies
     .filter(

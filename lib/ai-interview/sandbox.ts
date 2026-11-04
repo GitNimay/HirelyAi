@@ -1,5 +1,18 @@
 import { env } from "cloudflare:workers";
-import { gradeOutput, LANGUAGES, suiteInput, type Language, type RunResult, type Test } from "./workspace";
+import { gradeChecks } from "./checks";
+import {
+  CASE_END,
+  CODE_LANGUAGES,
+  ENVS,
+  gradeBlocks,
+  gradeOutput,
+  suiteInput,
+  type CodeLanguage,
+  type Env,
+  type Language,
+  type RunResult,
+  type Test,
+} from "./workspace";
 
 /**
  * Runs candidate code in Judge0 (isolate sandbox: no network, CPU / memory / wall-time limits, read-only base image),
@@ -27,7 +40,9 @@ export type RawRun = {
   memory: number | null;
 };
 
-export async function runRaw(language: Language, code: string, stdin: string): Promise<RawRun> {
+const BASH = 46; // Judge0 CE "Bash (5.0.0)": its image also has sqlite3 3.27
+
+export async function runRaw(language: CodeLanguage | "bash", code: string, stdin: string): Promise<RawRun> {
   const base = env.JUDGE0_URL || "https://ce.judge0.com";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (env.JUDGE0_KEY) {
@@ -38,7 +53,7 @@ export async function runRaw(language: Language, code: string, stdin: string): P
     method: "POST",
     headers,
     body: JSON.stringify({
-      language_id: LANGUAGES[language].judge0,
+      language_id: language === "bash" ? BASH : CODE_LANGUAGES[language].judge0,
       source_code: b64(code.slice(0, 100_000)),
       stdin: b64(stdin),
       ...LIMITS,
@@ -75,14 +90,51 @@ export async function runRaw(language: Language, code: string, stdin: string): P
   };
 }
 
-/** Runs a test suite in one submission (multi-case stdin) and grades it line by line. */
+const CASE = "<<<HX_CASE>>>";
+/** How each case runs in the driver: Bash reads the case as stdin; SQL runs after the case's setup statements. */
+const RUN: Record<"bash" | "sql", string> = {
+  bash: 'bash ./solution < "case$i"',
+  sql: 'cat "case$i" ./solution | sqlite3 -batch',
+};
+
+/**
+ * Script environments in ONE submission: a Bash driver writes the candidate's file, splits stdin into one file per
+ * case, runs each case and ends its output with CASE_END. stdin: T, then each case after a CASE line.
+ */
+export function scriptRun(env: "bash" | "sql", file: string, tests: Test[]) {
+  const eof = `HX_EOF_${crypto.randomUUID().replaceAll("-", "")}`;
+  const code = `cat > ./solution <<'${eof}'
+${file}
+${eof}
+read -r T
+for ((i = 1; i <= T; i++)); do : > "case$i"; done
+awk -v s='${CASE}' '$0 == s { n++; next } n > 0 { print > ("case" n) }'
+for ((i = 1; i <= T; i++)); do
+  ${RUN[env]}
+  printf '\\n%s\\n' '${CASE_END}'
+done
+`;
+  // An empty input is an empty file, not one blank line
+  const stdin = `${tests.length}\n${tests.map((t) => (t.input ? `${CASE}\n${t.input}` : CASE)).join("\n")}\n`;
+  return { code, stdin };
+}
+
+/**
+ * Runs a test suite and grades it: code in one submission (multi-case stdin, line by line), scripts through the
+ * driver (whole output per case), config files by their checks (no sandbox).
+ */
 export async function runSuite(
   language: Language,
   code: string,
   tests: Test[],
   suite: "visible" | "hidden",
 ): Promise<RunResult> {
-  const r = await runRaw(language, code, suiteInput(tests));
+  if (language in ENVS && ENVS[language as Env].grade === "checks")
+    return gradeChecks(language as Env, code, tests, suite);
+  const script = language === "bash" || language === "sql" ? scriptRun(language, code, tests) : null;
+  const r = script
+    ? await runRaw("bash", script.code, script.stdin)
+    : await runRaw(language as CodeLanguage, code, suiteInput(tests));
   const failed = (status: string): RunResult => ({
     suite,
     passed: 0,
@@ -95,7 +147,7 @@ export async function runSuite(
   });
   if (r.id === 0) return failed("unavailable");
   if (r.id === 6) return failed("Compilation Error"); // nothing ran
-  const cases = gradeOutput(tests, r.stdout, suite === "visible");
+  const cases = (script ? gradeBlocks : gradeOutput)(tests, r.stdout, suite === "visible");
   const passed = cases.filter((c) => c.passed).length;
   return {
     suite,
