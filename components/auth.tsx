@@ -20,7 +20,12 @@ export function errorText(e: unknown) {
 // Full page load, not router.push: Clerk's Next.js integration runs router.refresh() right after setActive, and in
 // vinext that refresh supersedes a pending push, leaving a signed-in user on /sign-in. A document navigation can't be
 // cancelled that way (and /sign-in itself redirects signed-in users, as a second net).
-const navigate: SetActiveNavigate = ({ decorateUrl }) => window.location.assign(decorateUrl("/dashboard"));
+/** Where to land after signing in: back to a shared report (?next=/r/<token>, the only return allowed), else the app. */
+const landing = () => {
+  const next = typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("next") ?? "");
+  return /^\/r\/[0-9a-f]{32}$/.test(next) ? next : "/dashboard";
+};
+const navigate: SetActiveNavigate = ({ decorateUrl }) => window.location.assign(decorateUrl(landing()));
 
 /* ---------- Shared UI ---------- */
 
@@ -351,7 +356,7 @@ export function SignInForm() {
       <AuthBody
         cta="Log in"
         busy={fetchStatus === "fetching"}
-        sso={(strategy) => signIn.sso({ strategy, redirectUrl: "/dashboard", redirectCallbackUrl: "/sso-callback" })}
+        sso={(strategy) => signIn.sso({ strategy, redirectUrl: landing(), redirectCallbackUrl: "/sso-callback" })}
         sendCode={(emailAddress) => signIn.emailCode.sendCode({ emailAddress })}
         verifyCode={async (code) => {
           const res = await signIn.emailCode.verifyCode({ code });
@@ -384,7 +389,7 @@ export function SignUpForm() {
       <AuthBody
         cta="Sign up"
         busy={fetchStatus === "fetching"}
-        sso={(strategy) => signUp.sso({ strategy, redirectUrl: "/dashboard", redirectCallbackUrl: "/sso-callback" })}
+        sso={(strategy) => signUp.sso({ strategy, redirectUrl: landing(), redirectCallbackUrl: "/sso-callback" })}
         sendCode={async (emailAddress) => {
           const res = await signUp.create({ emailAddress });
           return res.error ? res : signUp.verifications.sendEmailCode();

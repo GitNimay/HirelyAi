@@ -2,6 +2,9 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   aiReport,
+  recordingSession,
+  sharedReport,
+  shareReport,
   aiSessionFor,
   checkpoint,
   createAiSession,
@@ -242,8 +245,21 @@ describe("report, decisions and retention", () => {
     expect(await recordingSegments(sessionId)).toEqual([{ track: "cam", start: 1700000000000, bytes: 20 }]);
 
     const data = await aiReport(poster, j, applicant);
-    expect(data?.events.map((e) => e.type)).toEqual(["utterance", "utterance"]); // tool chatter isn't replayed
+    expect(data?.lines.map((e) => e.type)).toEqual(["utterance", "utterance"]); // tool chatter isn't replayed
     expect(await aiReport(await user(), j, applicant)).toBeNull(); // only the poster
+
+    // Share link: anyone sees scores; transcript and recordings need a sign-in; off = gone
+    const token = (await shareReport(poster, j, applicant, true))!;
+    expect(await shareReport(poster, j, applicant, true)).toBe(token); // stable while on
+    await expect(shareReport(await user(), j, applicant, true)).rejects.toThrow("Not found");
+    const pub = await sharedReport(token, false);
+    expect(pub).toMatchObject({ access: "public", lines: [], segments: [], decision: null, shareToken: null });
+    expect((await sharedReport(token, true))?.lines).toHaveLength(2);
+    const stranger = await user();
+    expect(await recordingSession(stranger, j, applicant, token)).toBe(sessionId);
+    expect(await recordingSession(stranger, j, applicant, null)).toBeNull();
+    expect(await shareReport(poster, j, applicant, false)).toBeNull();
+    expect(await sharedReport(token, true)).toBeNull();
 
     await decide(poster, j, applicant, "advance", "Strong system design");
     expect(
