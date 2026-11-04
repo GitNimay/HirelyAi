@@ -216,3 +216,12 @@ export function sceneChange(before: Scene, after: Scene) {
 export const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|BlackBerry|Opera Mini|IEMobile/i;
 export const mobileRequest = (ua: string | null, chMobile: string | null) =>
   chMobile === "?1" || MOBILE_UA.test(ua ?? "");
+
+/**
+ * The browser's own view: Client Hints where supported (Chromium), else the UA. iPadOS reports a desktop Mac UA, so a
+ * Mac with a touch screen is an iPad.
+ */
+export const mobileBrowser = (n: { userAgent: string; maxTouchPoints: number; userAgentData?: { mobile: boolean } }) =>
+  n.userAgentData?.mobile === true ||
+  MOBILE_UA.test(n.userAgent) ||
+  (/Macintosh/.test(n.userAgent) && n.maxTouchPoints > 1);

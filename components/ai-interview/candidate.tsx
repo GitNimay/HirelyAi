@@ -9,7 +9,7 @@ import { ThinkingOrb } from "thinking-orbs";
 import type { CandidateView } from "@/lib/screening/interview";
 import { LIMITS, PHASES, phaseLabel, type PhaseId } from "@/lib/ai-interview/harness";
 import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
-import { MOBILE_UA, type PublicProblem, type RunResult, type Language } from "@/lib/ai-interview/workspace";
+import { mobileBrowser, type PublicProblem, type RunResult, type Language } from "@/lib/ai-interview/workspace";
 import { Details, Gate } from "../screening/interview";
 import { MicCheck } from "../screening/voice";
 import { ask } from "../kit";
@@ -116,7 +116,7 @@ export function AiInterview({
 
   const minutes = view.phases.reduce((s, p) => s + p.minutes, 0);
   const card: Record<Exclude<Step, "room">, React.ReactNode> = {
-    phone: <UseComputer />,
+    phone: <UseComputer live={rejoin} />,
     gate: <Gate view={view} turnstile={turnstile} onDone={() => (setLocal(null), router.refresh())} />,
     details: <Details initial={view.session?.prefill ?? {}} slug={view.slug} onDone={() => go("check")} />,
     check: <SystemCheck rejoin={rejoin} onDone={() => go(rejoin ? "room" : "consent")} />,
@@ -433,17 +433,10 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
 const noop = () => () => {};
 
 /** Client Hints where supported (Chromium), else the UA; iPadOS claims to be a Mac, so a touch Mac is an iPad. */
-function onPhone() {
-  const n = navigator as Navigator & { userAgentData?: { mobile: boolean } };
-  return (
-    n.userAgentData?.mobile === true ||
-    MOBILE_UA.test(n.userAgent) ||
-    (/Macintosh/.test(n.userAgent) && n.maxTouchPoints > 1)
-  );
-}
+const onPhone = () => mobileBrowser(navigator);
 
 /** Shown instead of the steps on a phone or tablet, with the link one tap from being sent to their computer. */
-function UseComputer() {
+function UseComputer({ live }: { live: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-6">
@@ -454,7 +447,11 @@ function UseComputer() {
       <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed marker:text-muted">
         <li>Use the latest Chrome or Edge on a laptop or desktop.</li>
         <li>Open the link from your invitation email there and sign in with the same candidate ID and password.</li>
-        <li>Nothing has started yet: your attempt is still unused.</li>
+        <li>
+          {live
+            ? "Your interview is in progress and the clock is paused: rejoin from a laptop or desktop within 5 minutes."
+            : "Nothing has started yet: your attempt is still unused."}
+        </li>
       </ul>
       <div className="flex justify-end border-t border-border pt-5">
         <button
