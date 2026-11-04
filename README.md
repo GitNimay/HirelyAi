@@ -76,6 +76,10 @@ sequenceDiagram
 
 The app mints a LiveKit token whose room config dispatches [the voice agent](voice-agent/README.md) (registered with LiveKit as `interview-agent`) with the job, candidate and questions as metadata. The agent runs the call (5-minute hard limit) on LiveKit Inference: AssemblyAI streaming STT, Gemma 4 31B, Inworld TTS, no extra keys. When the call ends it POSTs the transcript to `/api/interview/complete`, a queue grades it with Bedrock, and the poster gets the report.
 
+## AI interview
+
+The longer AI interview (intro, deep dive, technical with whiteboard, coding, wrap-up) runs on Phonic speech-to-speech inside the `InterviewRoom` Durable Object. See [docs/ai-interview-flow.md](docs/ai-interview-flow.md) for the full flow, tool calls and harness, and [docs/](docs/README.md) for all docs.
+
 ## Getting started
 
 ```bash

@@ -438,3 +438,31 @@ html:has([data-landing]) {
     animation: none;
   }
 }
+
+/* Paper (the interview report's Download PDF): A4, always the light palette, colors printed as designed */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 13mm;
+  }
+  :root,
+  :root[data-theme="dark"],
+  :root[data-theme="light"] {
+    --background: #ffffff;
+    --foreground: #1c1c19;
+    --muted: #65655f;
+    --surface: #f7f7f4;
+    --surface-hover: #efefea;
+    --border: #e4e4de;
+    --link: #0068d6;
+    --danger: #d93036;
+    --success: #059669;
+    color-scheme: light;
+  }
+  html,
+  body {
+    background: #fff;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
