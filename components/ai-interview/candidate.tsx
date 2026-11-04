@@ -4,11 +4,12 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { memo, useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
 import { ThinkingOrb } from "thinking-orbs";
 import type { CandidateView } from "@/lib/screening/interview";
 import { LIMITS, PHASES, phaseLabel, type PhaseId } from "@/lib/ai-interview/harness";
 import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
-import type { PublicProblem, RunResult, Language } from "@/lib/ai-interview/workspace";
+import { MOBILE_UA, type PublicProblem, type RunResult, type Language } from "@/lib/ai-interview/workspace";
 import { Details, Gate } from "../screening/interview";
 import { MicCheck } from "../screening/voice";
 import { ask } from "../kit";
@@ -27,9 +28,10 @@ const Whiteboard = dynamic(() => import("./workspace").then((m) => memo(m.Whiteb
   loading: () => <Loading what="whiteboard" />,
 });
 
-type Step = "gate" | "details" | "check" | "consent" | "brief" | "room" | "done" | "closed";
+type Step = "phone" | "gate" | "details" | "check" | "consent" | "brief" | "room" | "done" | "closed";
 const STEPS = ["Sign in", "Your details", "System check", "Consent", "Overview", "Interview"];
 const INDEX: Record<Step, number> = {
+  phone: 0,
   gate: 0,
   details: 1,
   check: 2,
@@ -42,9 +44,9 @@ const INDEX: Record<Step, number> = {
 type AgentState = "connecting" | "listening" | "thinking" | "speaking";
 const ORB = { connecting: "connecting", listening: "listening", thinking: "solving", speaking: "composing" } as const;
 const STATE_LABEL: Record<AgentState, string> = {
-  connecting: "Connecting to your interviewer…",
+  connecting: "Connecting",
   listening: "Listening",
-  thinking: "Thinking…",
+  thinking: "Thinking",
   speaking: "Speaking",
 };
 const CAPTURE = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
@@ -75,13 +77,18 @@ const rejoins = { n: 0 };
 export function AiInterview({
   view,
   turnstile,
+  phone: phoneOnServer,
 }: {
   view: CandidateView;
   turnstile: { sitekey: string; action: string };
+  /** The server's guess from the request headers; the browser refines it (iPadOS sends a desktop User-Agent). */
+  phone: boolean;
 }) {
   const router = useRouter();
   const [local, setLocal] = useState<Step | null>(null);
-  const step = local ?? stepOf(view);
+  const phone = useSyncExternalStore(noop, onPhone, () => phoneOnServer);
+  // A finished or closed interview still says so; everything else needs a laptop or desktop
+  const step = local ?? (phone && !["done", "closed"].includes(stepOf(view)) ? "phone" : stepOf(view));
   const go = (s: Step) => (setLocal(s), window.scrollTo({ top: 0 }));
   const rejoin = view.session?.status === "live";
   const [attempt, setAttempt] = useState(0);
@@ -109,41 +116,42 @@ export function AiInterview({
 
   const minutes = view.phases.reduce((s, p) => s + p.minutes, 0);
   const card: Record<Exclude<Step, "room">, React.ReactNode> = {
+    phone: <UseComputer />,
     gate: <Gate view={view} turnstile={turnstile} onDone={() => (setLocal(null), router.refresh())} />,
     details: <Details initial={view.session?.prefill ?? {}} slug={view.slug} onDone={() => go("check")} />,
     check: <SystemCheck rejoin={rejoin} onDone={() => go(rejoin ? "room" : "consent")} />,
     consent: <Consent company={view.company} onDone={() => go("brief")} onBack={() => go("check")} />,
     brief: (
-      <div className="space-y-6 text-sm leading-relaxed">
+      <div className="space-y-7 text-sm leading-relaxed">
         <Head title="Before you start" sub={`${view.title} at ${view.company}`} />
-        <section className="space-y-2">
-          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">The role</h3>
-          <ul className="list-disc space-y-1 pl-5 marker:text-muted">
+        <section className="space-y-2.5">
+          <h3 className="text-[13px] font-medium text-muted">The role</h3>
+          <ul className="list-disc space-y-1.5 pl-5 marker:text-muted">
             <li>
               <strong className="font-medium">{view.title}</strong> at{" "}
               <strong className="font-medium">{view.company}</strong>
             </li>
-            <li>
+            <li className="text-muted">
               {LEVELS[view.job.level]} · {JOB_TYPES[view.job.type]} · {WORKPLACES[view.job.workplace]}
               {view.job.location && ` · ${view.job.location}`}
             </li>
           </ul>
         </section>
-        <section className="space-y-2">
-          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">
+        <section className="space-y-2.5">
+          <h3 className="text-[13px] font-medium text-muted">
             The interview · {view.flexible ? `flexible, up to ${LIMITS.flexibleMinutes} min` : `${minutes} min`}
           </h3>
-          <ol className="divide-y divide-border rounded-lg border border-border">
+          <ol className="divide-y divide-border border-y border-border">
             {view.phases.map((p, i) => (
-              <li key={p.id} className="flex items-start gap-3 px-3 py-2.5">
-                <span className="mt-0.5 w-4 shrink-0 text-xs text-muted tabular-nums">{i + 1}</span>
+              <li key={p.id} className="flex items-start gap-3.5 py-3.5">
+                <span className="mt-px w-4 shrink-0 text-[13px] text-muted tabular-nums">{i + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{phaseLabel(p.id)}</span>
-                  <span className="block text-xs text-muted">
+                  <span className="mt-0.5 block text-[13px] leading-snug text-pretty text-muted">
                     {(PHASES as Record<string, { goal: string }>)[p.id]?.goal}
                   </span>
                 </span>
-                <span className="shrink-0 text-xs text-muted tabular-nums">
+                <span className="mt-px shrink-0 text-[13px] text-muted tabular-nums">
                   {view.flexible ? "~" : ""}
                   {p.minutes} min
                 </span>
@@ -151,9 +159,9 @@ export function AiInterview({
             ))}
           </ol>
         </section>
-        <section className="space-y-2">
-          <h3 className="text-xs font-medium tracking-wide text-muted uppercase">Rules</h3>
-          <ul className="list-disc space-y-1 pl-5 marker:text-muted">
+        <section className="space-y-2.5">
+          <h3 className="text-[13px] font-medium text-muted">Rules</h3>
+          <ul className="list-disc space-y-2 pl-5 text-pretty marker:text-muted">
             <li>Talk out loud, like a real interview. You can interrupt the interviewer at any time.</li>
             <li>
               Stay in <strong className="font-medium">full screen</strong> with your screen shared and your face
@@ -424,11 +432,54 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
 
 const noop = () => () => {};
 
+/** Client Hints where supported (Chromium), else the UA; iPadOS claims to be a Mac, so a touch Mac is an iPad. */
+function onPhone() {
+  const n = navigator as Navigator & { userAgentData?: { mobile: boolean } };
+  return (
+    n.userAgentData?.mobile === true ||
+    MOBILE_UA.test(n.userAgent) ||
+    (/Macintosh/.test(n.userAgent) && n.maxTouchPoints > 1)
+  );
+}
+
+/** Shown instead of the steps on a phone or tablet, with the link one tap from being sent to their computer. */
+function UseComputer() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="space-y-6">
+      <Head
+        title="Open this on a laptop or desktop"
+        sub="The AI interview needs a full-size screen, a webcam and whole-screen sharing, which phones and tablets don't support."
+      />
+      <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed marker:text-muted">
+        <li>Use the latest Chrome or Edge on a laptop or desktop.</li>
+        <li>Open the link from your invitation email there and sign in with the same candidate ID and password.</li>
+        <li>Nothing has started yet: your attempt is still unused.</li>
+      </ul>
+      <div className="flex justify-end border-t border-border pt-5">
+        <button
+          type="button"
+          className={primary}
+          onClick={() =>
+            void navigator.clipboard?.writeText(location.href.split("?")[0]).then(
+              () => setCopied(true),
+              () => {},
+            )
+          }
+        >
+          <Icon d={copied ? icons.check : COPY} size={16} />
+          {copied ? "Link copied" : "Copy link"}
+        </button>
+      </div>
+    </div>
+  );
+}
+const COPY = "M8 8h12v12H8zM16 8V4H4v12h4";
+
 function supported() {
   const ua = navigator.userAgent;
-  const mobile = /Android|iPhone|iPad|Mobile/i.test(ua);
   return (
-    !mobile &&
+    !onPhone() &&
     /Chrome\/|Edg\//.test(ua) &&
     "AudioWorkletNode" in window &&
     "MediaRecorder" in window &&
@@ -443,7 +494,7 @@ function Consent({ company, onDone, onBack }: { company: string; onDone: () => v
   return (
     <div className="space-y-6 text-sm leading-relaxed">
       <Head title="Consent and notice" sub="Please read this before you start." />
-      <ul className="space-y-3">
+      <ul className="divide-y divide-border border-y border-border">
         {[
           [
             "AI interviewer",
@@ -463,9 +514,9 @@ function Consent({ company, onDone, onBack }: { company: string; onDone: () => v
           ],
           ["Your data", `It's shared only with ${company}'s hiring team and kept according to their retention policy.`],
         ].map(([t, d]) => (
-          <li key={t} className="rounded-lg border border-border px-3 py-2.5">
+          <li key={t} className="py-3.5">
             <span className="block font-medium">{t}</span>
-            <span className="text-muted">{d}</span>
+            <span className="mt-0.5 block text-[13px] leading-snug text-pretty text-muted">{d}</span>
           </li>
         ))}
       </ul>
@@ -622,6 +673,7 @@ function Room({
   const [started, setStarted] = useState(() => Date.now()); // when the current stage wait began, for "taking longer"
   const [everReady, setEverReady] = useState(false);
   const [caption, setCaption] = useState({ agent: "", you: "" });
+  const [question, setQuestion] = useState("");
   const [youSpeaking, setYouSpeaking] = useState(false);
   const [clock, setClock] = useState<Clock | null>(null);
   const [micOn, setMicOn] = useState(true);
@@ -662,8 +714,19 @@ function Room({
       }
       case "state":
         return setAgent(m.agent as AgentState);
-      case "cap":
-        return setCaption((c) => ({ ...c, [m.who as string]: String(m.text) }));
+      case "cap": {
+        const text = String(m.text);
+        // Pin the interviewer's latest question beside the editor, so it stays readable after the caption moves on
+        const asked =
+          m.who === "agent"
+            ? text
+                .match(/[^.?!]*\?/g)
+                ?.at(-1)
+                ?.trim()
+            : "";
+        if (asked) setQuestion(asked);
+        return setCaption((c) => ({ ...c, [m.who as string]: text }));
+      }
       case "you":
         return setYouSpeaking(!!m.speaking);
       case "flush":
@@ -845,148 +908,314 @@ function Room({
 
   const phase = clock?.phases[clock.index]?.id;
   // The whiteboard opens when the interviewer asks for a design sketch (the technical round)
-  const workspace = phase === "coding" && code ? "code" : board ? "board" : "talk";
+  const workspace = fallback ? "chat" : phase === "coding" && code ? "code" : board ? "board" : "talk";
+  // Talk rounds put both tiles centre stage; a workspace docks them into a side panel
+  const dock = workspace !== "talk";
+  // The editor and whiteboard are heavy to mount: wait until the tiles have finished moving so the move never drops frames
+  const reduce = useReducedMotion();
+  const [settled, setSettled] = useState(dock);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(dock), dock && !reduce ? DOCK_MS : 0);
+    return () => clearTimeout(t);
+  }, [dock, reduce]);
+  // Measure layout only when the arrangement changes: captions re-render the room many times a second
+  const tile = { layout: true, layoutDependency: dock } as const;
+  const index = clock?.index ?? 0;
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border px-4">
-        <span className="flex items-center gap-2.5">
-          <Logo size={24} />
-          <span className="hidden text-sm font-medium sm:inline">{view.company}</span>
-        </span>
-        <ol className="hidden min-w-0 flex-1 items-center gap-1 md:flex" aria-label="Interview phases">
-          {clock?.phases.map((p, i) => (
-            <li
-              key={p.id}
-              aria-current={i === clock.index ? "step" : undefined}
-              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${i === clock.index ? "bg-surface font-medium text-foreground" : i < clock.index ? "text-muted" : "text-muted/60"}`}
-            >
-              {i < clock.index && <Icon d={icons.check} size={12} className="text-success" />}
-              {p.label}
-            </li>
-          ))}
-        </ol>
-        <div className="ml-auto flex items-center gap-4 text-xs">
-          <span className="flex items-center gap-1.5 text-danger" title="This session is recorded">
-            <span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />
-            REC
+    <MotionConfig reducedMotion="user" transition={{ layout: MOVE }}>
+      <div className="flex h-dvh flex-col bg-background">
+        <header className="grid h-15 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-6 border-b border-border px-6">
+          <span className="flex min-w-0 items-center gap-2.5">
+            <Logo size={24} />
+            <span className="truncate text-sm font-medium">{view.company}</span>
           </span>
-          {everReady && clock ? (
-            <Timer clock={clock} />
-          ) : (
-            <span className="text-muted">Waiting for your interviewer</span>
-          )}
-          <button
-            type="button"
-            className="inline-flex h-8 items-center rounded-md border border-danger/50 px-3 font-medium text-danger transition-colors hover:bg-danger/10"
-            onClick={async () =>
-              (await ask({
-                title: "End the interview now?",
-                body: "You can't restart it.",
-                confirm: "End interview",
-                danger: true,
-              })) && socket.send({ t: "end" })
-            }
-          >
-            End
-          </button>
-        </div>
-      </header>
-
-      {!everReady ? (
-        <Joining stage={stage} since={started} error={error} onRetry={onRetry} />
-      ) : (
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[300px_1fr]">
-          <aside className="flex min-h-0 flex-col gap-4 border-b border-border p-4 lg:border-r lg:border-b-0">
-            <div className="flex items-center gap-3 lg:flex-col lg:items-stretch">
-              <div className="flex size-20 shrink-0 items-center justify-center lg:size-auto lg:h-32" aria-hidden>
-                <ThinkingOrb state={ORB[agent]} size={64} />
-              </div>
-              <div className="min-w-0 space-y-1.5 lg:text-center" aria-live="polite">
-                <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
-                {caption.agent && <p className="line-clamp-4 text-sm leading-relaxed break-words">{caption.agent}</p>}
-                {caption.you && (
-                  <p className={`line-clamp-2 text-xs break-words ${youSpeaking ? "text-foreground" : "text-muted"}`}>
-                    You: {caption.you}
-                  </p>
+          <ol className="flex items-center gap-2.5 text-[13px]" aria-label="Interview rounds">
+            {clock?.phases.map((p, i) => (
+              <li
+                key={p.id}
+                aria-current={i === index ? "step" : undefined}
+                className={`flex items-center gap-2.5 ${i === index ? "font-medium text-foreground" : "text-muted"}`}
+              >
+                {i > 0 && <span className="h-px w-4 bg-border" aria-hidden />}
+                {i < index ? (
+                  <Icon d={icons.check} size={12} className="text-success" />
+                ) : (
+                  <span className={`size-1.5 rounded-full ${i === index ? "bg-foreground" : "bg-border"}`} />
                 )}
-              </div>
-            </div>
-            {muted && (
-              <button type="button" className={primary} onClick={() => void audioCtx.current?.resume()}>
-                Tap to hear your interviewer
-              </button>
+                {p.label}
+              </li>
+            ))}
+          </ol>
+          <div className="flex items-center justify-end gap-4 text-[13px]">
+            <span
+              className="flex items-center gap-1.5 text-xs font-medium text-danger"
+              title="This session is recorded"
+            >
+              <span className="size-1.5 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />
+              REC
+            </span>
+            {everReady && clock ? (
+              <Timer clock={clock} />
+            ) : (
+              <span className="text-muted">Waiting for your interviewer</span>
             )}
             <button
               type="button"
-              onClick={toggleMic}
-              aria-pressed={!micOn}
-              className={`inline-flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${micOn ? "border-border hover:bg-surface-hover" : "border-danger/50 bg-danger/10 text-danger"}`}
+              className="inline-flex h-8 items-center rounded-lg border border-danger/40 px-3.5 font-medium text-danger transition-colors outline-none hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={async () =>
+                (await ask({
+                  title: "End the interview now?",
+                  body: "You can't restart it.",
+                  confirm: "End interview",
+                  danger: true,
+                })) && socket.send({ t: "end" })
+              }
             >
-              <Icon d={micOn ? icons.mic : MIC_OFF} size={16} />
-              {micOn ? "Mute" : "Unmute: the interviewer can't hear you"}
+              End interview
             </button>
-            <video
-              ref={selfView}
-              autoPlay
-              muted
-              playsInline
-              className="mt-auto hidden aspect-video w-full -scale-x-100 rounded-lg border border-border bg-surface object-cover lg:block"
-              aria-label="Your camera"
-            />
-            <p className="hidden text-xs text-muted lg:block">Camera, microphone and screen are being recorded.</p>
-            {error && <Alert>{error}</Alert>}
-          </aside>
+          </div>
+        </header>
 
-          <main className="relative min-h-0 min-w-0">
+        {!everReady ? (
+          <Joining stage={stage} since={started} error={error} onRetry={onRetry} />
+        ) : (
+          <div className="relative flex min-h-0 flex-1">
             {stage === "reconnecting" && !fallback && (
               <p
                 role="status"
-                className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 border-b border-border bg-surface px-4 py-2 text-xs"
+                className="absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-2 border-b border-border bg-surface px-4 py-2 text-xs"
               >
                 <span className="size-1.5 animate-pulse rounded-full bg-foreground motion-reduce:animate-none" />
                 Reconnecting to your interviewer… The clock is paused.
               </p>
             )}
-            {fallback ? (
-              <TextChat
-                chat={chat}
-                onSend={(text) => (
-                  setChat((c) => [...c, { role: "candidate", text }]),
-                  socket.send({ t: "chat", text })
+            <aside
+              className={
+                dock
+                  ? "flex w-[360px] shrink-0 flex-col overflow-y-auto border-r border-border"
+                  : "flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 pb-16"
+              }
+            >
+              {/* The same two tile elements in both arrangements, so the camera never remounts; Motion animates the
+                  move with transforms (FLIP) */}
+              <div className={dock ? "grid grid-cols-2 gap-3 px-5 pt-5" : "flex items-center gap-12"}>
+                <motion.div
+                  key="interviewer"
+                  {...tile}
+                  style={{ borderRadius: dock ? 12 : 16 }}
+                  className={`relative aspect-[4/3] overflow-hidden border border-border bg-surface ${dock ? "w-full" : STAGE_W}`}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center pb-[12%]" aria-hidden>
+                    {/* A fixed share of the tile, so the tile's own scale carries it smoothly */}
+                    <ThinkingOrb state={ORB[agent]} size={64} className={dock ? "scale-[0.62]" : "scale-[1.75]"} />
+                  </div>
+                  <motion.span
+                    {...tile}
+                    className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 rounded-full bg-surface-hover px-2.5 py-1 text-xs font-medium"
+                  >
+                    <span
+                      className={`size-1.5 rounded-full ${agent === "speaking" ? "bg-success" : "bg-muted"}`}
+                      aria-hidden
+                    />
+                    {dock ? STATE_LABEL[agent] : `Interviewer · ${STATE_LABEL[agent]}`}
+                  </motion.span>
+                </motion.div>
+                {!dock && (
+                  <motion.div
+                    key="round"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1, transition: { delay: 0.2 } }}
+                    className="w-48 shrink-0 text-center"
+                  >
+                    <p className="font-display text-3xl leading-tight font-normal">
+                      {phase ? phaseLabel(phase) : "Getting ready"}
+                    </p>
+                    {clock && (
+                      <p className="mt-2 text-[13px] text-muted">
+                        Round {index + 1} of {clock.phases.length}
+                        {phase === "coding" && " · the editor opens in a moment"}
+                      </p>
+                    )}
+                  </motion.div>
                 )}
-              />
-            ) : workspace === "code" && code ? (
-              <CodeWorkspace
-                socket={socket}
-                problem={code.problem}
-                starter={code.starter}
-                initial={code.code}
-                run={run}
-              />
-            ) : workspace === "board" && board ? (
-              <Whiteboard
-                key={board.design.id}
-                socket={socket}
-                design={board.design}
-                initial={board.elements}
-                onSnapshot={onSnapshot}
-              />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-                <p className="font-display text-2xl font-normal">{phase ? phaseLabel(phase) : "Getting ready"}</p>
-                <p className="max-w-md text-sm text-muted">
-                  {phase === "coding"
-                    ? "Your interviewer will open the editor in a moment."
-                    : "Answer out loud, like a normal conversation. Take your time to think; short pauses are fine."}
-                </p>
+                <motion.div
+                  key="camera"
+                  {...tile}
+                  style={{ borderRadius: dock ? 12 : 16 }}
+                  className={`relative aspect-[4/3] overflow-hidden border border-border bg-surface-hover ${dock ? "w-full" : STAGE_W}`}
+                >
+                  <video
+                    ref={selfView}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="size-full -scale-x-100 object-cover"
+                    aria-label="Your camera"
+                  />
+                  <motion.span
+                    {...tile}
+                    className="absolute bottom-2.5 left-2.5 rounded-full bg-surface/90 px-2.5 py-1 text-xs font-medium"
+                  >
+                    You
+                  </motion.span>
+                  <motion.button
+                    {...tile}
+                    type="button"
+                    onClick={toggleMic}
+                    aria-pressed={!micOn}
+                    aria-label={micOn ? "Mute microphone" : "Unmute microphone"}
+                    title={micOn ? "Mute" : "Unmute: the interviewer can't hear you"}
+                    className={`absolute right-2.5 bottom-2.5 flex size-8 items-center justify-center rounded-full shadow-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${micOn ? "bg-surface text-foreground hover:bg-surface-hover" : "bg-danger text-white"}`}
+                  >
+                    <Icon d={micOn ? icons.mic : MIC_OFF} size={15} />
+                  </motion.button>
+                </motion.div>
               </div>
-            )}
-          </main>
-        </div>
-      )}
 
-      {paused && <PauseOverlay reason={paused} />}
+              {dock ? (
+                <motion.div
+                  key="panel"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, transition: { delay: 0.25 } }}
+                  className="flex flex-1 flex-col"
+                >
+                  <div className="space-y-3.5 p-5" aria-live="polite">
+                    <Line who="Interviewer" text={caption.agent} />
+                    <Line who="You" text={caption.you} quiet={!youSpeaking} />
+                  </div>
+                  {workspace !== "chat" && (
+                    <section className="flex-1 space-y-2.5 border-t border-border p-5">
+                      {workspace === "board" && board ? (
+                        <>
+                          <h2 className="text-base leading-snug font-medium text-balance">{board.design.title}</h2>
+                          {board.design.prompt && (
+                            <p className="text-sm leading-relaxed text-muted">{board.design.prompt}</p>
+                          )}
+                          <ul className="space-y-2 pt-1.5 text-[13px]">
+                            {board.design.requirements.map((r) => (
+                              <li key={r} className="flex items-start gap-2">
+                                <Icon d={icons.check} size={13} className="mt-0.5 shrink-0 text-success" />
+                                {r}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : (
+                        <>
+                          <h2 className="text-[13px] text-muted">Latest question</h2>
+                          <p className="text-base leading-snug font-medium text-pretty">
+                            {question || "Your interviewer's latest question stays pinned here."}
+                          </p>
+                        </>
+                      )}
+                    </section>
+                  )}
+                  <Notices muted={muted} error={error} onHear={() => void audioCtx.current?.resume()} />
+                </motion.div>
+              ) : (
+                <div
+                  className={`mt-6 grid grid-cols-[var(--stage-w)_12rem_var(--stage-w)] gap-x-12 [--stage-w:min(440px,34vw)]`}
+                >
+                  <Line who="Interviewer" text={caption.agent} center live />
+                  <span />
+                  <Line who="You" text={caption.you} quiet={!youSpeaking} center />
+                  <div className="col-span-3 mx-auto mt-4 w-full max-w-sm empty:hidden">
+                    <Notices muted={muted} error={error} onHear={() => void audioCtx.current?.resume()} />
+                  </div>
+                </div>
+              )}
+            </aside>
+
+            {/* popLayout: the leaving workspace is taken out of the flow at once, so the tiles' move starts clean */}
+            <AnimatePresence mode="popLayout">
+              {dock && settled && (
+                <motion.main
+                  key={workspace}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, transition: { duration: 0.25 } }}
+                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  className="relative min-h-0 min-w-0 flex-1"
+                >
+                  {workspace === "chat" ? (
+                    <TextChat
+                      chat={chat}
+                      onSend={(text) => (
+                        setChat((c) => [...c, { role: "candidate", text }]),
+                        socket.send({ t: "chat", text })
+                      )}
+                    />
+                  ) : workspace === "code" && code ? (
+                    <CodeWorkspace
+                      socket={socket}
+                      problem={code.problem}
+                      starter={code.starter}
+                      initial={code.code}
+                      run={run}
+                    />
+                  ) : workspace === "board" && board ? (
+                    <Whiteboard
+                      key={board.design.id}
+                      socket={socket}
+                      design={board.design}
+                      initial={board.elements}
+                      onSnapshot={onSnapshot}
+                      bare
+                    />
+                  ) : null}
+                </motion.main>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {paused && <PauseOverlay reason={paused} />}
+      </div>
+    </MotionConfig>
+  );
+}
+
+/** Tiles move on a soft spring with no visible overshoot; the workspace mounts once the move has settled. */
+const MOVE = { type: "spring", duration: 0.55, bounce: 0.12 } as const;
+const DOCK_MS = 450;
+const STAGE_W = "w-[min(440px,34vw)]";
+
+/** One speaker's live caption: a fixed three-line box, so a growing caption never shifts the tiles. */
+function Line({
+  who,
+  text,
+  quiet,
+  center,
+  live,
+}: {
+  who: string;
+  text: string;
+  quiet?: boolean;
+  center?: boolean;
+  live?: boolean;
+}) {
+  return (
+    <div className={center ? "text-center" : ""} aria-live={live ? "polite" : undefined}>
+      <p className="text-xs font-medium text-muted">{who}</p>
+      <p
+        className={`mt-1 line-clamp-3 min-h-[4.5em] leading-normal break-words transition-colors ${quiet ? "text-muted" : "text-foreground"} ${center ? "text-[15px]" : "text-sm"}`}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function Notices({ muted, error, onHear }: { muted: boolean; error: string; onHear: () => void }) {
+  if (!muted && !error) return null;
+  return (
+    <div className="space-y-3 p-5">
+      {muted && (
+        <button type="button" className={`${primary} w-full`} onClick={onHear}>
+          Tap to hear your interviewer
+        </button>
+      )}
+      {error && <Alert>{error}</Alert>}
     </div>
   );
 }
