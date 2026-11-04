@@ -68,8 +68,8 @@ export async function buildPlan(resume: Resume, job: { title: string; level: str
 }
 
 /**
- * 'ai' screening: the session exists from the moment they apply (each candidate gets their own link, which is the
- * session id), and the interview plan is built in the background. Idempotent.
+ * 'ai' screening: the session exists from the moment they apply, so the interview plan is built in the background
+ * before they sign in (the invite adds their candidate ID and password to it). Idempotent.
  */
 export async function createAiSession(jobId: string, applicantId: string) {
   const id = crypto.randomUUID();
@@ -119,20 +119,6 @@ export async function planSession(sessionId: string, final: boolean) {
   await env.DB.prepare("UPDATE interview_sessions SET plan = ? WHERE id = ? AND plan IS NULL")
     .bind(JSON.stringify(plan), sessionId)
     .run();
-}
-
-/** The emailed link: validates the token (session id) for this interview and returns it for the cookie. */
-export async function enterAi(slug: string, token: string) {
-  const r = await env.DB.prepare(
-    `SELECT s.id, i.deadline, j.closed_at, s.status FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai'
-     JOIN jobs j ON j.id = s.job_id WHERE i.slug = ? AND s.id = ?`,
-  )
-    .bind(slug, token)
-    .first<{ id: string; deadline: number; closed_at: number | null; status: string }>();
-  if (!r) return null;
-  const done = ["processing", "done", "failed"].includes(r.status);
-  if (!done && (r.deadline <= Date.now() || r.closed_at !== null)) return null;
-  return r.id;
 }
 
 /** Everything the room needs for one session. Null when the session isn't an 'ai' one or can't be (re)joined. */
@@ -272,13 +258,13 @@ export async function bookkeep(o: {
 
 /** Session lookup for the room socket and recording uploads: the `iv` cookie must belong to this interview. */
 export async function aiSessionFor(slug: string, sessionId: string | undefined) {
-  if (!sessionId) throw new Fail("Your session expired. Open the link from your invitation email again.");
+  if (!sessionId) throw new Fail("Your session expired. Reload the page and sign in again.");
   const s = await env.DB.prepare(
     `SELECT s.id, s.status FROM interview_sessions s JOIN interviews i ON i.job_id = s.job_id AND i.kind = 'ai' WHERE i.slug = ? AND s.id = ?`,
   )
     .bind(slug, sessionId)
     .first<{ id: string; status: string }>();
-  if (!s) throw new Fail("Your session expired. Open the link from your invitation email again.");
+  if (!s) throw new Fail("Your session expired. Reload the page and sign in again.");
   return s;
 }
 

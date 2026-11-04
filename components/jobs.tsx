@@ -713,8 +713,8 @@ export function JobFacts({ job: j, h: H = "h3" }: { job: Facts; h?: "h2" | "h3" 
           : `${j.interview.kind === "mcq" ? "MCQ test" : "AI voice interview"} · ${screeningFacts(j.interview.kind, j.interview.questions)}`,
       sub:
         j.interview.kind === "ai"
-          ? `Applicants take it online before ${dateTime(j.interview.deadline)}, with camera and screen sharing. Each applicant gets a personal link by email.`
-          : `Applicants take it online before ${dateTime(j.interview.deadline)}. The link and password are emailed on applying.`,
+          ? `Applicants take it online before ${dateTime(j.interview.deadline)}, with camera and screen sharing. The link and a personal candidate ID and password are emailed on applying.`
+          : `Applicants take it online before ${dateTime(j.interview.deadline)}. The link and a personal candidate ID and password are emailed on applying.`,
     },
   ].filter((f) => !!f);
   return (
@@ -1419,7 +1419,7 @@ export function PostJobForm({
         {(!job || job.interview) && (
           <FormSection
             title="Screening"
-            hint="Optional. Applicants get a link and password by email and take it online before the deadline. Pick one."
+            hint="Optional. Applicants get a link and their own candidate ID and password by email and take it online before the deadline. Pick one."
           >
             <div role="radiogroup" aria-label="Screening" className="grid gap-2 sm:grid-cols-2">
               {(
@@ -1547,18 +1547,15 @@ const dateTime = (ms: number) => new Date(ms).toLocaleString(undefined, { dateSt
 
 /** Poster: the shared link and password to hand out (applicants also get them by email). Applicant: their way in. */
 function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["interview"]>; mine: boolean }) {
-  const [copied, setCopied] = useState("");
+  const [copied, setCopied] = useState(false);
   const link = iv.slug ? `${typeof location === "undefined" ? "" : location.origin}/interview/${iv.slug}` : "";
-  const ai = iv.kind === "ai";
-  // AI interview: each applicant's own link (their session token); there is no shared password
-  const start = ai ? (iv.password ? `/interview/${iv.slug}/enter?t=${iv.password}` : "") : `/interview/${iv.slug}`;
   const [now] = useState(Date.now);
   const closed = iv.deadline <= now;
   const finished = iv.status === "processing" || iv.status === "done" || iv.status === "failed";
-  const copy = async (what: string, v: string) => {
-    await navigator.clipboard.writeText(v);
-    setCopied(what);
-    setTimeout(() => setCopied(""), 2000);
+  const copy = async () => {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
   return (
     <section className="space-y-3 rounded-lg border border-border p-3 text-sm">
@@ -1570,47 +1567,29 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
             {dateTime(iv.deadline)}
           </p>
         </div>
-        {!mine &&
-          (finished ? (
-            <span className="inline-flex items-center gap-1 text-xs text-success">
-              <Icon d={icons.check} size={14} />
-              Completed
-            </span>
-          ) : (
-            !closed &&
-            iv.slug &&
-            start && (
-              <a href={start} target="_blank" rel="noopener" className={`${btnPrimary} h-10 sm:h-8`}>
-                {iv.kind === "mcq" ? "Start test" : "Start interview"}
-              </a>
-            )
-          ))}
+        {!mine && finished && (
+          <span className="inline-flex items-center gap-1 text-xs text-success">
+            <Icon d={icons.check} size={14} />
+            Completed
+          </span>
+        )}
       </div>
-      {!ai && iv.slug && iv.password && (mine || (!finished && !closed)) && (
-        <dl className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
-          {mine && (
-            <>
-              <dt className="text-muted">Link</dt>
-              <dd className="min-w-0 truncate font-mono" suppressHydrationWarning>
-                {link}
-              </dd>
-              <button type="button" className={`${btnGhost} h-10 sm:h-8`} onClick={() => copy("link", link)}>
-                {copied === "link" ? "Copied" : "Copy"}
-              </button>
-            </>
-          )}
-          <dt className="text-muted">Password</dt>
-          <dd className="font-mono">{iv.password}</dd>
-          <button type="button" className={`${btnGhost} h-10 sm:h-8`} onClick={() => copy("password", iv.password!)}>
-            {copied === "password" ? "Copied" : "Copy"}
+      {mine && link && (
+        <dl className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 text-xs">
+          <dt className="text-muted">Link</dt>
+          <dd className="min-w-0 truncate font-mono" suppressHydrationWarning>
+            {link}
+          </dd>
+          <button type="button" className={`${btnGhost} h-10 sm:h-8`} onClick={copy}>
+            {copied ? "Copied" : "Copy"}
           </button>
         </dl>
       )}
-      {mine && (
+      {(mine || (!finished && !closed)) && (
         <p className="text-xs text-muted">
-          {ai
-            ? "Every applicant is emailed a personal interview link when they apply. Reports show under Applicants."
-            : "Every applicant is emailed the link and password when they apply. Results show under Applicants."}
+          {mine
+            ? "Every applicant is emailed the link with their own candidate ID and password when they apply. Results show under Applicants."
+            : "We emailed you the link with your own candidate ID and password. Check your inbox (and spam) for the email from Hire Excellence."}
         </p>
       )}
     </section>
@@ -1618,7 +1597,7 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
 }
 
 const IV_STATUS: Record<SessionStatus, string> = {
-  verified: "Signed in, not started",
+  verified: "Invited, not started",
   onboarded: "Not started yet",
   live: "In progress",
   processing: "Evaluating…",

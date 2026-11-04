@@ -4,7 +4,7 @@ import app from "vinext/server/app-router-entry";
 import { capture } from "../lib/analytics";
 import { writePendingReleases } from "../lib/changelog";
 import { hasPass, needsCheck, passCookie, safeNext, verifyTurnstile } from "../lib/human";
-import { aiSessionFor, enterAi, planSession, sweepRecordings } from "../lib/ai-interview/session";
+import { aiSessionFor, planSession, sweepRecordings } from "../lib/ai-interview/session";
 import { acceptTranscript, closeExpired, evaluate, same, sendInvite } from "../lib/screening/interview";
 import { cleanTranscript } from "../lib/screening/fields";
 import { syncDirectory } from "../lib/network";
@@ -55,7 +55,7 @@ async function runTask(task: Task, attempts: number) {
     case "plan":
       return planSession(task.sessionId, attempts >= 4);
     case "invite":
-      return sendInvite(task.jobId, task.to);
+      return sendInvite(task.jobId, task.to, task.applicantId);
     case "notify":
       return deliverNotifications(task.to, task.spec);
   }
@@ -71,26 +71,14 @@ const REC_WINDOW_MS = 24 * 3600_000; // segment ids are the browser clock: withi
 
 /**
  * AI interview routes, all under /interview/<slug>/ so the candidate's `iv` cookie (path-scoped) comes along:
- * enter  — the emailed per-candidate link: sets the cookie, then a clean redirect
+ * enter  — old per-candidate links: redirect to the sign-in gate
  * room   — the interview WebSocket, handed to the session's InterviewRoom Durable Object
  * rec    — recording chunks (camera and screen) into R2
  * warm   — pre-opens the voice connection during the overview, so the interviewer joins right after Start
  */
 async function interviewRoute(request: Request, env: Env, url: URL, slug: string, action: string) {
-  if (action === "enter" && request.method === "GET") {
-    const id = await enterAi(slug, url.searchParams.get("t") ?? "");
-    const headers = new Headers({
-      Location: `/interview/${slug}`,
-      "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
-    });
-    if (id)
-      headers.append(
-        "Set-Cookie",
-        `iv=${id}; Path=/interview/${slug}; Max-Age=${30 * 86_400}; HttpOnly; Secure; SameSite=Lax`,
-      );
-    return new Response(null, { status: 302, headers });
-  }
+  // Links from invites sent before per-candidate sign-in: the token no longer signs in, the gate asks for ID + password
+  if (action === "enter") return Response.redirect(`${url.origin}/interview/${slug}`, 302);
   // Same-origin only: browsers don't apply CORS to WebSockets, and uploads carry the session cookie
   if (request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
   const s = await aiSessionFor(slug, ivCookie(request)).catch(() => null);

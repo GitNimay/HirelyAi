@@ -11,7 +11,6 @@ import {
   decide,
   deleteRecordings,
   dismissFlag,
-  enterAi,
   finishAi,
   markLive,
   readEvents,
@@ -19,7 +18,14 @@ import {
   roomContext,
 } from "@/lib/ai-interview/session";
 import { advance, defaultConfig, initState, run } from "@/lib/ai-interview/harness";
-import { candidateView, insertInterview, interviewResult, parseInterview } from "@/lib/screening/interview";
+import {
+  candidateView,
+  insertInterview,
+  interviewResult,
+  issueCredentials,
+  parseInterview,
+  verifyCandidate,
+} from "@/lib/screening/interview";
 import { getJob } from "@/lib/jobs";
 import { job, row, user } from "./factories";
 
@@ -140,26 +146,40 @@ describe("AI interview setup", () => {
   });
 });
 
-describe("personal links", () => {
-  it("lets in only the right token for the right interview, until the deadline", async () => {
-    const { sessionId, slug, j } = await setup();
-    expect(await enterAi(slug, sessionId)).toBe(sessionId);
-    expect(await enterAi(slug, crypto.randomUUID())).toBeNull();
-    expect(await enterAi("otherslug123", sessionId)).toBeNull();
+describe("per-candidate sign-in", () => {
+  it("lets in only that candidate's ID and password, for this interview, until the deadline", async () => {
+    const { sessionId, slug, j, applicant } = await setup();
+    const { login, password } = await issueCredentials(j, applicant);
+    expect(await verifyCandidate(slug, login, password)).toBe(sessionId); // the session made on apply, not a new one
+    expect(
+      await verifyCandidate(slug, ` ${login.toLowerCase().replace(/(.{4})/, "$1-")} `, password.toUpperCase()),
+    ).toBe(sessionId);
+    await expect(verifyCandidate(slug, login, "aaaa-aaaa")).rejects.toThrow("incorrect");
+    await expect(verifyCandidate(slug, "ZZZZZZZZ", password)).rejects.toThrow("incorrect");
+    // Another applicant's credentials don't open this one's session; re-issuing kills the old password
+    const other = await user();
+    const theirs = await issueCredentials(j, other);
+    expect(await verifyCandidate(slug, theirs.login, theirs.password)).not.toBe(sessionId);
+    await issueCredentials(j, applicant);
+    await expect(verifyCandidate(slug, login, password)).rejects.toThrow("incorrect");
+    expect(
+      (await row<{ pass: string }>("SELECT pass FROM interview_sessions WHERE id = ?", sessionId))?.pass,
+    ).not.toContain("-"); // hashed
     await env.DB.prepare("UPDATE interviews SET deadline = ? WHERE job_id = ?")
       .bind(Date.now() - 1, j)
       .run();
-    expect(await enterAi(slug, sessionId)).toBeNull();
+    await expect(verifyCandidate(slug, theirs.login, theirs.password)).rejects.toThrow("closed");
   });
 
-  it("shows the token only to that applicant, never to the poster, strangers or the share page", async () => {
-    const { poster, applicant, j, sessionId } = await setup();
-    expect((await getJob(applicant, j))?.interview).toMatchObject({ kind: "ai", password: sessionId, minutes: 25 }); // 2 + 8 + 5 + 20 + 3 asked for, shrunk to the 25-minute cap
-    expect((await getJob(poster, j))?.interview?.password).toBeNull();
-    expect((await getJob(await user(), j))?.interview).toMatchObject({ slug: null, password: null });
+  it("never puts the interview link or credentials on the job page, except the link for the poster", async () => {
+    const { poster, applicant, j, slug } = await setup();
+    expect((await getJob(applicant, j))?.interview).toMatchObject({ kind: "ai", slug: null, minutes: 25 }); // 2 + 8 + 5 + 20 + 3 asked for, shrunk to the 25-minute cap
+    expect((await getJob(poster, j))?.interview?.slug).toBe(slug);
+    expect((await getJob(await user(), j))?.interview).toMatchObject({ slug: null });
+    expect(JSON.stringify(await getJob(applicant, j))).not.toMatch(/password/);
   });
 
-  it("refuses the shared-password gate and foreign cookies", async () => {
+  it("refuses foreign cookies", async () => {
     const { slug, sessionId } = await setup();
     await expect(aiSessionFor(slug, crypto.randomUUID())).rejects.toThrow("expired");
     await expect(aiSessionFor(slug, undefined)).rejects.toThrow("expired");

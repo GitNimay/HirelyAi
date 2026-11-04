@@ -114,21 +114,17 @@ describe("searchJobs", () => {
 });
 
 describe("screening credentials", () => {
-  it("show the link and password to the poster and applicants only", async () => {
+  it("show the link to the poster only: applicants get it, with their own sign-in, by email", async () => {
     const [poster, applicant, stranger] = [await user(), await user(), await user()];
     const j = await job(poster);
     await withScreening(j);
     await apply(j, applicant);
 
-    for (const who of [poster, applicant]) {
-      expect((await getJob(who, j))?.interview).toMatchObject({ password: "secret-code", slug: expect.any(String) });
+    expect((await getJob(poster, j))?.interview).toMatchObject({ slug: expect.any(String) });
+    for (const who of [applicant, stranger]) {
+      expect((await getJob(who, j))?.interview).toMatchObject({ kind: "voice", questions: 2, slug: null });
+      expect(JSON.stringify(await getJob(who, j))).not.toContain("secret-code");
     }
-    expect((await getJob(stranger, j))?.interview).toMatchObject({
-      kind: "voice",
-      questions: 2,
-      slug: null,
-      password: null,
-    });
   });
 
   it("never reach the public share page", async () => {
