@@ -36,7 +36,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           aria-label="Hire Excellence home"
           className="flex min-w-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Logo size={26} faint={false} />
+          <Logo size={20} faint={false} />
           <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
         </Link>
         <div className="flex shrink-0 items-center gap-2">
@@ -54,7 +54,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
         {/* Vertical navbar */}
         <aside className="sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border px-3 py-4 sm:flex sm:w-[72px] xl:w-[240px]">
           <Link href="/dashboard" className="mb-6 flex h-10 items-center justify-center gap-2 px-3 xl:justify-start">
-            <Logo size={28} faint={false} />
+            <Logo size={20} faint={false} />
             <span className="hidden text-sm font-medium tracking-tight xl:inline">Hire Excellence</span>
           </Link>
           <Nav unseen={unseen} me={me?.handle ?? ""} />

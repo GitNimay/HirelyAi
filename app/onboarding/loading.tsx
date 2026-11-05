@@ -9,7 +9,7 @@ export default function OnboardingLoading() {
     <div className="flex min-h-dvh flex-1 flex-col sm:min-h-screen">
       <header className="flex h-16 items-center justify-between px-4 sm:px-8">
         <span className="flex items-center gap-2.5">
-          <Logo size={28} />
+          <Logo size={20} />
           <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
         </span>
         <Skeleton className="h-8 w-[72px]" />
