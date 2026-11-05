@@ -1,0 +1,306 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Hire Excellence launch</title>
+<style>
+@font-face { font-family: News; src: url(fonts/newsreader-latin-400-normal.woff2); font-weight: 400; }
+@font-face { font-family: News; src: url(fonts/newsreader-latin-500-normal.woff2); font-weight: 500; }
+@font-face { font-family: News; src: url(fonts/newsreader-latin-400-italic.woff2); font-weight: 400; font-style: italic; }
+@font-face { font-family: News; src: url(fonts/newsreader-latin-500-italic.woff2); font-weight: 500; font-style: italic; }
+@font-face { font-family: Geist; src: url(fonts/geist-sans-latin-400-normal.woff2); font-weight: 400; }
+@font-face { font-family: Geist; src: url(fonts/geist-sans-latin-500-normal.woff2); font-weight: 500; }
+@font-face { font-family: Geist; src: url(fonts/geist-sans-latin-600-normal.woff2); font-weight: 600; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #cfe3e6; }
+body { font-family: Geist, sans-serif; color: #ededed; -webkit-font-smoothing: antialiased; }
+.abs { position: absolute; }
+#sky, #warm { position: absolute; inset: -60px; background-size: cover; background-position: center; }
+#sky { background-image: url(assets/hero-sky.jpg); }
+#warm { background-image: url(assets/sky-warm.jpg); opacity: 0; }
+#grain { position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay; pointer-events: none; }
+.serif { font-family: News, serif; color: #1c1c19; letter-spacing: -0.02em; }
+.headline { position: absolute; font-size: 88px; line-height: 1.02; white-space: nowrap; }
+.headline .w { display: inline-block; }
+.card { position: absolute; border-radius: 22px; overflow: hidden; }
+.bar { position: absolute; border-radius: 6px; }
+.mono { font-variant-numeric: tabular-nums; }
+#window { position: absolute; left: 210px; top: 110px; width: 1500px; height: 860px; background: #161616; border: 1px solid #262626; border-radius: 18px; overflow: hidden; box-shadow: 0 40px 120px rgb(20 40 50 / .35); transform-origin: 0 0; }
+#side { position: absolute; left: 0; top: 0; bottom: 0; width: 260px; border-right: 1px solid #262626; padding: 34px 26px; }
+.nav { display: flex; align-items: center; gap: 14px; font-size: 19px; color: #a1a1a1; padding: 12px 14px; border-radius: 10px; margin-bottom: 4px; }
+.nav.on { background: #1c1c1c; color: #ededed; }
+.nav i { width: 20px; height: 20px; border: 2px solid currentColor; border-radius: 5px; display: inline-block; opacity: .8; }
+.row { position: absolute; left: 300px; width: 1160px; height: 104px; background: #1c1c1c; border: 1px solid #262626; border-radius: 14px; display: flex; align-items: center; padding: 0 28px; gap: 22px; }
+.av { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 20px; color: #161616; flex: none; }
+.who b { display: block; font-weight: 500; font-size: 22px; color: #ededed; }
+.who span { font-size: 16px; color: #a1a1a1; }
+.why { flex: 1; font-size: 17px; color: #a1a1a1; padding-left: 20px; border-left: 1px solid #262626; margin-left: 10px; }
+.chip { font-size: 15px; padding: 7px 14px; border-radius: 999px; border: 1px solid #2d4b3f; color: #34d399; background: rgb(52 211 153 / .08); }
+.score { font-size: 34px; font-weight: 600; width: 70px; text-align: right; }
+</style>
+</head>
+<body>
+<div id="bg" class="abs" style="inset:0">
+  <div id="sky"></div>
+  <div id="warm"></div>
+</div>
+
+<!-- camera world: the app window -->
+<div id="window">
+  <div id="side">
+    <div style="display:flex;align-items:center;gap:12px;margin:0 0 34px 10px">
+      <img src="assets/logo.png" style="width:30px;height:30px;filter:invert(1)">
+      <span style="font-size:19px;font-weight:500">Hire Excellence</span>
+    </div>
+    <div class="nav"><i></i>Home</div>
+    <div class="nav"><i></i>My Network</div>
+    <div class="nav on"><i></i>Jobs</div>
+    <div class="nav"><i></i>Companies</div>
+    <div class="nav"><i></i>Notifications</div>
+    <div class="nav"><i></i>Me</div>
+  </div>
+  <div class="abs" style="left:300px;top:44px">
+    <div style="font-size:15px;color:#a1a1a1;margin-bottom:8px">Jobs / Applicants</div>
+    <div style="font-family:News,serif;font-size:46px;letter-spacing:-.02em">Senior Product Designer</div>
+    <div style="font-size:18px;color:#a1a1a1;margin-top:8px">48 interviewed · ranked by interview score</div>
+  </div>
+  <div id="rows"></div>
+</div>
+
+<!-- screen-space layer -->
+<div id="stage" class="abs" style="inset:0">
+  <div id="h1" class="headline serif"></div>
+  <div id="h2" class="headline serif" style="font-size:72px"></div>
+  <div id="h3" class="headline serif" style="font-size:72px"></div>
+
+  <div id="card" class="card">
+    <div id="resume" class="abs" style="inset:0;color:#1c1c19">
+      <div class="abs" style="left:56px;top:54px;font-family:News,serif;font-size:46px;letter-spacing:-.02em">Priya Sharma</div>
+      <div class="abs" style="left:58px;top:114px;font-size:18px;color:#65655f">Product Designer · Bengaluru</div>
+    </div>
+    <div id="iv" class="abs" style="inset:0">
+      <div class="abs" style="left:44px;top:38px;display:flex;align-items:center;gap:14px;font-size:20px">
+        <span id="rec" style="width:14px;height:14px;border-radius:50%;background:#ff6166;display:inline-block"></span>
+        <span style="font-weight:500">AI voice interview</span>
+        <span style="color:#a1a1a1">· Senior Product Designer</span>
+      </div>
+      <div id="timer" class="abs mono" style="right:44px;top:34px;font-size:26px;color:#ededed"></div>
+      <div id="q" class="abs" style="left:44px;bottom:96px;font-size:22px;color:#a1a1a1;white-space:nowrap"></div>
+      <div id="a" class="abs" style="left:44px;bottom:48px;font-size:22px;color:#ededed;white-space:nowrap"></div>
+    </div>
+    <div id="sc" class="abs" style="inset:0">
+      <svg class="abs" style="left:110px;top:110px" width="380" height="380" viewBox="0 0 380 380">
+        <circle cx="190" cy="190" r="160" fill="none" stroke="#262626" stroke-width="18"/>
+        <circle id="ring" cx="190" cy="190" r="160" fill="none" stroke="#34d399" stroke-width="18" stroke-linecap="round" transform="rotate(-90 190 190)" stroke-dasharray="1005.3" stroke-dashoffset="1005.3"/>
+      </svg>
+      <div id="num" class="abs mono" style="left:110px;top:230px;width:380px;text-align:center;font-size:110px;font-weight:600;line-height:1"></div>
+      <div class="abs" style="left:110px;top:352px;width:380px;text-align:center;font-size:20px;color:#a1a1a1">interview score</div>
+      <div id="crit" class="abs" style="left:590px;top:120px;width:470px"></div>
+    </div>
+  </div>
+  <div id="bars"></div>
+
+  <div id="end" class="abs" style="inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <img id="logo" src="assets/logo.png" style="width:96px;height:96px;margin-bottom:40px">
+    <div id="tag" class="serif" style="font-size:132px;line-height:1;text-align:center"></div>
+    <div id="url" style="margin-top:44px;font-size:28px;color:#3a3a36;letter-spacing:.01em">hire-excellence.n1m35h.in</div>
+  </div>
+</div>
+
+<svg id="grain" width="1920" height="1080"><filter id="n"><feTurbulence id="turb" type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="1"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
+
+<script>
+const $ = id => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const io = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;      // cubic in-out
+const out = k => 1 - Math.pow(1 - k, 4);                                         // quart out
+const inn = k => k * k * k;
+const back = k => { const c = 1.6; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const mix = (c1, c2, k) => `rgb(${c1.map((v, i) => Math.round(lerp(v, c2[i], k))).join(',')})`;
+
+// headlines: words that rise in, then rise out
+function words(el, html) { el.innerHTML = html.split('|').map(l => l.split(' ').map(w => `<span class="w">${w}</span>`).join(' ')).join('<br>'); return [...el.querySelectorAll('.w')]; }
+const H = [
+  { el: $('h1'), ws: words($('h1'), 'Resumes tell you|what people <i>wrote.</i>'), in: .25, outT: 2.05, x: 150, y: 400 },
+  { el: $('h2'), ws: words($('h2'), 'Hear how they <i>think.</i>'), in: 2.55, outT: 4.55, center: true, y: 120 },
+  { el: $('h3'), ws: words($('h3'), 'A ranked shortlist, <i>with the reasons.</i>'), in: 4.75, outT: 6.05, center: true, y: 120 },
+];
+function headline(h, t) {
+  h.el.style.top = h.y + 'px';
+  if (h.center) { h.el.style.left = '0'; h.el.style.width = '1920px'; h.el.style.textAlign = 'center'; } else h.el.style.left = h.x + 'px';
+  h.ws.forEach((w, i) => {
+    const ki = out(prog(t, h.in + i * .06, h.in + i * .06 + .5));
+    const ko = inn(prog(t, h.outT + i * .025, h.outT + i * .025 + .3));
+    w.style.opacity = ki * (1 - ko);
+    w.style.transform = `translateY(${(1 - ki) * 46 - ko * 40}px)`;
+    w.style.filter = `blur(${(1 - ki) * 8 + ko * 8}px)`;
+  });
+}
+
+// rects
+const RES = { x: 1080, y: 150, w: 600, h: 790, r: 10 };   // resume paper
+const IV = { x: 400, y: 280, w: 1120, h: 620, r: 22 };    // interview / score card
+const N = 24;
+const lineW = [440, 380, 470, 300, 0, 420, 460, 350, 410, 240, 0, 450, 390, 470, 330, 0, 400, 440, 280, 460, 360, 0, 420, 310];
+// resume line rects (card-local)
+let yy = 186; const lines = lineW.map((w, i) => { const r = { x: 58, y: yy, w: w || 160, h: 11, head: !w }; yy += w ? 23 : 34; return r; });
+lines.forEach(l => { if (l.head) { l.h = 14; } });
+
+const bars = [];
+for (let i = 0; i < N; i++) { const b = document.createElement('div'); b.className = 'bar'; $('bars').appendChild(b); bars.push(b); }
+
+// world rows
+const people = [
+  ['Priya Sharma', 'Product Designer · Razorpay', 87, 'Untangled a 6-step checkout into 2; clear trade-offs, strong systems thinking', '#f5a3b0'],
+  ['Arjun Mehta', 'Senior Designer · Swiggy', 81, 'Solid research instincts; less depth on design systems', '#f6c88a'],
+  ['Meera Joshi', 'Product Designer · Zoho', 76, 'Crisp communication; limited payments experience', '#9fd0f0'],
+  ['Daniel Okafor', 'UX Designer · Freelance', 71, 'Strong visual craft; thinner on metrics', '#b9b0f5'],
+  ['Lena Fischer', 'Designer · N26', 68, 'Good fintech context; answers ran long', '#a8e0c4'],
+];
+const ROW0 = 210, ROWH = 122;
+const rowEls = people.map((p, i) => {
+  const d = document.createElement('div'); d.className = 'row'; d.style.top = (ROW0 + i * ROWH) + 'px';
+  d.innerHTML = `<div class="mono" style="font-size:18px;color:#65655f;width:28px">#${i + 1}</div><div class="av" style="background:${p[4]}">${p[0].split(' ').map(s => s[0]).join('')}</div><div class="who" style="width:300px"><b>${p[0]}</b><span>${p[1]}</span></div><div class="why">${p[3]}</div>${i < 3 ? '<div class="chip">Shortlisted</div>' : ''}<div class="score mono" style="color:${i < 3 ? '#34d399' : '#a1a1a1'}">${p[2]}</div>`;
+  $('rows').appendChild(d); return d;
+});
+const crit = [['Problem solving', 9], ['Communication', 8], ['Role fit', 9]];
+$('crit').innerHTML = crit.map(c => `<div style="margin-bottom:46px"><div style="display:flex;justify-content:space-between;font-size:24px;margin-bottom:14px"><span>${c[0]}</span><span class="mono cv" style="color:#a1a1a1"></span></div><div style="height:10px;border-radius:5px;background:#262626"><div class="cf" style="height:10px;border-radius:5px;background:#ededed;width:0"></div></div></div>`).join('') + `<div id="quote" style="font-family:News,serif;font-style:italic;font-size:26px;color:#a1a1a1;line-height:1.3">“Cut checkout from six steps to two, and explained every trade-off.”</div>`;
+const cvs = [...document.querySelectorAll('.cv')], cfs = [...document.querySelectorAll('.cf')];
+
+function typed(s, t, a, b) { return s.slice(0, Math.round(s.length * prog(t, a, b))); }
+$('tag').innerHTML = '<span id="t1">Hire on signal,</span><br><i id="t2">not on resumes.</i>';
+
+function render(t) {
+  // background: slow drift, warms at the end
+  const drift = t / 10;
+  $('sky').style.transform = `scale(${1.08 + drift * .06}) translate(${-drift * 30}px, ${drift * 14}px)`;
+  const warm = io(prog(t, 7.9, 9.0));
+  $('warm').style.opacity = warm;
+  $('warm').style.transform = `scale(${1.12 - warm * .04})`;
+  $('turb').setAttribute('seed', String(Math.floor(t * 30) % 9 + 1));
+
+  H.forEach(h => headline(h, t));
+
+  // ---- card rect: resume -> interview card -> row #1 in the app
+  const kIn = back(prog(t, 0, .7));
+  const kM = io(prog(t, 2.0, 2.85));          // the turn: paper -> dark card
+  let R = {
+    x: lerp(RES.x, IV.x, kM), y: lerp(RES.y + (1 - kIn) * 260, IV.y, kM),
+    w: lerp(RES.w, IV.w, kM), h: lerp(RES.h, IV.h, kM), r: lerp(RES.r, IV.r, kM),
+  };
+  let rot = lerp(lerp(-7, -2.5, kIn), 0, kM);
+
+  // camera: world (window) zoom-out 6.0 -> 8.0
+  const kz = io(prog(t, 6.0, 8.0));
+  const S = lerp(1.5, 1, kz);
+  const row1 = { x: 210 + 300, y: 110 + ROW0, w: 1160, h: 104 };
+  const P = { x: lerp(row1.x + row1.w / 2, 960, kz), y: lerp(row1.y + row1.h / 2, 540, kz) };
+  const toScreen = (x, y) => ({ x: (x - P.x) * S + 960, y: (y - P.y) * S + 540 });
+  const kR = io(prog(t, 5.95, 6.55));         // card -> row #1
+  if (kR > 0) {
+    const a = toScreen(row1.x, row1.y);
+    R = { x: lerp(R.x, a.x, kR), y: lerp(R.y, a.y, kR), w: lerp(R.w, row1.w * S, kR), h: lerp(R.h, row1.h * S, kR), r: lerp(R.r, 14 * S, kR) };
+  }
+  // end: window falls away
+  const kE = io(prog(t, 8.0, 8.7));
+  const win = $('window');
+  const wOp = prog(t, 5.95, 6.12) * (1 - kE);
+  win.style.opacity = wOp;
+  const o = toScreen(210, 110);
+  win.style.left = '0px'; win.style.top = '0px';
+  win.style.transform = `translate(${o.x}px, ${o.y + kE * 120}px) scale(${S * (1 - kE * .08)})`;
+  win.style.filter = `blur(${kE * 10}px)`;
+  rowEls.forEach((r, i) => {
+    if (i === 0) { r.style.opacity = prog(t, 6.15, 6.4); return; }
+    const k = out(prog(t, 6.55 + i * .1, 7.15 + i * .1));
+    r.style.opacity = k; r.style.transform = `translateY(${(1 - k) * 40}px)`;
+  });
+
+  const card = $('card');
+  const paper = [253, 252, 248], dark = [28, 28, 28];
+  card.style.left = R.x + 'px'; card.style.top = R.y + 'px'; card.style.width = R.w + 'px'; card.style.height = R.h + 'px';
+  card.style.borderRadius = R.r + 'px';
+  card.style.transform = `rotate(${rot}deg)`;
+  card.style.background = mix(paper, dark, io(prog(t, 2.0, 2.35)));
+  card.style.border = `1px solid ${mix([228, 228, 222], [38, 38, 38], io(prog(t, 2.0, 2.35)))}`;
+  card.style.boxShadow = `0 ${lerp(30, 40, kM)}px ${lerp(80, 120, kM)}px rgb(20 40 50 / ${lerp(.18, .35, kM)})`;
+  card.style.opacity = (prog(t, 0, .25)) * (1 - prog(t, 6.2, 6.42));
+
+  // resume text
+  $('resume').style.opacity = prog(t, .2, .6) * (1 - prog(t, 1.95, 2.2));
+  // interview content
+  const ivOp = prog(t, 2.6, 2.95) * (1 - prog(t, 4.45, 4.7));
+  $('iv').style.opacity = ivOp;
+  const secs = 300 - Math.floor(Math.max(0, t - 2.6) * 1);
+  $('timer').textContent = `0${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  $('rec').style.opacity = .55 + .45 * Math.abs(Math.cos(t * 3.2));
+  $('q').textContent = typed('Walk me through a messy flow you untangled.', t, 2.85, 3.45);
+  $('a').textContent = typed('“Our checkout had six steps. We got it down to two by…”', t, 3.55, 4.4);
+  // score content
+  const scOp = prog(t, 4.6, 4.85) * (1 - prog(t, 5.95, 6.2));
+  $('sc').style.opacity = scOp;
+  const kRing = io(prog(t, 4.85, 5.75));
+  $('ring').setAttribute('stroke-dashoffset', 1005.3 * (1 - .87 * kRing));
+  $('num').textContent = Math.round(87 * kRing);
+  crit.forEach((c, i) => {
+    const k = io(prog(t, 5.0 + i * .12, 5.6 + i * .12));
+    cfs[i].style.width = (c[1] * 10 * k) + '%';
+    cvs[i].textContent = Math.round(c[1] * k) + '/10';
+  });
+  $('quote').style.opacity = prog(t, 5.45, 5.75);
+
+  // ---- bars: resume lines -> waveform -> ring dots
+  const cx = IV.x + IV.w / 2, cy = IV.y + IV.h / 2 - 20;
+  const ringC = { x: IV.x + 110 + 190, y: IV.y + 110 + 190 }, ringR = 160;
+  bars.forEach((b, i) => {
+    const L = lines[i];
+    // resume line in screen coords (card is rotated; approximate with the card rect, rotation applied below)
+    const draw = out(prog(t, .35 + i * .028, .75 + i * .028));
+    const lx = R.x + L.x, ly = R.y + L.y;
+    // waveform target
+    const spacing = 30, bw = 14;
+    const wx = cx - (N * spacing) / 2 + i * spacing + (spacing - bw) / 2;
+    const env = Math.sin(Math.PI * (i + .5) / N);
+    const talk = .35 + .65 * Math.abs(Math.sin(t * 7.3 + i * .9) * Math.cos(t * 3.1 + i * .37));
+    const quiet = (t > 3.45 && t < 3.6) ? .35 : 1;
+    const wh = 20 + 190 * env * talk * quiet;
+    const k = io(prog(t, 2.0 + i * .018, 2.75 + i * .018));
+    let x = lerp(lx, wx, k), w = lerp(L.w * draw, bw, k), h = lerp(L.h, wh, k), y = lerp(ly, cy - wh / 2, k);
+    let op = Math.min(1, draw * 3) * prog(t, .2, .4);
+    let color = mix(L.head ? [28, 28, 25] : [205, 205, 198], [237, 237, 237], prog(t, 2.2, 2.7));
+    let rad = Math.min(w, h) / 2;
+    // waveform -> ring dots (4.5 -> 5.0), dots fade as the ring draws
+    const kr = io(prog(t, 4.45 + i * .01, 4.95 + i * .01));
+    if (kr > 0) {
+      const ang = -Math.PI / 2 + (i / N) * Math.PI * 2;
+      const tx = ringC.x + Math.cos(ang) * ringR - 9, ty = ringC.y + Math.sin(ang) * ringR - 9;
+      x = lerp(x, tx, kr); y = lerp(y, ty, kr); w = lerp(w, 18, kr); h = lerp(h, 18, kr); rad = Math.min(w, h) / 2;
+      color = mix([237, 237, 237], [52, 211, 153], kr);
+      op *= 1 - prog(t, 4.9 + (i / N) * .85, 5.0 + (i / N) * .85);
+    }
+    b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.width = w + 'px'; b.style.height = h + 'px';
+    b.style.borderRadius = rad + 'px'; b.style.background = color; b.style.opacity = op;
+    // follow the paper's tilt while it is paper
+    const rr = rot;
+    b.style.transformOrigin = `${R.x + R.w / 2 - x}px ${R.y + R.h / 2 - y}px`;
+    b.style.transform = `rotate(${rr}deg)`;
+  });
+
+  // ---- end card
+  const kL = back(prog(t, 8.35, 8.85));
+  $('logo').style.opacity = prog(t, 8.35, 8.6);
+  $('logo').style.transform = `scale(${lerp(.6, 1, kL)})`;
+  [['t1', 8.5], ['t2', 8.72]].forEach(([id, a]) => {
+    const k = out(prog(t, a, a + .55));
+    const e = $(id); e.style.display = 'inline-block'; e.style.opacity = k; e.style.transform = `translateY(${(1 - k) * 50}px)`; e.style.filter = `blur(${(1 - k) * 10}px)`;
+  });
+  $('url').style.opacity = prog(t, 9.0, 9.3);
+  $('end').style.display = t > 8.2 ? 'flex' : 'none';
+}
+window.render = render;
+render(0);
+</script>
+</body>
+</html>
