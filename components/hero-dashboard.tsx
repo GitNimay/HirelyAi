@@ -249,7 +249,7 @@ function Sidebar() {
   return (
     <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-border px-3 py-4">
       <div className="mb-6 flex h-10 items-center gap-2 px-3">
-        <Logo size={28} faint={false} />
+        <Logo size={20} faint={false} />
         <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
       </div>
       <nav className="flex flex-col gap-1">

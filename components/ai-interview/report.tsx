@@ -245,7 +245,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
         {/* Print-only masthead: the top bar is hidden on paper */}
         <div className="hidden items-center justify-between border-b border-border pb-3 text-xs text-muted print:flex">
           <span className="flex items-center gap-2 font-medium text-foreground">
-            <img src="/logo-light.png" width={18} height={18} alt="" />
+            <img src="/logo-light.png" width={14} height={14} alt="" />
             Hire Excellence
           </span>
           <span>AI interview report</span>
@@ -511,7 +511,7 @@ function TopBar({
         className="flex min-w-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={data.access === "owner" ? "Back to the application" : "Hire Excellence"}
       >
-        <Logo size={24} faint={false} />
+        <Logo size={20} faint={false} />
         <span className="hidden text-sm font-medium sm:inline">Hire Excellence</span>
       </Link>
       <span className="hidden h-5 w-px bg-border sm:block" aria-hidden />
