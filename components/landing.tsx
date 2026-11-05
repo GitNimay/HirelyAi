@@ -221,7 +221,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           aria-label="Hire Excellence"
           className="flex w-14 items-center justify-center border-r border-border"
         >
-          <Logo size={24} faint={false} />
+          <Logo size={20} faint={false} />
         </Link>
         <nav className="flex items-stretch border-r border-border">
           {links.map(([label, href]) => (
@@ -364,7 +364,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
       <footer className="border-t border-border px-4 pt-12 sm:px-8 lg:px-16">
         <div className="flex flex-col gap-10 sm:flex-row sm:justify-between">
           <Link href="/" className="flex items-center gap-2 self-start">
-            <Logo size={24} faint={false} />
+            <Logo size={20} faint={false} />
             <span className="text-sm font-medium">Hire Excellence</span>
           </Link>
           <div className="grid grid-cols-2 gap-x-12 gap-y-8 sm:flex sm:gap-16">

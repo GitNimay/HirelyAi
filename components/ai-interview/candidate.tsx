@@ -992,7 +992,7 @@ function Room({
       <div className="flex h-dvh flex-col bg-background">
         <header className="grid h-15 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-6 border-b border-border px-6">
           <span className="flex min-w-0 items-center gap-2.5">
-            <Logo size={24} />
+            <Logo size={20} />
             <span className="truncate text-sm font-medium">{view.company}</span>
           </span>
           <ol className="flex items-center gap-2.5 text-[13px]" aria-label="Interview rounds">

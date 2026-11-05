@@ -32,7 +32,7 @@ export function layout(o: { art: keyof typeof ART; heading: string; body: string
 <body style="margin:0;background:#f7f7f4">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f4"><tr><td align="center" style="padding:48px 16px 40px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
-<tr><td style="padding:0 0 28px"><a href="${url}" style="text-decoration:none;color:${INK}"><img src="${url}/logo-light.png" width="26" height="26" alt="" style="vertical-align:middle;border:0">
+<tr><td style="padding:0 0 28px"><a href="${url}" style="text-decoration:none;color:${INK}"><img src="${url}/logo-light.png" width="16" height="16" alt="" style="vertical-align:middle;border:0">
 <span style="vertical-align:middle;margin-left:10px;font-family:${SANS};font-size:16px;font-weight:600;letter-spacing:-0.01em">Hire Excellence</span></a></td></tr>
 <tr><td class="card" style="background:#fff;border:1px solid #e4e4de;padding:52px 48px 48px">
 <img src="${url}/email/${o.art}.png" width="${w}" height="${h}" alt="" style="display:block;border:0;margin:0 0 28px -4px">
