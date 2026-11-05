@@ -11,7 +11,7 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-[640px] items-center justify-between px-4">
           <Link href="/" className="flex min-w-0 items-center gap-2">
-            <Logo size={24} faint={false} />
+            <Logo size={20} faint={false} />
             <span className="truncate text-sm font-medium tracking-tight">Hire Excellence</span>
           </Link>
           <div className="flex shrink-0 gap-2">
@@ -55,7 +55,7 @@ export function InfoHeader({ width = "max-w-[720px]" }: { width?: string }) {
   return (
     <header className={`mx-auto flex h-16 w-full ${width} items-center px-4`}>
       <Link href="/" className="mr-auto flex items-center gap-2">
-        <Logo size={24} faint={false} />
+        <Logo size={20} faint={false} />
         <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
       </Link>
       <nav className="flex items-center gap-5 text-sm text-muted">
