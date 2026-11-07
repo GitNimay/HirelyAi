@@ -4,7 +4,7 @@ import { AdminList, CompanyForm } from "@/components/company";
 import { listAdmins } from "@/lib/companies";
 import { companyFor, slugOf } from "../data";
 
-export const metadata = { title: "Edit page | Hire Excellence" };
+export const metadata = { title: "Edit page | Hirely AI" };
 
 export default async function EditCompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { userId } = await auth.protect();

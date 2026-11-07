@@ -15,8 +15,8 @@ import {
 import { Refresh } from "./refresh";
 
 export const metadata = {
-  title: "Status | Hire Excellence",
-  description: "Live component health, uptime history and recent issues for Hire Excellence",
+  title: "Status | Hirely AI",
+  description: "Live component health, uptime history and recent issues for Hirely AI",
 };
 
 const BAR = { up: "bg-success", degraded: "bg-amber-500", down: "bg-danger", none: "bg-foreground/[0.07]" } as const;

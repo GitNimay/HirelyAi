@@ -33,7 +33,7 @@ export function Nav({ unseen, me }: { unseen: number; me: string }) {
   const rail = useRef<HTMLElement>(null);
   const hover = useFluidHover(rail, { selector: "[data-rail]", gapClick: false });
 
-  // Unread count in the tab title, like X and LinkedIn: "(3) Jobs | Hire Excellence"
+  // Unread count in the tab title, like X and LinkedIn: "(3) Jobs | Hirely AI"
   useEffect(() => {
     const base = document.title.replace(/^\(\d+\+?\) /, "");
     document.title = count > 0 ? `(${count > 99 ? "99+" : count}) ${base}` : base;

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/auth";
 import { btnLg, btnPrimary } from "@/components/ui";
 
-export const metadata = { title: "Page not found | Hire Excellence" };
+export const metadata = { title: "Page not found | Hirely AI" };
 
 export default function NotFound() {
   return (

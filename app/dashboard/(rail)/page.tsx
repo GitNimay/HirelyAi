@@ -3,7 +3,7 @@ import { Feed } from "@/components/feed";
 import { getFeed, getFollowingIds } from "@/lib/feed";
 import { signedIn } from "@/lib/profile";
 
-export const metadata = { title: "Home | Hire Excellence" };
+export const metadata = { title: "Home | Hirely AI" };
 
 export default async function HomePage({ searchParams }: PageProps<"/dashboard">) {
   const session = await signedIn();

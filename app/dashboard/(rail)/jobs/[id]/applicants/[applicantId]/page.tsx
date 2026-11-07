@@ -12,7 +12,7 @@ import { STATUSES } from "@/lib/job-fields";
 import { applicationProfile, getApplicants, getJob } from "@/lib/jobs";
 import { STATUSES as CAREER } from "@/lib/resume-fields";
 
-export const metadata = { title: "Applicant | Hire Excellence" };
+export const metadata = { title: "Applicant | Hirely AI" };
 
 /** One applicant's full application for the job's poster: contact, the profile they sent, note, optional PDF, interview verdict and transcript. */
 export default async function ApplicantPage({ params }: PageProps<"/dashboard/jobs/[id]/applicants/[applicantId]">) {

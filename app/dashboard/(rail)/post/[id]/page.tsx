@@ -4,7 +4,7 @@ import { BackButton } from "@/components/kit";
 import { getPost } from "@/lib/feed";
 import { signedIn } from "@/lib/profile";
 
-export const metadata = { title: "Post | Hire Excellence" };
+export const metadata = { title: "Post | Hirely AI" };
 
 /** Permalink target for "Share". */
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {

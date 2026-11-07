@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AiReportView } from "@/components/ai-interview/report";
 import { sharedReport } from "@/lib/ai-interview/session";
 
-export const metadata = { title: "Interview report | Hire Excellence", robots: { index: false } };
+export const metadata = { title: "Interview report | Hirely AI", robots: { index: false } };
 
 /** A shared report: no sign-in for the scores and work; the recording and transcript ask for one. */
 export default async function SharedReportPage({ params }: { params: Promise<{ token: string }> }) {

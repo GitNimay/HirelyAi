@@ -1,6 +1,6 @@
 # Interview agent
 
-LiveKit Agents (Node) voice interviewer for Hire Excellence. The app issues the candidate a LiveKit token whose room
+LiveKit Agents (Node) voice interviewer for Hirely AI. The app issues the candidate a LiveKit token whose room
 config dispatches this agent with the job, candidate and questions as job metadata (`lib/screening/interview.ts` in the app).
 The agent runs the call (5 min hard limit), then POSTs the transcript to `APP_URL/api/interview/complete`, where the
 app stores it and grades it with Bedrock.

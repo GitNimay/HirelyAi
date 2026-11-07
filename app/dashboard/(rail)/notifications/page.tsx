@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Notifications, type NotificationTab } from "@/components/notifications";
 import { listNotifications } from "@/lib/notifications";
 
-export const metadata = { title: "Notifications | Hire Excellence" };
+export const metadata = { title: "Notifications | Hirely AI" };
 
 const TABS: NotificationTab[] = ["all", "posts", "network", "jobs"];
 
