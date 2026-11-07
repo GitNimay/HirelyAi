@@ -132,7 +132,7 @@ export function HumanCheck({ sitekey, action, next }: { sitekey: string; action:
         <Logo />
         <h1 className="mt-6 font-display text-2xl font-normal text-balance">Verify you are human</h1>
         <p className="mt-1.5 text-sm text-muted">
-          A quick check before you continue. This keeps bots away from Hire Excellence.
+          A quick check before you continue. This keeps bots away from Hirely AI.
         </p>
         <div ref={box} className="mt-8 flex min-h-[65px] justify-center" />
         <p role="alert" className="mt-3 min-h-5 text-sm text-danger">

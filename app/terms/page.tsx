@@ -1,8 +1,8 @@
 import { Clause, LEGAL_EMAIL, LegalPage } from "@/components/public-shell";
 
 export const metadata = {
-  title: "Terms of Service | Hire Excellence",
-  description: "The rules for using Hire Excellence, in plain language.",
+  title: "Terms of Service | Hirely AI",
+  description: "The rules for using Hirely AI, in plain language.",
   alternates: { canonical: "/terms" },
 };
 
@@ -15,7 +15,7 @@ export default function TermsPage() {
       toc
       lead={
         <>
-          These terms cover your use of Hire Excellence.{" "}
+          These terms cover your use of Hirely AI.{" "}
           <strong>By creating an account or using the service, you agree to them.</strong> We have kept them short.
         </>
       }
@@ -27,7 +27,7 @@ export default function TermsPage() {
         </p>
       </Clause>
       <Clause title="Fair use">
-        <p>Use Hire Excellence to connect, hire and grow. Do not:</p>
+        <p>Use Hirely AI to connect, hire and grow. Do not:</p>
         <ul>
           <li>
             <strong>Impersonate</strong> anyone or post a fake profile, resume or job.

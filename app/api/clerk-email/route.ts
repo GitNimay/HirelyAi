@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
 function codeEmail(slug: string, code: string, to: string) {
   const reset = slug === "reset_password_code";
-  const subject = `${code} is your Hire Excellence ${reset ? "password reset" : "verification"} code`;
+  const subject = `${code} is your Hirely AI ${reset ? "password reset" : "verification"} code`;
   const heading = reset ? "Reset your password" : "Confirm your email";
   const intro = reset
     ? "Enter this code to reset your password."
@@ -47,7 +47,7 @@ function codeEmail(slug: string, code: string, to: string) {
       p(digits, 28, `font-family:${MONO};font-size:40px;line-height:48px;font-weight:500;letter-spacing:0.28em`) +
       p(note),
     to,
-    reason: "You're receiving it because someone used this address on Hire Excellence.",
+    reason: "You're receiving it because someone used this address on Hirely AI.",
   });
   return { subject, html, text: `${heading}\n\n${intro}\n\n${digits}\n\n${note}` };
 }

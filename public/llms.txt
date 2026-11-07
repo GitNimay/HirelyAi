@@ -1,6 +1,6 @@
-# Hire Excellence
+# Hirely AI
 
-> Hire Excellence is a free, AI-first hiring network and professional social network. An AI runs a five-minute spoken first-round interview for every applicant, scores each answer against the job description, and gives recruiters a ranked shortlist with the reasoning behind every score, so recruiters meet the right people and candidates hear back fast.
+> Hirely AI is a free, AI-first hiring network and professional social network. An AI runs a five-minute spoken first-round interview for every applicant, scores each answer against the job description, and gives recruiters a ranked shortlist with the reasoning behind every score, so recruiters meet the right people and candidates hear back fast.
 
 Website: https://hire-excellence.n1m35h.in
 Tagline: Hire on signal, not on resumes.

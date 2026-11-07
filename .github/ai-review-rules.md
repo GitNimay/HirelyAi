@@ -1,4 +1,4 @@
-# Hire Excellence review rules
+# Hirely AI review rules
 
 Read by the `ai-review` CI job. CI loads it from the base branch, so a PR can't relax the rules it is reviewed against.
 

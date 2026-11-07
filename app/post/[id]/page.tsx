@@ -12,9 +12,9 @@ const load = cache(async (id: string) => getPublicPost(id));
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await load((await params).id);
-  if (!p) return { title: "Post not found | Hire Excellence" };
+  if (!p) return { title: "Post not found | Hirely AI" };
   const text = p.body.replace(/\s+/g, " ").slice(0, 160);
-  const title = `${p.author.name} on Hire Excellence`;
+  const title = `${p.author.name} on Hirely AI`;
   return {
     title: `${title}${text ? `: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"` : ""}`,
     description: text,

@@ -246,7 +246,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
         <div className="hidden items-center justify-between border-b border-border pb-3 text-xs text-muted print:flex">
           <span className="flex items-center gap-2 font-medium text-foreground">
             <img src="/logo-light.png" width={14} height={14} alt="" />
-            Hire Excellence
+            Hirely AI
           </span>
           <span>AI interview report</span>
         </div>
@@ -509,10 +509,10 @@ function TopBar({
       <Link
         href={data.access === "owner" ? `/dashboard/jobs/${data.jobId}/applicants/${data.applicantId}` : "/"}
         className="flex min-w-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={data.access === "owner" ? "Back to the application" : "Hire Excellence"}
+        aria-label={data.access === "owner" ? "Back to the application" : "Hirely AI"}
       >
         <Logo size={20} faint={false} />
-        <span className="hidden text-sm font-medium sm:inline">Hire Excellence</span>
+        <span className="hidden text-sm font-medium sm:inline">Hirely AI</span>
       </Link>
       <span className="hidden h-5 w-px bg-border sm:block" aria-hidden />
       <span className="min-w-0 truncate text-sm text-muted">Interview report</span>

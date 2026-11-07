@@ -40,7 +40,7 @@ beforeEach(() => {
   Object.assign(env, {
     CLERK_WEBHOOK_SECRET: `whsec_${SECRET}`,
     RESEND_API_KEY: "re_test",
-    MAIL_FROM: "Hire Excellence <hi@hire.test>",
+    MAIL_FROM: "Hirely AI <hi@hire.test>",
     APP_URL: "https://hire.test",
   });
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -92,9 +92,9 @@ describe("POST /api/clerk-email: delivery", () => {
     expect(new Headers(init?.headers).get("authorization")).toBe("Bearer re_test");
     const mail = JSON.parse(String(init?.body));
     expect(mail).toMatchObject({
-      from: "Hire Excellence <hi@hire.test>",
+      from: "Hirely AI <hi@hire.test>",
       to: ["ada@mail.test"],
-      subject: "123456 is your Hire Excellence verification code",
+      subject: "123456 is your Hirely AI verification code",
     });
     expect(mail.html).toContain("Confirm your email");
     expect(mail.text).toContain("123456");
@@ -104,7 +104,7 @@ describe("POST /api/clerk-email: delivery", () => {
     const fetch = resend();
     await webhook(otp("reset_password_code"));
     const mail = JSON.parse(String(fetch.mock.calls[0][1]?.body));
-    expect(mail.subject).toBe("123456 is your Hire Excellence password reset code");
+    expect(mail.subject).toBe("123456 is your Hirely AI password reset code");
     expect(mail.html).toContain("Reset your password");
   });
 
