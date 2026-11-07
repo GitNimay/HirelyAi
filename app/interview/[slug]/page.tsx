@@ -7,7 +7,7 @@ import { mobileRequest } from "@/lib/ai-interview/workspace";
 import { ACTION } from "@/lib/human";
 import { candidateView } from "@/lib/screening/interview";
 
-export const metadata = { title: "Assessment | Hire Excellence" };
+export const metadata = { title: "Assessment | Hirely AI" };
 
 export default async function InterviewPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

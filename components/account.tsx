@@ -533,8 +533,8 @@ function UsageAnalytics() {
             Usage analytics
           </h2>
           <p id="analytics-desc" className="mt-1 max-w-prose text-sm text-muted">
-            Share which pages you visit and features you use, linked to your account ID, to help us improve Hire
-            Excellence. Your email, resume and messages are never sent.
+            Share which pages you visit and features you use, linked to your account ID, to help us improve Hirely AI.
+            Your email, resume and messages are never sent.
           </p>
         </div>
         <button

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ResumeForm } from "@/components/resume-editor";
 import { getResume } from "@/lib/resume";
 
-export const metadata = { title: "Edit resume | Hire Excellence" };
+export const metadata = { title: "Edit resume | Hirely AI" };
 
 export default async function EditResumePage() {
   const { userId } = await auth.protect();

@@ -1589,7 +1589,7 @@ function InterviewPanel({ interview: iv, mine }: { interview: NonNullable<Job["i
         <p className="text-xs text-muted">
           {mine
             ? "Every applicant is emailed the link with their own candidate ID and password when they apply. Results show under Applicants."
-            : "We emailed you the link with your own candidate ID and password. Check your inbox (and spam) for the email from Hire Excellence."}
+            : "We emailed you the link with your own candidate ID and password. Check your inbox (and spam) for the email from Hirely AI."}
         </p>
       )}
     </section>

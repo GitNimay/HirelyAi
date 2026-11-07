@@ -215,7 +215,7 @@ export function HeroDashboard() {
   return (
     <div className="relative mt-12 flex aspect-[16/10] w-full items-center justify-center overflow-hidden border border-border bg-[url(/landing/hero-sky.webp)] bg-cover bg-center sm:mt-16 sm:aspect-[2/1]">
       <span className="sr-only">
-        The Hire Excellence home feed: posts from your network, your profile, and your latest notifications.
+        The Hirely AI home feed: posts from your network, your profile, and your latest notifications.
       </span>
       <div
         ref={box}
@@ -250,7 +250,7 @@ function Sidebar() {
     <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-border px-3 py-4">
       <div className="mb-6 flex h-10 items-center gap-2 px-3">
         <Logo size={20} faint={false} />
-        <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
+        <span className="text-sm font-medium tracking-tight">Hirely AI</span>
       </div>
       <nav className="flex flex-col gap-1">
         {navItems.map(({ slug, label, icon }) => (
@@ -497,7 +497,7 @@ function RightRail({ notifs }: { notifs: Notif[] }) {
           <span className="flex size-6 items-center justify-center rounded-md border border-border bg-background">
             <Logo size={16} faint={false} />
           </span>
-          Hire Excellence
+          Hirely AI
         </p>
         <ul className="border-t border-border py-2 text-sm">
           {(

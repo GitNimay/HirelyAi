@@ -375,7 +375,7 @@ export function SignUpForm() {
   return (
     <Shell
       title="Create your account"
-      subtitle="Join Hire Excellence to connect and grow"
+      subtitle="Join Hirely AI to connect and grow"
       footer={
         <>
           Already have an account?{" "}

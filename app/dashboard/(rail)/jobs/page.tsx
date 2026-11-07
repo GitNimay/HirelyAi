@@ -5,7 +5,7 @@ import { getJob, lastApplication, myJobs, searchJobs } from "@/lib/jobs";
 import { signedIn } from "@/lib/profile";
 import { getResume } from "@/lib/resume";
 
-export const metadata = { title: "Jobs | Hire Excellence" };
+export const metadata = { title: "Jobs | Hirely AI" };
 
 const MY_TABS: string[] = ["saved", "applied", "posted"] satisfies MyJobsTab[];
 

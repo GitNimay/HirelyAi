@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Network, type NetworkTab } from "@/components/network";
 import { getNetwork } from "@/lib/network";
 
-export const metadata = { title: "My Network | Hire Excellence" };
+export const metadata = { title: "My Network | Hirely AI" };
 
 const TABS: NetworkTab[] = ["grow", "connections", "sent"];
 

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
 import { signedIn } from "@/lib/profile";
 
-export const metadata = { title: "Set up your profile | Hire Excellence" };
+export const metadata = { title: "Set up your profile | Hirely AI" };
 
 export default async function OnboardingPage() {
   const session = await signedIn();
