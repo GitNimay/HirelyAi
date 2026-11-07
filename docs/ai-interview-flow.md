@@ -180,14 +180,25 @@ sequenceDiagram
         DO->>DO: flushReply() (a waiting wake can go now)
     end
     DO->>DO: utter("agent")
-    opt every 8 new transcript lines
+    opt every 6 new transcript lines
         DO->>BR: bookkeep(): gpt-oss-20b, BOOKKEEPER prompt
-        BR-->>DO: summary, notes per competency, claim results, hints, concerns
+        BR-->>DO: summary, notes per competency, claim results, hints, concerns,<br/>current topic + questions on it, uncorrected wrong facts
         DO->>DO: applyBookkeeping (ids validated against plan/rubric)
+        DO->>DO: steer(): topic out of questions or a wrong fact?
+        DO->>P: add_system_message "move to claim c2" / "set X straight in a sentence"
     end
 ```
 
-**Why bookkeeping is a background model, not tools:** when the voice agent had `add_note` / `record_claim_result` / `flag_concern` tools it kept saying "let me note that down". Now the agent has nothing to write; a separate fast model reads the transcript every 8 lines in parallel and produces the evidence the evaluator later cites.
+**Why bookkeeping is a background model, not tools:** when the voice agent had `add_note` / `record_claim_result` / `flag_concern` tools it kept saying "let me note that down". Now the agent has nothing to write; a separate fast model reads the transcript every 6 lines in parallel and produces the evidence the evaluator later cites.
+
+### Keeping the conversation moving (issue #130)
+
+Candidates found the interviewer boring and robotic: it drilled into the first project it heard about, repeated each answer back before the next question, and kept asking around wrong answers. Two layers fix it:
+
+1. **The prompt** (`BASE`, phase briefs): never restate or paraphrase the candidate's answer (react in a few words or not at all, varied, never praise); a topic gets its opening question and at most two follow-ups (a third only if the answers stayed vague), then a short bridge to a new one; the deep dive covers two or three projects or claims (about two minutes each) and the technical round two or three areas; a clearly wrong technical fact is set straight in one kind sentence (or the candidate is asked once if they're sure), then the interviewer moves on. That clarification is not performance feedback, and coding still uses the hint ladder.
+2. **The harness backstop** (`steer` in `harness.ts`): the bookkeeper also names the topic of the newest lines (continued or new, and how many questions it got) and lists wrong facts the interviewer let pass. The harness keeps `state.topic` (reset every phase). In the deep dive and technical rounds, once a topic reaches `TOPIC_QUESTIONS` (3) it sends one private note to move on, pointing at a resume claim nobody has covered yet (not while the whiteboard is open: the design discussion is one topic by design). A flagged wrong fact gets a note to set it straight briefly. Notes are context only (`add_system_message`), so the agent applies them at its next turn and never speaks unprompted; in text fallback they ride along with the next typed reply. Each one is logged as a `session` / `steer` event.
+
+The bookkeeper is told that a brief correction is not a hint (the wrong answer is a note), and the evaluator counts a corrected wrong answer as a miss, not as a hint. `npm run eval` includes `tests/evals/interviewer.eval.ts`, which replays scripted conversations through the interviewer prompt on the real model and checks the reply for echoing, topic changes and corrections.
 
 ---
 
@@ -252,7 +263,7 @@ flowchart TD
     I1 -->|yes| OK["approved → effect advance"]
     I1 -->|no| N1["denied: confirm name, let them introduce themselves"]
     R1 -->|yes| OK
-    R1 -->|no| N2["denied: go deeper, cover remaining claims"]
+    R1 -->|no| N2["denied: move to a claim not yet covered"]
     T1 -->|yes| N3["denied: call open_whiteboard first"]
     T1 -->|no| OK
     C1 -->|yes| N4["denied: give a real attempt, next hint"]
@@ -276,7 +287,7 @@ stateDiagram-v2
         Intro 2 min: greet, confirm name, format, self-intro
     end note
     note right of resume
-        Deep dive 6 min: 1-2 projects, decisions, trade-offs,
+        Deep dive 6 min: 2-3 projects or claims, a few questions each,
         verify plan.claims
     end note
     note right of technical
