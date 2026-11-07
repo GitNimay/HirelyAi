@@ -30,6 +30,7 @@ import {
   phonicTool,
   run,
   skipIntent,
+  steer,
   systemPrompt,
   tick,
   timeLeft,
@@ -100,7 +101,7 @@ const CS_TERMS = [
   "idempotent",
 ];
 const FLUSH_MS = 15_000; // event log → R2
-const BOOKKEEP_EVERY = 8; // transcript lines between background bookkeeping passes
+const BOOKKEEP_EVERY = 6; // transcript lines between background bookkeeping passes (about three exchanges, so topic steering isn't late)
 const PERSIST_MS = 3_000; // state checkpoints are batched to at most one per this
 // Voice resilience: a dropped Phonic socket is first resumed (same conversation, Phonic holds it ~30 s), then
 // replaced; text chat is the last resort, and the room keeps trying to bring voice back from there
@@ -768,11 +769,23 @@ export class InterviewRoom extends DurableObject<Env> {
       lines: s.transcript.slice(from, upto),
       claims: room.plan.claims,
       rubric: room.config.rubric,
+      topic: s.state.topic,
     })
       .then((b) => {
         s.summary = b.summary;
         s.summarized = upto;
         s.state = applyBookkeeping(s.state, b, phase, Date.now());
+        // Keep the conversation moving: a new topic once this one has had its questions, a wrong fact set straight.
+        // Context only, applied at the agent's next turn; skipped when the phase moved on during the pass.
+        if (!this.ending && !this.finishing) {
+          const st = steer(s.state, b, { phase, plan: room.plan, board: !!s.whiteboard?.open });
+          s.state = st.state;
+          for (const note of st.notes) {
+            this.log({ at: Date.now(), type: "session", what: "steer", detail: note.slice(9, 160) });
+            if (s.fallback) this.steerNotes.push(note);
+            else this.sendPhonic({ type: "add_system_message", system_message: note });
+          }
+        }
         this.persistSoon();
       })
       .catch((e) => this.fail("bookkeeping", e))
@@ -780,6 +793,8 @@ export class InterviewRoom extends DurableObject<Env> {
     return this.bookkeeping;
   }
   bookkeeping: Promise<void> | null = null;
+  /** Text fallback: steering notes waiting for the next typed reply (there is no context to add them to between turns). */
+  steerNotes: string[] = [];
 
   /** State checkpoints (D1 for the report, DO storage for a restart), batched so tool calls and lines never wait on them. */
   persistSoon() {
@@ -1409,10 +1424,11 @@ export class InterviewRoom extends DurableObject<Env> {
     const phase = phaseOf(s.state);
     if (!phase || this.ending) return;
     this.send({ t: "state", agent: "thinking" });
+    const notes = this.steerNotes.splice(0);
     const reply = await textTurn({
       prompt: this.prompt(phase),
       transcript: s.transcript.slice(-24),
-      system,
+      system: [...notes, system].filter(Boolean).join("\n\n") || undefined,
       tools: this.phaseTools(phase).flatMap((t) => ("tool_schema" in t ? [t.tool_schema] : [])),
       runTool: (name, args) => this.runTool(crypto.randomUUID(), name, args),
     });
