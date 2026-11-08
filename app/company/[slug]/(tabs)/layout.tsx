@@ -7,7 +7,7 @@ import { companyFor, slugOf } from "../data";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { userId } = await auth();
   const c = userId ? await companyFor(userId, await slugOf(params)) : null;
-  return { title: c ? `${c.name} | Hire Excellence` : "Hire Excellence" };
+  return { title: c ? `${c.name} | Hirely AI` : "Hirely AI" };
 }
 
 export default async function CompanyLayout({

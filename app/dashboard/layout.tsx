@@ -33,11 +33,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background/80 px-4 backdrop-blur sm:hidden">
         <Link
           href="/dashboard"
-          aria-label="Hire Excellence home"
+          aria-label="Hirely AI home"
           className="flex min-w-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Logo size={26} faint={false} />
-          <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
+          <Logo size={20} faint={false} />
+          <span className="text-sm font-medium tracking-tight">Hirely AI</span>
         </Link>
         <div className="flex shrink-0 items-center gap-2">
           <PostButton compact viewer={{ id: userId, name, imageUrl: me?.imageUrl }} />
@@ -54,8 +54,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
         {/* Vertical navbar */}
         <aside className="sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border px-3 py-4 sm:flex sm:w-[72px] xl:w-[240px]">
           <Link href="/dashboard" className="mb-6 flex h-10 items-center justify-center gap-2 px-3 xl:justify-start">
-            <Logo size={28} faint={false} />
-            <span className="hidden text-sm font-medium tracking-tight xl:inline">Hire Excellence</span>
+            <Logo size={20} faint={false} />
+            <span className="hidden text-sm font-medium tracking-tight xl:inline">Hirely AI</span>
           </Link>
           <Nav unseen={unseen} me={me?.handle ?? ""} />
           <div className="mt-auto space-y-4 border-t border-border pt-4">

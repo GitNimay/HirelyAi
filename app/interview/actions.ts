@@ -6,7 +6,9 @@ import { track } from "@/lib/analytics";
 import { Fail, failed, text } from "@/lib/guard";
 import { verifyTurnstile } from "@/lib/human";
 import {
+  funnel,
   saveAnswer,
+  saveConsent,
   saveProfile,
   startInterview,
   startTest,
@@ -55,6 +57,24 @@ export async function onboard(slug: string, input: Record<string, unknown>) {
   } catch (e) {
     return failed(e);
   }
+}
+
+/** The candidate accepted the consent notice: stored on the session so a reload doesn't ask again. */
+export async function consent(slug: string) {
+  return saveConsent(String(slug), await session()).then(() => ({ ok: true as const }), failed);
+}
+
+// Browser-side steps of the AI interview funnel, relayed to PostHog under the session id (no identify, no PII in the browser)
+const STEPS = new Set(["check result", "check passed", "start clicked", "join failed"]);
+/** Fire-and-forget from the page; unknown steps and sessions are ignored. */
+export async function step(name: string, props: Record<string, unknown> = {}) {
+  const id = await session();
+  if (!id || !STEPS.has(name)) return;
+  const str = (v: unknown) => String(v ?? "").slice(0, 60);
+  funnel(id, `interview ${name}`, "ai", {
+    ...(name === "check result" && { item: str(props.item), ok: props.ok === true, error: str(props.error) }),
+    ...(name === "join failed" && { stage: str(props.stage), waited_ms: Number(props.waited_ms) || 0 }),
+  });
 }
 
 export async function start(slug: string) {

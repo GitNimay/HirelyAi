@@ -14,11 +14,11 @@ const load = cache(async (id: string) => getPublicJob(id));
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const j = await load((await params).id);
-  if (!j) return { title: "Job not found | Hire Excellence" };
+  if (!j) return { title: "Job not found | Hirely AI" };
   const title = `${j.title} at ${j.company}`;
   const description = [j.location, WORKPLACES[j.workplace], JOB_TYPES[j.type], j.salary].filter(Boolean).join(" · ");
   return {
-    title: `${title} | Hire Excellence`,
+    title: `${title} | Hirely AI`,
     description,
     openGraph: { title, description, type: "website", images: "/og.jpg" },
   };

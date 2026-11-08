@@ -19,6 +19,7 @@ import {
   type RoleConfig,
   type Timing,
 } from "@/lib/ai-interview/harness";
+import { TRACKS, type Track } from "@/lib/ai-interview/workspace";
 import { btnGhost, Icon, icons } from "../ui";
 
 const field =
@@ -108,7 +109,7 @@ export function AiConfigEditor({
   // What gets posted: own problems only while that option is on
   const posted: RoleConfig = {
     ...c,
-    coding: { problems: ownProblems ? toProblems(problemText).slice(0, LIMITS.problems) : [] },
+    coding: { ...c.coding, problems: ownProblems ? toProblems(problemText).slice(0, LIMITS.problems) : [] },
   };
 
   const setPhases = (ids: PhaseId[]) =>
@@ -297,6 +298,40 @@ export function AiConfigEditor({
                       interviewer switches to a backup.
                     </p>
                   )}
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted">Coding environments</p>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Coding environments">
+                      {(Object.entries(TRACKS) as [Track, string][]).map(([t, text]) => {
+                        const on = c.coding.tracks.includes(t);
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            aria-pressed={on}
+                            // At most 3: the rest stay disabled until one is cleared
+                            disabled={!on && c.coding.tracks.length >= 3}
+                            onClick={() =>
+                              setC({
+                                ...c,
+                                coding: {
+                                  ...c.coding,
+                                  tracks: on ? c.coding.tracks.filter((x) => x !== t) : [...c.coding.tracks, t],
+                                },
+                              })
+                            }
+                            className={`h-8 rounded-full border px-3 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${on ? "border-foreground bg-surface font-medium" : "border-border text-muted hover:bg-surface-hover"}`}
+                          >
+                            {text}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!c.coding.tracks.length && (
+                      <p className="text-xs text-muted">
+                        Auto: picked from the job description and each candidate&apos;s resume.
+                      </p>
+                    )}
+                  </div>
                   <div className="space-y-1.5">
                     <p className="text-xs text-muted">Difficulty</p>
                     <Choice

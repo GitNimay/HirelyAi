@@ -1,11 +1,11 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="public/logo-dark.png">
-    <img alt="Hire Excellence" src="public/logo-light.png" width="80">
+    <img alt="Hirely AI" src="public/logo-light.png" width="80">
   </picture>
 </p>
 
-<h1 align="center">Hire Excellence</h1>
+<h1 align="center">Hirely AI</h1>
 
 <p align="center">
   A professional network where AI runs the first interview.<br>

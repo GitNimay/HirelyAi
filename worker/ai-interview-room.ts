@@ -30,6 +30,7 @@ import {
   phonicTool,
   run,
   skipIntent,
+  steer,
   systemPrompt,
   tick,
   timeLeft,
@@ -37,6 +38,7 @@ import {
   untrusted,
   validateCall,
   WORKSPACE_TOOLS,
+  nextProblem,
   type HarnessState,
   type IvEvent,
   type PhaseId,
@@ -45,7 +47,7 @@ import {
 } from "../lib/ai-interview/harness";
 import type { Line } from "../lib/screening/fields";
 import { runSuite } from "../lib/ai-interview/sandbox";
-import { starters } from "../lib/ai-interview/starters";
+import { startersFor } from "../lib/ai-interview/starters";
 import {
   diffLines,
   LANGUAGES,
@@ -60,13 +62,46 @@ import {
   type Scene,
 } from "../lib/ai-interview/workspace";
 
+/** What the agent learns from a run: which kinds of cases fail (names), never hidden inputs or expected outputs. */
+const runSummary = (r: RunResult) => ({
+  passed: r.passed,
+  total: r.total,
+  status: r.status,
+  failing: r.cases.filter((c) => !c.passed).map((c) => c.name),
+  runtime_s: r.time,
+  memory_kb: r.memory,
+  error: r.error ? untrusted("error", r.error.slice(0, 800)) : "",
+});
+
 const PHONIC = "https://api.phonic.ai/v1/sts/ws";
 const VOICE = "sabrina"; // female, "cheerful" per Phonic
 const GRACE_MS = 5 * 60_000; // a dropped candidate can rejoin within this, with the clock paused
 const KEEP_VOICE_MS = 30_000; // a brief drop (tab flip, network blip) keeps the conversation: no re-greeting on rejoin
-const IDLE_MS = 60_000; // coding/design: no speech and no edits for this long wakes the agent
+const IDLE_MS = 150_000; // coding/design: no speech and no edits for this long wakes the agent (thinking takes a while)
+const CS_TERMS = [
+  "hashmap",
+  "hash set",
+  "memoization",
+  "dynamic programming",
+  "two pointers",
+  "sliding window",
+  "binary search",
+  "deque",
+  "heap",
+  "trie",
+  "BFS",
+  "DFS",
+  "O of n log n",
+  "Kubernetes",
+  "gRPC",
+  "GraphQL",
+  "PostgreSQL",
+  "Redis",
+  "Kafka",
+  "idempotent",
+];
 const FLUSH_MS = 15_000; // event log → R2
-const BOOKKEEP_EVERY = 8; // transcript lines between background bookkeeping passes
+const BOOKKEEP_EVERY = 6; // transcript lines between background bookkeeping passes (about three exchanges, so topic steering isn't late)
 const PERSIST_MS = 3_000; // state checkpoints are batched to at most one per this
 // Voice resilience: a dropped Phonic socket is first resumed (same conversation, Phonic holds it ~30 s), then
 // replaced; text chat is the last resort, and the room keeps trying to bring voice back from there
@@ -78,7 +113,7 @@ const RESUME_MS = 8_000; // reconnect_conv_id sent, but no conversation_reconnec
 const FAILING_MS = 60_000; // ...or failing for longer than this
 const RECOVER_MS = 45_000; // from text chat, try voice again this often
 const OVERTIME_MS = 30_000; // a forced phase change waits up to this for the candidate to finish speaking or drawing
-const BOARD_SETTLE_MS = 12_000; // whiteboard: ask about the sketch only after they stop drawing for this long
+const BOARD_SETTLE_MS = 30_000; // whiteboard: ask about the sketch only after they stop drawing for this long (they see it when they speak anyway)
 const WARM_MS = 45_000; // a pre-opened Phonic socket is used within this, else dropped
 // Voice standby (cost): Phonic bills per open minute, and coding/design are mostly silent work. After this long with
 // nobody speaking, the conversation closes and the room listens for speech itself; it reconnects (pre-warmed) the
@@ -211,6 +246,11 @@ export class InterviewRoom extends DurableObject<Env> {
     const now = Date.now();
     this.syncClock();
     this.log({ at: now, type: "session", what: "disconnected" });
+    capture(this.room!.id, "interview dropped", {
+      kind: "ai",
+      phase: phaseOf(this.s.state),
+      $process_person_profile: false,
+    });
     this.stopTimer();
     // Keep the voice conversation open briefly: most drops are a tab flip or a network blip and rejoin in seconds
     this.dropTimer = setTimeout(() => !this.client && this.closePhonic(), KEEP_VOICE_MS);
@@ -221,11 +261,13 @@ export class InterviewRoom extends DurableObject<Env> {
   }
 
   async alarm() {
+    if (this.retryFinish) return this.finish(this.retryFinish);
     if (this.client) return; // they came back
     this.s ??= (await this.ctx.storage.get<Saved>("saved")) ?? null;
     if (!this.s) return;
     this.room ??= await roomContext(this.s.sessionId);
     if (!this.room) return;
+    capture(this.room.id, "interview abandoned", { kind: "ai", $process_person_profile: false });
     this.log({
       at: Date.now(),
       type: "session",
@@ -313,28 +355,53 @@ export class InterviewRoom extends DurableObject<Env> {
         generate_welcome_message: why === "start",
         welcome_message: null,
         tools: this.phaseTools(phase),
-        // Thinking pauses shouldn't end the candidate's turn; "yeah", "okay" or "so..." shouldn't cut the interviewer off
-        vad_min_silence_duration_ms: 1200,
+        // Thinking pauses are handled by choose_not_to_respond (the model hears "hmm, so..." and stays quiet), so the
+        // endpoint itself can be short: every turn pays this silence. ponytail: tune from the logged first-audio latency
+        turn_taking: "relaxed",
+        vad_min_silence_duration_ms: 800,
+        // Typing and fan noise with an open mic shouldn't start a turn; keep the first syllable
+        vad_threshold: 0.55,
+        vad_min_speech_duration_ms: 200,
+        vad_prebuffer_duration_ms: 300,
+        // "yeah", "okay" or "so..." shouldn't cut the interviewer off
         min_words_to_interrupt: 3,
         no_input_poke_sec: null, // the harness decides when to nudge (idle wake), not a silence timer
         no_input_end_conversation_sec: 600,
         websocket_timeout_sec: 300,
-        boosted_keywords: [...room.candidate.skills, room.job.company].map((k) => k.slice(0, 50)).slice(0, 50),
+        boosted_keywords: this.keywords(),
         external_id: room.id,
       }),
     );
-    if (why === "reconnect" || why === "retry")
+    const note =
+      why === "reconnect" || why === "retry"
+        ? "Harness: the connection was restored. Welcome them back in one sentence and continue where you left off."
+        : why === "recover"
+          ? "Harness: voice is working again after a text-chat stretch. Tell them in one sentence that you can continue by voice, then continue where you left off."
+          : "";
+    // A wake queued during the reconnect (phase change, time warning) still gets said, after the welcome back
+    if (note)
       this.pendingWake = {
-        why: "reconnect",
-        text: "Harness: the connection was restored. Welcome them back in one sentence and continue where you left off.",
-      };
-    if (why === "recover")
-      this.pendingWake = {
-        why: "reconnect",
-        text: "Harness: voice is working again after a text-chat stretch. Tell them in one sentence that you can continue by voice, then continue where you left off.",
+        why: this.pendingWake?.why ?? "reconnect",
+        text: [note, this.pendingWake?.text].filter(Boolean).join("\n"),
       };
   }
+  /** Speech recognition hints: the assigned problem's words, the candidate's skills, then common interview terms. */
+  keywords() {
+    const room = this.room!;
+    const p = this.problem(this.s?.state.assigned.problem);
+    return [
+      ...new Set([
+        ...(p ? [p.title, ...(p.signature?.args ?? []), ...(p.env ? [LANGUAGES[p.env].label] : [])] : []),
+        ...room.candidate.skills,
+        room.job.company,
+        ...CS_TERMS,
+      ]),
+    ]
+      .map((k) => k.slice(0, 50))
+      .slice(0, 50);
+  }
   pendingWake: { why: Wake; text: string } | null = null;
+  turnEnded = 0; // when the candidate last finished speaking, until the reply's first audio (latency log)
   connectStarted = 0;
   warmed: { ws: WebSocket; at: number } | null = null;
 
@@ -382,7 +449,11 @@ export class InterviewRoom extends DurableObject<Env> {
 
   phaseTools(phase: PhaseId) {
     const enums = enumsFor(this.room!.config, this.room!.plan);
-    return toolsFor(phase, { design: this.room!.config.design.enabled }).map((n) => phonicTool(n, enums));
+    return [
+      ...toolsFor(phase, { design: this.room!.config.design.enabled }).map((n) => phonicTool(n, enums)),
+      // Lets the model stay quiet when the candidate is thinking out loud (null: silent until they speak again)
+      { type: "built_in", name: "choose_not_to_respond", tool_config: { respond_after_sec: null } },
+    ];
   }
 
   prompt(phase: PhaseId) {
@@ -420,10 +491,13 @@ export class InterviewRoom extends DurableObject<Env> {
       ...s.state,
       assigned: { ...s.state.assigned, problem: p.id, tried: [...(s.state.assigned.tried ?? []), p.id] },
     };
-    s.code = { language: s.code?.language ?? "python", code: starters(p.signature)[s.code?.language ?? "python"] };
+    // Their language carries over between code problems; an environment problem fixes its own
+    const files = startersFor(p);
+    const language = (s.code && s.code.language in files ? s.code.language : Object.keys(files)[0]) as Language;
+    s.code = { language, code: files[language] ?? "" };
     this.lastCodeRead = s.code.code; // the agent knows the starter: only the candidate's changes are news
     this.log({ at: Date.now(), type: "assign", what: "problem", id: p.id });
-    this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
+    this.send({ t: "problem", problem: publicProblem(p), starter: files, code: s.code });
   }
 
   /** The harness puts the round's work on screen itself (deterministic, nothing for the agent to narrate). */
@@ -493,6 +567,8 @@ export class InterviewRoom extends DurableObject<Env> {
     if (this.phonicFailures > MAX_PHONIC_FAILURES || Date.now() - this.failingSince > FAILING_MS) {
       // Voice has failed for a while: carry on as a text chat in the room, and keep trying to bring voice back
       this.s!.fallback = true;
+      this.resuming = false;
+      this.preroll = [];
       this.lastRecover = Date.now();
       this.log({ at: Date.now(), type: "session", what: "fallback", detail });
       capture(this.room!.id, "interview voice fallback", { kind: "ai", detail, $process_person_profile: false });
@@ -522,6 +598,11 @@ export class InterviewRoom extends DurableObject<Env> {
         this.convId = String(m.conversation_id);
         return this.log({ at: now, type: "session", what: "connected", detail: `phonic ${this.convId}` });
       case "audio_chunk": {
+        if (this.turnEnded) {
+          // First audio of a reply: the latency the candidate feels (end of their speech → interviewer's voice)
+          console.log(JSON.stringify({ msg: "first audio", ms: now - this.turnEnded, timings: m.timings ?? null }));
+          this.turnEnded = 0;
+        }
         if (m.audio && this.client && !this.paused) {
           // Native base64 (nodejs_compat): ~50 frames/s each way, so the hot path stays well inside the CPU budget
           this.client.send(Buffer.from(m.audio as string, "base64"));
@@ -559,8 +640,15 @@ export class InterviewRoom extends DurableObject<Env> {
         this.nudges = 0;
         this.candidateSpeaking = false;
         this.lastActivity = now;
+        this.turnEnded = now;
         this.send({ t: "you", speaking: false });
         return this.send({ t: "state", agent: "thinking" });
+      case "input_cancelled":
+        // Noise, not speech: no user_finished_speaking follows, and a stuck flag would block every queued reply
+        this.candidateSpeaking = false;
+        this.send({ t: "you", speaking: false });
+        this.send({ t: "state", agent: "listening" });
+        return this.flushReply();
       case "input_text":
         this.send({ t: "cap", who: "you", text: String(m.text ?? "") });
         if (this.s && String(m.text ?? "").trim()) {
@@ -571,6 +659,7 @@ export class InterviewRoom extends DurableObject<Env> {
       case "tool_call":
         return this.onToolCall(String(m.tool_call_id), String(m.tool_name), m.parameters);
       case "assistant_chose_not_to_respond":
+        this.turnEnded = 0;
         return this.send({ t: "state", agent: "listening" });
       case "assistant_ended_conversation":
         // Only end_interview (or the clock) ends the interview; Phonic ending its conversation just means reconnect
@@ -590,6 +679,7 @@ export class InterviewRoom extends DurableObject<Env> {
     const now = Date.now();
     console.log(JSON.stringify({ msg: "interviewer ready", how, ms: now - this.connectStarted }));
     this.ready = true;
+    this.resuming = false;
     this.everReady = true;
     this.phonicFailures = 0;
     this.failingSince = 0;
@@ -600,6 +690,12 @@ export class InterviewRoom extends DurableObject<Env> {
       this.send({ t: "voice" });
     }
     this.syncClock();
+    if (how !== "conversation_reconnected") {
+      // A new conversation has never seen the workspace: the next push sends it whole, not a diff against nothing
+      this.lastCodeRead = "";
+      this.lastBoardPush = "";
+      this.pushWorkspace();
+    }
     this.send({ t: "stage", stage: "ready" });
     this.send({ t: "state", agent: "listening" });
     for (const f of this.preroll.splice(0)) this.sendAudio(f); // what they said while the conversation resumed
@@ -673,11 +769,23 @@ export class InterviewRoom extends DurableObject<Env> {
       lines: s.transcript.slice(from, upto),
       claims: room.plan.claims,
       rubric: room.config.rubric,
+      topic: s.state.topic,
     })
       .then((b) => {
         s.summary = b.summary;
         s.summarized = upto;
         s.state = applyBookkeeping(s.state, b, phase, Date.now());
+        // Keep the conversation moving: a new topic once this one has had its questions, a wrong fact set straight.
+        // Context only, applied at the agent's next turn; skipped when the phase moved on during the pass.
+        if (!this.ending && !this.finishing) {
+          const st = steer(s.state, b, { phase, plan: room.plan, board: !!s.whiteboard?.open });
+          s.state = st.state;
+          for (const note of st.notes) {
+            this.log({ at: Date.now(), type: "session", what: "steer", detail: note.slice(9, 160) });
+            if (s.fallback) this.steerNotes.push(note);
+            else this.sendPhonic({ type: "add_system_message", system_message: note });
+          }
+        }
         this.persistSoon();
       })
       .catch((e) => this.fail("bookkeeping", e))
@@ -685,6 +793,8 @@ export class InterviewRoom extends DurableObject<Env> {
     return this.bookkeeping;
   }
   bookkeeping: Promise<void> | null = null;
+  /** Text fallback: steering notes waiting for the next typed reply (there is no context to add them to between turns). */
+  steerNotes: string[] = [];
 
   /** State checkpoints (D1 for the report, DO storage for a restart), batched so tool calls and lines never wait on them. */
   persistSoon() {
@@ -728,7 +838,7 @@ export class InterviewRoom extends DurableObject<Env> {
     this.log({ at: now, type: "tool_call", id, name, args: params });
     const v = validateCall(s.state, name, params, enumsFor(room.config, room.plan));
     let result: unknown;
-    let effect: "advance" | "switch" | "end" | undefined;
+    let effect: "advance" | "switch" | "easier" | "end" | undefined;
     if (!v.ok) result = { error: v.error };
     else if (WORKSPACE_TOOLS.includes(v.name)) result = await this.workspaceTool(v.name, v.args);
     else {
@@ -748,21 +858,27 @@ export class InterviewRoom extends DurableObject<Env> {
           next: "Say one short transition sentence, then follow the Harness brief for this phase.",
         };
     }
-    if (effect === "switch") result = this.switchProblem(String(v.ok && v.args.reason));
+    if (effect === "switch" || effect === "easier")
+      result = this.switchProblem(String(v.ok && v.args.reason), effect === "easier");
     this.log({ at: Date.now(), type: "tool_result", id, name, result });
     this.persistSoon();
     if (effect === "end") setTimeout(() => void this.endAfterGoodbye(), 0);
     return result;
   }
 
-  /** Puts the next backup problem on screen and re-briefs the agent with its hints. */
-  switchProblem(reason: string) {
+  /** Puts the next backup problem on screen (an easier one when asked) and re-briefs the agent with its hints. */
+  switchProblem(reason: string, easier = false) {
     const s = this.s!;
-    const tried = s.state.assigned.tried ?? [];
-    const next = this.room!.plan.problems?.find((p) => !tried.includes(p.id));
+    const current = this.problem(s.state.assigned.problem);
+    const next = nextProblem(this.room!.plan.problems ?? [], s.state.assigned.tried ?? [], current, easier);
     if (!next) return { error: "No backup problem left. Simplify the current one with a hint instead." };
     this.showProblem(next);
-    this.log({ at: Date.now(), type: "session", what: "resumed", detail: `problem switched: ${reason.slice(0, 120)}` });
+    this.log({
+      at: Date.now(),
+      type: "session",
+      what: "resumed",
+      detail: `problem switched${easier ? " (easier)" : ""}: ${reason.slice(0, 120)}`,
+    });
     this.sendPhonic({
       type: "add_system_message",
       system_message: phaseBrief("coding", this.promptCtx(), s.state, Date.now()),
@@ -770,8 +886,10 @@ export class InterviewRoom extends DurableObject<Env> {
     return {
       ok: true,
       title: next.title,
+      difficulty: next.difficulty,
+      environment: next.env ? LANGUAGES[next.env].label : "code (any language)",
       statement: next.statement,
-      note: "The new problem is on their screen with fresh starter code. Introduce it in one or two sentences.",
+      note: `The new problem is on their screen with fresh starter code. Introduce it in one or two sentences.${easier && current && next.difficulty === current.difficulty ? " It's the simplest one left (same difficulty label, smaller scope)." : ""}`,
     };
   }
 
@@ -794,8 +912,11 @@ export class InterviewRoom extends DurableObject<Env> {
       if (answer === "yes") {
         s.state = { ...s.state, confirm: null };
         this.log({ at: now, type: "session", what: "confirm", detail: `${c.action} confirmed` });
-        if (c.action === "switch") {
-          const r = this.switchProblem("the candidate asked for a different problem");
+        if (c.action !== "skip") {
+          const r = this.switchProblem(
+            `the candidate asked for ${c.action === "easier" ? "an easier" : "a different"} problem`,
+            c.action === "easier",
+          );
           if ("ok" in r)
             this.wake(
               "phase",
@@ -824,31 +945,14 @@ export class InterviewRoom extends DurableObject<Env> {
     const s = this.s!;
     const now = Date.now();
     switch (name) {
-      case "read_editor": {
-        if (!s.code) return { error: "No problem assigned yet." };
-        const diff = diffLines(this.lastCodeRead, s.code.code);
-        this.lastCodeRead = s.code.code;
-        return {
-          language: LANGUAGES[s.code.language].label,
-          code: untrusted("code", s.code.code.slice(0, 8000)),
-          diff_since_last_read: diff ? untrusted("diff", diff) : "no changes",
-          idle_seconds: Math.round((now - this.lastActivity) / 1000),
-        };
-      }
       case "run_tests": {
-        const suite = a.suite as "visible" | "hidden";
-        const r = await this.execute("agent", suite);
-        if (typeof r === "string") return { error: r };
-        // The agent learns which kinds of hidden cases fail (names), never their inputs or expected outputs
-        return {
-          passed: r.passed,
-          total: r.total,
-          status: r.status,
-          failing: r.cases.filter((c) => !c.passed).map((c) => c.name),
-          runtime_s: r.time,
-          memory_kb: r.memory,
-          error: r.error ? untrusted("error", r.error.slice(0, 800)) : "",
-        };
+        // Examples and hidden tests in parallel: one wait, not two
+        const [examples, hidden] = await Promise.all([
+          this.execute("agent", "visible"),
+          this.execute("agent", "hidden"),
+        ]);
+        if (typeof hidden === "string") return { error: hidden };
+        return { examples: typeof examples === "string" ? examples : runSummary(examples), hidden: runSummary(hidden) };
       }
       case "open_whiteboard": {
         const topic = String(a.topic);
@@ -967,19 +1071,21 @@ export class InterviewRoom extends DurableObject<Env> {
     }
     // Silent work: coding, or sketching on the whiteboard
     const working = phaseOf(s.state) === "coding" || !!s.whiteboard?.open;
-    // Idle nudges back off (1, 2, 4 min…) so a thinking candidate isn't nagged; speaking resets the ladder
+    // Idle nudges back off (2.5, 5, 10 min…) so a thinking candidate isn't nagged; speaking resets the ladder. In voice
+    // standby only the first one reopens the (billed) conversation
     if (
       working &&
       s.state.since !== null &&
       !this.agentSpeaking &&
       !this.candidateSpeaking &&
+      (!this.standby || this.nudges === 0) &&
       now - this.lastActivity > IDLE_MS * 2 ** this.nudges
     ) {
       this.lastActivity = now;
       this.nudges++;
       this.wake(
         "idle",
-        "Harness: the candidate hasn't spoken or changed anything for a minute. Check in briefly: ask what they're thinking. Offer the next hint level only if they say they're stuck.",
+        `Harness: the candidate hasn't spoken or changed anything for a few minutes. Check in gently in one sentence, e.g. "Take your time. Want to talk me through where you are?" Offer a hint (${s.state.hints.length ? `${s.state.hints.length} given so far` : "none given yet"}) only if they say they're stuck.`,
       );
     }
     const quiet = now - this.lastSpeech; // typing is silent work: only speech keeps the conversation open
@@ -1095,6 +1201,7 @@ export class InterviewRoom extends DurableObject<Env> {
     if (!this.queuedReply || !this.ready || this.agentSpeaking || this.candidateSpeaking || this.toolsInFlight) return;
     const text = this.queuedReply;
     this.queuedReply = null;
+    this.pushWorkspace(); // a wake (idle, board, warning) replies about their latest code or sketch, not a stale one
     this.sendPhonic({ type: "generate_reply", system_message: text });
   }
 
@@ -1146,7 +1253,8 @@ export class InterviewRoom extends DurableObject<Env> {
   /** In standby: keep a short pre-roll and wake on sustained speech energy. */
   listen(frame: Uint8Array) {
     this.preroll.push(frame.slice());
-    if (this.preroll.length > PREROLL_FRAMES) this.preroll.shift();
+    // While the conversation reopens, keep everything they say (up to 10 s) so it's replayed whole once ready
+    if (this.preroll.length > (this.resuming ? 250 : PREROLL_FRAMES)) this.preroll.shift();
     if (!this.standby) return; // already resuming: just buffering
     const pcm = new Int16Array(frame.buffer, frame.byteOffset, frame.byteLength >> 1);
     let sum = 0;
@@ -1163,15 +1271,16 @@ export class InterviewRoom extends DurableObject<Env> {
     this.log({ at: Date.now(), type: "session", what: "standby" });
     this.closePhonic();
     void this.warm(); // a handshake ready for the moment they speak
+    void this.bookkeep(); // the conversation that resumes is primed with an up-to-date summary
   }
 
+  /** Until the new conversation is ready (onReady), mic audio goes to the pre-roll and is replayed then. */
   async resume(why: "speech" | "wake") {
     if (!this.standby) return;
     this.standby = false;
     this.resuming = true;
     this.log({ at: Date.now(), type: "session", what: "resumed", detail: `voice: ${why}` });
     await this.connectPhonic("resume");
-    this.resuming = false;
   }
 
   /** Mic frames in arrival order: local dev hands binary frames over as Blobs (async to read), production as ArrayBuffers. */
@@ -1197,25 +1306,36 @@ export class InterviewRoom extends DurableObject<Env> {
     switch (m.t) {
       case "code": {
         if (typeof m.code !== "string" || !Object.hasOwn(LANGUAGES, String(m.language))) return;
+        // Only the languages this problem offers (an environment problem has exactly one)
+        const offered = this.problem(s.state.assigned.problem);
+        if (offered && !(String(m.language) in startersFor(offered))) return;
         const code = m.code.slice(0, 100_000);
         if (s.code?.code === code && s.code.language === m.language) return;
         s.code = { language: m.language as Language, code };
         this.lastActivity = now;
+        this.persistSoon(); // a restart mustn't lose the last edits
         return this.log({ at: now, type: "code", language: s.code.language, code });
       }
       case "run": {
         this.lastActivity = now;
         const r = await this.execute("candidate", "visible");
-        if (typeof r !== "string" && r.passed < r.total)
-          this.wake(
-            "run",
-            `Harness: the candidate just ran the visible tests: ${r.passed}/${r.total} passed (${r.status}). Failing: ${r.cases
-              .filter((c) => !c.passed)
-              .map((c) => c.name)
-              .join(
-                ", ",
-              )}. If they seem stuck, ask a question that helps them find the bug themselves; don't point at the fix.`,
-          );
+        if (typeof r === "string") return;
+        // Context, not a wake: they're debugging, and interrupting that is the worst moment. The agent knows the result
+        // when they next speak (or the idle check-in fires)
+        this.pushWorkspace();
+        this.sendPhonic({
+          type: "add_system_message",
+          system_message: `Harness: the candidate ran the examples: ${r.passed}/${r.total} passed (${r.status})${
+            r.passed < r.total
+              ? `, failing ${r.cases
+                  .filter((c) => !c.passed)
+                  .map((c) => c.name)
+                  .join(
+                    ", ",
+                  )}. If they ask for help, ask a question that helps them find the bug themselves; don't point at the fix`
+              : ""
+          }.`,
+        });
         return;
       }
       case "board": {
@@ -1226,6 +1346,7 @@ export class InterviewRoom extends DurableObject<Env> {
         this.scene = next;
         s.board = { elements, raw: (m.raw as unknown[]).slice(0, 500) };
         this.lastActivity = now;
+        this.persistSoon();
         this.log({ at: now, type: "board", elements: s.board.raw, change });
         this.boardChangedAt = now;
         // Not a wake yet: interrupting someone mid-sketch is the worst moment. onTick asks once they've paused
@@ -1238,7 +1359,13 @@ export class InterviewRoom extends DurableObject<Env> {
       case "snapshot":
         return this.snapshots.get(String(m.id))?.(typeof m.png === "string" && m.png.length < 2_000_000 ? m.png : null);
       case "paste":
-        return this.log({ at: now, type: "paste", chars: Math.max(0, Math.round(Number(m.chars) || 0)) });
+        return this.log({
+          at: now,
+          type: "paste",
+          chars: Math.max(0, Math.round(Number(m.chars) || 0)),
+          // The editor reports its own pastes (size against the final code is the integrity signal)
+          ...(m.into === "editor" && { into: "editor", lines: Math.max(0, Math.round(Number(m.lines) || 0)) }),
+        });
       case "integrity":
         return this.onIntegrity(
           String(m.signal).slice(0, 40),
@@ -1273,6 +1400,7 @@ export class InterviewRoom extends DurableObject<Env> {
       this.paused = signal;
       this.syncClock();
       this.log({ at: now, type: "session", what: "paused", detail: signal });
+      capture(this.room!.id, "interview paused", { kind: "ai", reason: signal, $process_person_profile: false });
       this.send({ t: "paused", reason: signal });
       this.send({ t: "flush" });
       this.sendClock();
@@ -1296,11 +1424,12 @@ export class InterviewRoom extends DurableObject<Env> {
     const phase = phaseOf(s.state);
     if (!phase || this.ending) return;
     this.send({ t: "state", agent: "thinking" });
+    const notes = this.steerNotes.splice(0);
     const reply = await textTurn({
       prompt: this.prompt(phase),
       transcript: s.transcript.slice(-24),
-      system,
-      tools: this.phaseTools(phase).map((t) => t.tool_schema),
+      system: [...notes, system].filter(Boolean).join("\n\n") || undefined,
+      tools: this.phaseTools(phase).flatMap((t) => ("tool_schema" in t ? [t.tool_schema] : [])),
       runTool: (name, args) => this.runTool(crypto.randomUUID(), name, args),
     });
     this.send({ t: "state", agent: "listening" });
@@ -1331,16 +1460,24 @@ export class InterviewRoom extends DurableObject<Env> {
       this.fail("finish", e);
       this.finishing = false;
       this.ending = false;
+      // The clock and voice are already stopped: retry on an alarm, even with the candidate still on the page
+      this.retryFinish = reason;
+      await this.ctx.storage.setAlarm(Date.now() + 30_000).catch(() => {});
     }
   }
+  retryFinish: string | null = null;
 
   async close(reason: string) {
     const s = this.s!;
     const room = this.room!;
     this.stopTimer();
     this.closePhonic(); // nothing more is said; the goodbye has played
-    // Last bookkeeping pass over the closing lines, so the evaluator gets their evidence too (bounded: it's best effort)
-    await Promise.race([this.bookkeep().then(() => this.bookkeep()), new Promise((r) => setTimeout(r, 20_000))]);
+    // In parallel (the candidate is waiting on this): a last bookkeeping pass over the closing lines, so the evaluator
+    // gets their evidence too (bounded: it's best effort), and a final hidden-test run on the last code
+    const [, finalRun] = await Promise.all([
+      Promise.race([this.bookkeep().then(() => this.bookkeep()), new Promise((r) => setTimeout(r, 20_000))]),
+      this.finalRun(),
+    ]);
     this.ending = true;
     if (this.persistTimer) clearTimeout(this.persistTimer);
     const now = Date.now();
@@ -1354,25 +1491,7 @@ export class InterviewRoom extends DurableObject<Env> {
       );
       this.log({ at: now, type: "phase", from, to: phaseOf(s.state), reason: "end" });
     }
-    // Final hidden-test run on the last code, so the evaluator has it even if the agent never ran them
-    if (
-      s.state.assigned.problem &&
-      s.code &&
-      !s.state.runs.some((r) => r.suite === "hidden" && r.at > (this.lastCodeAt ?? 0))
-    ) {
-      const p = this.problem(s.state.assigned.problem);
-      // Untouched starter code has nothing to test
-      if (p && s.code.code.trim() !== starters(p.signature)[s.code.language].trim()) {
-        const r = await runSuite(s.code.language, s.code.code, p.hidden, "hidden");
-        this.log({
-          at: Date.now(),
-          type: "run",
-          by: "agent",
-          language: s.code.language,
-          result: { ...r, final: true },
-        });
-      }
-    }
+    if (finalRun) this.log(finalRun);
     this.log({ at: Date.now(), type: "session", what: "ended", detail: reason });
     this.closePhonic();
     // The tail of the event log must land before storage is wiped: retry a failed flush a few times
@@ -1393,7 +1512,7 @@ export class InterviewRoom extends DurableObject<Env> {
       }),
       { httpMetadata: { contentType: "application/json" } },
     );
-    await finishAi(room.id, s.transcript, s.state);
+    await finishAi(room.id, s.transcript, s.state, reason);
     capture(room.id, "interview completed", {
       kind: "ai",
       reason,
@@ -1412,6 +1531,22 @@ export class InterviewRoom extends DurableObject<Env> {
   }
   lastCodeAt: number | null = null;
   finishing = false;
+
+  /**
+   * Final hidden-test run on the last code, so the evaluator has it even if the agent never ran them. Null when there's
+   * nothing new to test, or the sandbox is down (an outage isn't a failing candidate).
+   */
+  async finalRun(): Promise<IvEvent | null> {
+    const s = this.s!;
+    if (!s.state.assigned.problem || !s.code) return null;
+    if (s.state.runs.some((r) => r.suite === "hidden" && r.at > (this.lastCodeAt ?? 0))) return null;
+    const p = this.problem(s.state.assigned.problem);
+    // Untouched starter code has nothing to test
+    if (!p || s.code.code.trim() === (startersFor(p)[s.code.language] ?? "").trim()) return null;
+    const r = await runSuite(s.code.language, s.code.code, p.hidden, "hidden");
+    if (r.status === "unavailable") return null;
+    return { at: Date.now(), type: "run", by: "agent", language: s.code.language, result: { ...r, final: true } };
+  }
 
   stopTimer() {
     if (this.timer) clearInterval(this.timer);
@@ -1452,7 +1587,7 @@ export class InterviewRoom extends DurableObject<Env> {
   restoreWorkspace() {
     const s = this.s!;
     const p = this.problem(s.state.assigned.problem);
-    if (p) this.send({ t: "problem", problem: publicProblem(p), starter: starters(p.signature), code: s.code });
+    if (p) this.send({ t: "problem", problem: publicProblem(p), starter: startersFor(p), code: s.code });
     const w = s.whiteboard;
     if (w?.open)
       this.send({

@@ -2,10 +2,10 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import posthog from "posthog-js";
 import { memo, useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
 import { ThinkingOrb } from "thinking-orbs";
+import { consent, step } from "@/app/interview/actions";
 import type { CandidateView } from "@/lib/screening/interview";
 import { LIMITS, PHASES, phaseLabel, type PhaseId } from "@/lib/ai-interview/harness";
 import { JOB_TYPES, LEVELS, WORKPLACES } from "@/lib/job-fields";
@@ -109,7 +109,7 @@ export function AiInterview({
         key={attempt}
         onRetry={() => setAttempt((n) => n + 1)}
         view={view}
-        onDone={() => (posthog.capture("interview finished", { kind: "ai" }), go("done"), router.refresh())}
+        onDone={() => (go("done"), router.refresh())}
         onDropped={() => go("check")}
       />
     );
@@ -119,8 +119,16 @@ export function AiInterview({
     phone: <UseComputer />,
     gate: <Gate view={view} turnstile={turnstile} onDone={() => (setLocal(null), router.refresh())} />,
     details: <Details initial={view.session?.prefill ?? {}} slug={view.slug} onDone={() => go("check")} />,
-    check: <SystemCheck rejoin={rejoin} onDone={() => go(rejoin ? "room" : "consent")} />,
-    consent: <Consent company={view.company} onDone={() => go("brief")} onBack={() => go("check")} />,
+    check: (
+      <SystemCheck rejoin={rejoin} onDone={() => go(rejoin ? "room" : view.session?.consented ? "brief" : "consent")} />
+    ),
+    consent: (
+      <Consent
+        company={view.company}
+        onDone={() => (void consent(view.slug).catch(() => {}), go("brief"))}
+        onBack={() => go("check")}
+      />
+    ),
     brief: (
       <div className="space-y-7 text-sm leading-relaxed">
         <Head title="Before you start" sub={`${view.title} at ${view.company}`} />
@@ -183,6 +191,7 @@ export function AiInterview({
             type="button"
             className={primary}
             onClick={() => {
+              ping("start clicked");
               void document.documentElement.requestFullscreen?.().catch(() => {});
               go("room");
             }}
@@ -192,7 +201,14 @@ export function AiInterview({
         </div>
       </div>
     ),
-    done: (
+    done: view.session?.endedEarly ? (
+      <div className="py-8 text-center" aria-live="polite">
+        <h2 className="font-display text-xl font-normal">Your interview ended early</h2>
+        <p className="mt-1 text-sm text-muted">
+          It stopped before it was finished. Please contact {view.company} to ask about next steps.
+        </p>
+      </div>
+    ) : (
       <div className="flex flex-col items-center py-10 text-center" aria-live="polite">
         <span className="flex size-12 items-center justify-center rounded-full bg-success/15 text-success">
           <Icon d={icons.check} size={24} />
@@ -317,6 +333,24 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
     return () => ((stop = true), clearInterval(t));
   }, []);
 
+  // Each item's final state, once (a fix after a failure is a second report), for the funnel
+  const reported = useRef(new Set<string>());
+  useEffect(() => {
+    const items: [string, CheckState, string][] = [
+      ["browser", browser, ""],
+      ["camera", cam, ""],
+      ["screen", screen, screenErr],
+      ["monitors", monitors, ""],
+      ["network", net.state, ""],
+      ["mic", micErr ? "fail" : "pending", micErr],
+    ];
+    for (const [item, state, error] of items) {
+      if (state === "pending" || reported.current.has(item + state)) continue;
+      reported.current.add(item + state);
+      ping("check result", { item, ok: state === "ok", error });
+    }
+  }, [browser, cam, screen, screenErr, monitors, net.state, micErr]);
+
   async function share() {
     setScreenErr("");
     try {
@@ -416,7 +450,17 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
                 </p>
                 <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5">
                   {!ready && <span className="text-xs text-muted">Fix the items above to continue</span>}
-                  <button type="button" className={primary} disabled={!ready} onClick={onDone}>
+                  <button
+                    type="button"
+                    className={primary}
+                    disabled={!ready}
+                    onClick={() => {
+                      // Rejoining skips the overview's Start button, so enter full screen here or the room opens paused
+                      if (rejoin) void document.documentElement.requestFullscreen?.().catch(() => {});
+                      else ping("check passed");
+                      onDone();
+                    }}
+                  >
                     {rejoin ? "Rejoin interview" : "Continue"}
                     <Icon d={chevron} size={16} />
                   </button>
@@ -431,6 +475,8 @@ function SystemCheck({ rejoin, onDone }: { rejoin: boolean; onDone: () => void }
 }
 
 const noop = () => () => {};
+/** Funnel step for analytics, relayed by the server under the session id. Fire-and-forget: never blocks or throws. */
+const ping = (name: string, props?: Record<string, unknown>) => void step(name, props).catch(() => {});
 
 /** Client Hints where supported (Chromium), else the UA; iPadOS claims to be a Mac, so a touch Mac is an iPad. */
 function onPhone() {
@@ -453,7 +499,9 @@ function UseComputer() {
       />
       <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed marker:text-muted">
         <li>Use the latest Chrome or Edge on a laptop or desktop.</li>
-        <li>Open the link from your invitation email there and sign in with the same candidate ID and password.</li>
+        <li>
+          Open the link from your invitation email there and sign in. Your candidate ID and password are in that email.
+        </li>
         <li>Nothing has started yet: your attempt is still unused.</li>
       </ul>
       <div className="flex justify-end border-t border-border pt-5">
@@ -644,7 +692,7 @@ type Workspace =
   | {
       kind: "code";
       problem: PublicProblem;
-      starter: Record<Language, string>;
+      starter: Partial<Record<Language, string>>;
       code: { language: Language; code: string } | null;
     }
   | {
@@ -737,7 +785,7 @@ function Room({
         return setCode({
           kind: "code",
           problem: m.problem as PublicProblem,
-          starter: m.starter as Record<Language, string>,
+          starter: m.starter as Partial<Record<Language, string>>,
           code: m.code as never,
         });
       case "design":
@@ -872,6 +920,13 @@ function Room({
     return () => {
       closed = true;
       cleanup.reverse().forEach((f) => f());
+      // Finished: turn the camera and screen share off (recorders above were already told to stop, so nothing is lost).
+      // A drop or retry keeps them for the rejoin.
+      if (ended.current) {
+        for (const s of [media.camera, media.screen]) s?.getTracks().forEach((t) => t.stop());
+        media.camera = media.screen = null;
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      }
     };
   }, [view.slug]);
 
@@ -911,6 +966,16 @@ function Room({
   const workspace = fallback ? "chat" : phase === "coding" && code ? "code" : board ? "board" : "talk";
   // Talk rounds put both tiles centre stage; a workspace docks them into a side panel
   const dock = workspace !== "talk";
+  // In full screen the browser takes Escape to exit it, so the whiteboard (deselect, drop the arrow tool) and editor
+  // (close suggestions) never saw it and the interview paused. Keyboard Lock hands Escape to the page while one is
+  // open; holding Esc still exits full screen. Chrome/Edge only, which is all the interview supports.
+  useEffect(() => {
+    if (workspace !== "board" && workspace !== "code") return;
+    const kb = (navigator as Navigator & { keyboard?: { lock(keys: string[]): Promise<void>; unlock(): void } })
+      .keyboard;
+    kb?.lock(["Escape"]).catch(() => {});
+    return () => kb?.unlock();
+  }, [workspace]);
   // The editor and whiteboard are heavy to mount: wait until the tiles have finished moving so the move never drops frames
   const reduce = useReducedMotion();
   const [settled, setSettled] = useState(dock);
@@ -927,7 +992,7 @@ function Room({
       <div className="flex h-dvh flex-col bg-background">
         <header className="grid h-15 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-6 border-b border-border px-6">
           <span className="flex min-w-0 items-center gap-2.5">
-            <Logo size={24} />
+            <Logo size={20} />
             <span className="truncate text-sm font-medium">{view.company}</span>
           </span>
           <ol className="flex items-center gap-2.5 text-[13px]" aria-label="Interview rounds">
@@ -1147,6 +1212,8 @@ function Room({
                     />
                   ) : workspace === "code" && code ? (
                     <CodeWorkspace
+                      // A switched problem starts fresh: its own starter file and language (state lives inside)
+                      key={code.problem.id}
                       socket={socket}
                       problem={code.problem}
                       starter={code.starter}
@@ -1253,6 +1320,12 @@ function Joining({
         );
   const waited = now - since;
   const failed = stage === "failed" || waited > STUCK_MS;
+  const reported = useRef(false);
+  useEffect(() => {
+    if (!failed || reported.current) return;
+    reported.current = true;
+    ping("join failed", { stage, waited_ms: Date.now() - since });
+  }, [failed, stage, since]);
   return (
     <div className="flex flex-1 items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6 text-center" aria-live="polite">
@@ -1424,6 +1497,7 @@ const PAUSE_TEXT: Record<string, { title: string; body: string }> = {
 };
 
 function PauseOverlay({ reason }: { reason: string }) {
+  const [shareErr, setShareErr] = useState("");
   const t = PAUSE_TEXT[reason] ?? { title: "Interview paused", body: "Fix the issue to continue." };
   return (
     <div
@@ -1452,14 +1526,22 @@ function PauseOverlay({ reason }: { reason: string }) {
                 .catch(() => null);
               if (!s) return;
               // Same rule as the system check: the entire screen, never a window or tab
-              if (s.getVideoTracks()[0]?.getSettings().displaySurface !== "monitor")
-                return s.getTracks().forEach((t) => t.stop());
+              if (s.getVideoTracks()[0]?.getSettings().displaySurface !== "monitor") {
+                s.getTracks().forEach((t) => t.stop());
+                return setShareErr("Share your entire screen, not a window or tab");
+              }
+              setShareErr("");
               media.screen = s;
               window.dispatchEvent(new CustomEvent("screen-shared", { detail: s }));
             }}
           >
             Share screen again
           </button>
+        )}
+        {shareErr && (
+          <p role="alert" className="text-sm text-danger">
+            {shareErr}
+          </p>
         )}
       </div>
     </div>
@@ -1488,6 +1570,7 @@ function useProctoring(socket: RoomSocket, self: React.RefObject<HTMLVideoElemen
     const onBlur = () => send("focus_lost");
     const onFs = () => set("fullscreen_exit", !document.fullscreenElement);
     const onPaste = (e: ClipboardEvent) => {
+      if ((e.target as Element | null)?.closest?.(".monaco-editor")) return; // the editor reports its own, with size
       const n = e.clipboardData?.getData("text").length ?? 0;
       paste(n);
       if (n > 40) send("paste", { detail: `${n} characters` });

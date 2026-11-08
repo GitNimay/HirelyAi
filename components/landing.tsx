@@ -132,7 +132,7 @@ const jsonLd = JSON.stringify({
     {
       "@type": "Organization",
       "@id": `${site}/#org`,
-      name: "Hire Excellence",
+      name: "Hirely AI",
       url: site,
       logo: `${site}/logo-light.png`,
       sameAs: ["https://github.com/GitNimay/hire-excellence"],
@@ -140,13 +140,13 @@ const jsonLd = JSON.stringify({
     {
       "@type": "WebSite",
       "@id": `${site}/#website`,
-      name: "Hire Excellence",
+      name: "Hirely AI",
       url: site,
       publisher: { "@id": `${site}/#org` },
     },
     {
       "@type": "WebApplication",
-      name: "Hire Excellence",
+      name: "Hirely AI",
       url: site,
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
@@ -176,7 +176,7 @@ const jsonLd = JSON.stringify({
 }).replaceAll("<", "\\u003c");
 
 // "Ask AI" opens each assistant with a question about the site already typed. Marks from simple-icons / lobehub
-const askPrompt = encodeURIComponent(`Read ${site}/llms.txt and tell me what Hire Excellence is and how it works.`);
+const askPrompt = encodeURIComponent(`Read ${site}/llms.txt and tell me what Hirely AI is and how it works.`);
 const assistants: [name: string, href: string, color: string, d: string][] = [
   [
     "Claude",
@@ -216,12 +216,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
     <div data-landing className="mx-auto flex w-full max-w-[75rem] flex-1 flex-col border-border sm:border-x">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       <header className="sticky top-0 z-10 flex h-14 items-stretch border-b border-border bg-background/80 backdrop-blur">
-        <Link
-          href="/"
-          aria-label="Hire Excellence"
-          className="flex w-14 items-center justify-center border-r border-border"
-        >
-          <Logo size={24} faint={false} />
+        <Link href="/" aria-label="Hirely AI" className="flex w-14 items-center justify-center border-r border-border">
+          <Logo size={20} faint={false} />
         </Link>
         <nav className="flex items-stretch border-r border-border">
           {links.map(([label, href]) => (
@@ -364,8 +360,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
       <footer className="border-t border-border px-4 pt-12 sm:px-8 lg:px-16">
         <div className="flex flex-col gap-10 sm:flex-row sm:justify-between">
           <Link href="/" className="flex items-center gap-2 self-start">
-            <Logo size={24} faint={false} />
-            <span className="text-sm font-medium">Hire Excellence</span>
+            <Logo size={20} faint={false} />
+            <span className="text-sm font-medium">Hirely AI</span>
           </Link>
           <div className="grid grid-cols-2 gap-x-12 gap-y-8 sm:flex sm:gap-16">
             {footerCols(signedIn).map(([title, items]) => (
@@ -391,7 +387,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         </div>
         <div className="-mx-4 mt-12 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-6 text-xs text-muted sm:-mx-8 sm:mt-16 sm:px-8 lg:-mx-16 lg:px-16">
           <p>
-            © {new Date().getFullYear()} Hire Excellence · An{" "}
+            © {new Date().getFullYear()} Hirely AI · An{" "}
             <a
               href="https://www.snab.co.in/"
               target="_blank"

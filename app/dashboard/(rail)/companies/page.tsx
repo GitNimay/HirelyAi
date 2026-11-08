@@ -3,7 +3,7 @@ import Link from "next/link";
 import { btnOutline, CompanyLogo, Icon, icons } from "@/components/ui";
 import { myCompanies, searchCompanies, type CompanyCard } from "@/lib/companies";
 
-export const metadata = { title: "Companies | Hire Excellence" };
+export const metadata = { title: "Companies | Hirely AI" };
 
 /** Find company pages (a plain GET form, no client code), plus the pages you run or verified you work at. */
 export default async function CompaniesPage({ searchParams }: PageProps<"/dashboard/companies">) {

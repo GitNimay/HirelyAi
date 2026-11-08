@@ -47,7 +47,22 @@ flowchart TD
     REP --> P["Poster sees /report/job/applicant<br/>(share link /r/token, PDF)"]
 ```
 
-If the plan task hasn't finished when the candidate joins, `roomContext` builds claims on the spot and uses two built-in problems from `problem-bank.ts` instead of generated ones.
+If the plan task hasn't finished when the candidate joins, `roomContext` builds claims on the spot and uses three built-in problems from `problem-bank.ts` instead of generated ones.
+
+### Coding tracks and environments
+
+The coding round is about one or more **tracks**: general code (any of six languages, the candidate picks) or a DevOps / data environment with a fixed file: Bash, SQL (SQLite), YAML (Kubernetes, CI/CD, Compose), Dockerfile, Terraform, JSON (IAM policies). The recruiter can pin up to three in the post form; otherwise `pickTracks()` reads them from the job description (weighted double) and the resume. An infrastructure or data role leads with its environments and never gets algorithms only.
+
+`planProblems` writes three problems: the primary (main track, role level), a like-for-like backup (next track), and an easier one (main track, one level down). A slot whose problem is rejected after three tries is filled in place from the bank, so the order always holds.
+
+| Environment           | How it's graded                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| code                  | Judge0, multi-case stdin, line by line (unchanged)                                                                                    |
+| Bash, SQL             | Judge0's Bash image (it has sqlite3), one submission: a driver splits stdin per case and runs the file on each; whole output per case |
+| YAML, JSON            | `lib/ai-interview/checks.ts` in the Worker: parsed, then path assertions (`spec.template.spec.containers[*].resources.limits.memory`) |
+| Dockerfile, Terraform | `checks.ts`: regex assertions on the text (no parser or binary on the free tier)                                                      |
+
+Generated environment problems are proven like code ones: script references run on Judge0 to produce every hidden output and must reproduce the examples; config references must pass every check and the starter must fail at least two. `npm run eval` includes `tests/evals/env-problems.eval.ts`, which generates a DevOps and an SRE round on the real models.
 
 ---
 
@@ -165,14 +180,25 @@ sequenceDiagram
         DO->>DO: flushReply() (a waiting wake can go now)
     end
     DO->>DO: utter("agent")
-    opt every 8 new transcript lines
+    opt every 6 new transcript lines
         DO->>BR: bookkeep(): gpt-oss-20b, BOOKKEEPER prompt
-        BR-->>DO: summary, notes per competency, claim results, hints, concerns
+        BR-->>DO: summary, notes per competency, claim results, hints, concerns,<br/>current topic + questions on it, uncorrected wrong facts
         DO->>DO: applyBookkeeping (ids validated against plan/rubric)
+        DO->>DO: steer(): topic out of questions or a wrong fact?
+        DO->>P: add_system_message "move to claim c2" / "set X straight in a sentence"
     end
 ```
 
-**Why bookkeeping is a background model, not tools:** when the voice agent had `add_note` / `record_claim_result` / `flag_concern` tools it kept saying "let me note that down". Now the agent has nothing to write; a separate fast model reads the transcript every 8 lines in parallel and produces the evidence the evaluator later cites.
+**Why bookkeeping is a background model, not tools:** when the voice agent had `add_note` / `record_claim_result` / `flag_concern` tools it kept saying "let me note that down". Now the agent has nothing to write; a separate fast model reads the transcript every 6 lines in parallel and produces the evidence the evaluator later cites.
+
+### Keeping the conversation moving (issue #130)
+
+Candidates found the interviewer boring and robotic: it drilled into the first project it heard about, repeated each answer back before the next question, and kept asking around wrong answers. Two layers fix it:
+
+1. **The prompt** (`BASE`, phase briefs): never restate or paraphrase the candidate's answer (react in a few words or not at all, varied, never praise); a topic gets its opening question and at most two follow-ups (a third only if the answers stayed vague), then a short bridge to a new one; the deep dive covers two or three projects or claims (about two minutes each) and the technical round two or three areas; a clearly wrong technical fact is set straight in one kind sentence (or the candidate is asked once if they're sure), then the interviewer moves on. That clarification is not performance feedback, and coding still uses the hint ladder.
+2. **The harness backstop** (`steer` in `harness.ts`): the bookkeeper also names the topic of the newest lines (continued or new, and how many questions it got) and lists wrong facts the interviewer let pass. The harness keeps `state.topic` (reset every phase). In the deep dive and technical rounds, once a topic reaches `TOPIC_QUESTIONS` (3) it sends one private note to move on, pointing at a resume claim nobody has covered yet (not while the whiteboard is open: the design discussion is one topic by design). A flagged wrong fact gets a note to set it straight briefly. Notes are context only (`add_system_message`), so the agent applies them at its next turn and never speaks unprompted; in text fallback they ride along with the next typed reply. Each one is logged as a `session` / `steer` event.
+
+The bookkeeper is told that a brief correction is not a hint (the wrong answer is a note), and the evaluator counts a corrected wrong answer as a miss, not as a hint. `npm run eval` includes `tests/evals/interviewer.eval.ts`, which replays scripted conversations through the interviewer prompt on the real model and checks the reply for echoing, topic changes and corrections.
 
 ---
 
@@ -185,7 +211,7 @@ sequenceDiagram
 | Tool                       | Phases                   | Params                                               | Run by                  | Timeout | What it does                                                                                                              |
 | -------------------------- | ------------------------ | ---------------------------------------------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `request_phase_transition` | all                      | `initiated_by` goal_met \| candidate_asked, `reason` | harness (`applyTool`)   | 10 s    | Ask to move on. Gated (5c). If approved the move happens **inside** the call.                                             |
-| `switch_problem`           | coding                   | `reason`                                             | harness + room          | 10 s    | Swap to a backup problem. Needs the candidate's confirmation (two-step).                                                  |
+| `switch_problem`           | coding                   | `level` similar \| easier, `reason`                  | harness + room          | 10 s    | Swap to a backup (similar) or the easier problem. Needs the candidate's confirmation (two-step). At most two swaps.       |
 | `read_editor`              | coding                   | —                                                    | room                    | 10 s    | Current code (≤8 000 chars), diff since last look, idle seconds.                                                          |
 | `run_tests`                | coding                   | `suite` visible \| hidden                            | room → Judge0           | 60 s    | Runs code. Agent gets pass counts + **names** of failing cases, never hidden inputs/outputs.                              |
 | `open_whiteboard`          | technical (if design on) | `topic`, `requirements` (`;`-separated)              | room                    | 10 s    | Opens Excalidraw with the question; new topic = clean board.                                                              |
@@ -237,7 +263,7 @@ flowchart TD
     I1 -->|yes| OK["approved → effect advance"]
     I1 -->|no| N1["denied: confirm name, let them introduce themselves"]
     R1 -->|yes| OK
-    R1 -->|no| N2["denied: go deeper, cover remaining claims"]
+    R1 -->|no| N2["denied: move to a claim not yet covered"]
     T1 -->|yes| N3["denied: call open_whiteboard first"]
     T1 -->|no| OK
     C1 -->|yes| N4["denied: give a real attempt, next hint"]
@@ -261,7 +287,7 @@ stateDiagram-v2
         Intro 2 min: greet, confirm name, format, self-intro
     end note
     note right of resume
-        Deep dive 6 min: 1-2 projects, decisions, trade-offs,
+        Deep dive 6 min: 2-3 projects or claims, a few questions each,
         verify plan.claims
     end note
     note right of technical
@@ -340,7 +366,7 @@ sequenceDiagram
 
     C->>P: "can we skip this / move on?"
     P-->>DO: input_text
-    DO->>DO: skipIntent() regex → "skip" (or "switch" in coding)
+    DO->>DO: skipIntent() regex → "skip" (or "switch" / "easier" in coding)
     DO->>DO: openConfirm: state.confirm = {action, heard, at}
     DO->>P: add_system_message "ask them to confirm in one sentence,<br/>don't call any tool, it moves on by itself"
     P->>C: "Just to confirm, you'd like to move on? We can't come back to it."

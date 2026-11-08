@@ -38,6 +38,7 @@ import {
 } from "../ai-interview/harness";
 import { sendTo } from "../realtime";
 import { enqueue } from "../tasks";
+import { capture } from "../analytics";
 
 export type SessionStatus = "verified" | "onboarded" | "live" | "processing" | "done" | "failed";
 
@@ -60,6 +61,10 @@ export type CandidateView = {
     prefill: Partial<Profile>;
     /** MCQ in progress: the questions without the key, saved picks, and ms left. */
     test: { questions: McqPublic[]; answers: number[]; left: number } | null;
+    /** AI interview: they accepted the consent notice already (don't ask again on reload). */
+    consented: boolean;
+    /** AI interview: it ended because they didn't come back, so the page says so instead of "submitted". */
+    endedEarly: boolean;
   } | null;
 };
 
@@ -185,6 +190,13 @@ export async function generateMcq(input: Record<string, unknown>) {
 const when = (ms: number) =>
   `${new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} IST`;
 
+const day = (ms: number) =>
+  new Date(ms).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" });
+
+/** Candidate funnel event, keyed by the interview session id (never a person): no PII, no profile. */
+export const funnel = (id: string, event: string, kind: Kind, props: Record<string, unknown> = {}) =>
+  capture(id, event, { kind, $process_person_profile: false, ...props });
+
 const sha256 = async (s: string) =>
   Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))), (b) =>
     b.toString(16).padStart(2, "0"),
@@ -194,7 +206,8 @@ const cleanLogin = (s: string) => s.replace(/[^a-z0-9]/gi, "").toLowerCase();
 
 /**
  * The applicant's own sign-in for this job's screening: a candidate ID and a password (only its hash is kept).
- * Creates their session if needed; a second call (a queue retry) issues new ones, so only the latest email works.
+ * Creates their session if needed; a second call issues new ones, so only the latest email works (sendInvite
+ * doesn't call it again once the email has gone out).
  */
 export async function issueCredentials(jobId: string, applicantId: string) {
   const login = code(8);
@@ -210,7 +223,10 @@ export async function issueCredentials(jobId: string, applicantId: string) {
       applicantId,
     ),
   ]);
-  return { login: login.toUpperCase(), password };
+  const id = (await env.DB.prepare("SELECT id FROM interview_sessions WHERE job_id = ? AND applicant_id = ?")
+    .bind(jobId, applicantId)
+    .first<string>("id"))!;
+  return { id, login: login.toUpperCase(), password };
 }
 
 /**
@@ -238,7 +254,12 @@ export async function sendInvite(jobId: string, to: string, applicantId?: string
       .bind(jobId, to)
       .first<string>("applicant_id"));
   if (!iv || !who) return;
-  const { login, password } = await issueCredentials(jobId, who);
+  // A queue retry or duplicate delivery after the email went out must not rotate the password they already have
+  const sent = await env.DB.prepare("SELECT invited_at FROM interview_sessions WHERE job_id = ? AND applicant_id = ?")
+    .bind(jobId, who)
+    .first<number | null>("invited_at");
+  if (sent) return;
+  const { id, login, password } = await issueCredentials(jobId, who);
   const link = `${env.APP_URL}/interview/${iv.slug}`;
   let what: string, intro: string, tips: string;
   if (iv.kind === "ai") {
@@ -253,8 +274,11 @@ export async function sendInvite(jobId: string, to: string, applicantId?: string
     const covers = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
     what = "interview";
     intro = `a live technical interview with an AI interviewer, ${length}: ${covers}`;
-    tips =
-      "Use a laptop or desktop with Chrome or Edge, a microphone and a camera, in a quiet place. You'll share your screen and stay in full screen, and the session is recorded for the hiring team.";
+    tips = [
+      "Use a laptop or desktop with Chrome or Edge, a microphone and a camera, in a quiet place. You'll share your screen and stay in full screen, and the session is recorded for the hiring team.",
+      "Share your entire screen, with one monitor only. You get one attempt: if you disconnect, rejoin from the same link within 5 minutes.",
+      `Questions? Reply to this email or contact ${iv.company}.`,
+    ].join(" ");
   } else {
     const voice = iv.kind === "voice";
     what = voice ? "voice interview" : "online test";
@@ -288,7 +312,7 @@ export async function sendInvite(jobId: string, to: string, applicantId?: string
       `${p("Candidate ID", 2, label)}${p(esc(login), 14, mono)}${p("Password", 2, label)}${p(esc(password), 0, mono)}</div>` +
       p(esc(tips)),
     to,
-    reason: "You're receiving it because you applied for a job on Hire Excellence.",
+    reason: "You're receiving it because you applied for a job on Hirely AI.",
   });
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -296,13 +320,20 @@ export async function sendInvite(jobId: string, to: string, applicantId?: string
     body: JSON.stringify({
       from: env.MAIL_FROM,
       to: [to],
-      subject: `Your ${iv.kind === "ai" ? "AI interview" : what} for ${iv.title} at ${iv.company}`,
+      subject: `Your ${iv.kind === "ai" ? "AI interview" : what} for ${iv.title} at ${iv.company} — complete by ${day(iv.deadline)}`,
       html,
       text: lines.join("\n\n"),
     }),
     signal: AbortSignal.timeout(15_000),
   });
-  if (res.ok) return;
+  if (res.ok) {
+    await env.DB.prepare("UPDATE interview_sessions SET invited_at = ? WHERE id = ?").bind(Date.now(), id).run();
+    funnel(id, "interview invite sent", iv.kind);
+    // AI: plan the interview now, in the background, so it's ready by the time they sign in (idempotent)
+    if (iv.kind === "ai")
+      await enqueue({ t: "plan", sessionId: id }).catch((e) => console.error("plan: enqueue failed", e));
+    return;
+  }
   const detail = await res.text().catch(() => "");
   if (res.status === 429 || res.status >= 500) throw new Error(`resend ${res.status}: ${detail}`);
   console.error("resend rejected", res.status, detail);
@@ -348,7 +379,7 @@ export async function candidateView(slug: string, sessionId: string | undefined)
   if (!iv) return null;
   const s = sessionId
     ? await env.DB.prepare(
-        `SELECT s.id, s.status, s.profile, s.answers, s.started_at, u.name, u.location, a.phone, a.profile AS resume FROM interview_sessions s
+        `SELECT s.id, s.status, s.profile, s.answers, s.started_at, s.consented_at, s.end_reason, u.name, u.location, a.phone, a.profile AS resume FROM interview_sessions s
          JOIN users u ON u.id = s.applicant_id
          JOIN applications a ON a.job_id = s.job_id AND a.applicant_id = s.applicant_id
          WHERE s.id = ? AND s.job_id = ?`,
@@ -360,6 +391,8 @@ export async function candidateView(slug: string, sessionId: string | undefined)
           profile: string | null;
           answers: string | null;
           started_at: number | null;
+          consented_at: number | null;
+          end_reason: string | null;
           name: string;
           location: string | null;
           phone: string | null;
@@ -395,6 +428,8 @@ export async function candidateView(slug: string, sessionId: string | undefined)
               left: testEnds(s.started_at!, questions.length) - Date.now(), // ms, so the client clock doesn't matter
             }
           : null,
+      consented: !!s.consented_at,
+      endedEarly: s.end_reason === "abandoned",
     },
   };
 }
@@ -419,15 +454,19 @@ export async function verifyCandidate(slug: string, login: string, password: str
   const iv = await interviewBySlug(slug);
   if (!iv) throw new Fail("This interview link isn't valid.");
   if (!isOpen(iv)) throw new Fail("This interview has closed.");
-  if (login.includes("@")) return legacySignIn(iv, login, password);
+  if (login.includes("@")) return signedIn(iv, await legacySignIn(iv, login, password));
   const s = await env.DB.prepare("SELECT id, pass FROM interview_sessions WHERE job_id = ? AND login = ?")
     .bind(iv.job_id, cleanLogin(login))
     .first<{ id: string; pass: string }>();
   // One message for both, so the form can't be used to find out which IDs exist. Comparing hashes: timing leaks nothing.
-  if (!s || (await sha256(password.trim().toLowerCase())) !== s.pass)
+  if (!s || (await sha256(password.trim().toLowerCase())) !== s.pass) {
+    if (s) funnel(s.id, "interview signin failed", iv.kind, { reason: "wrong_password" });
     throw new Fail("Candidate ID or password is incorrect. Use the ones from your invitation email.");
-  return s.id;
+  }
+  return signedIn(iv, s.id);
 }
+
+const signedIn = (iv: IvRow, id: string) => (funnel(id, "interview signed in", iv.kind), id);
 
 /**
  * Voice/MCQ applicants invited before per-candidate sign-in (their session has no candidate ID): the email they applied
@@ -471,13 +510,23 @@ async function sessionFor(slug: string, sessionId: string | undefined) {
 }
 
 export async function saveProfile(slug: string, sessionId: string | undefined, profile: Profile) {
-  const { s } = await sessionFor(slug, sessionId);
+  const { iv, s } = await sessionFor(slug, sessionId);
   const upd = await env.DB.prepare(
     "UPDATE interview_sessions SET profile = ?, status = 'onboarded' WHERE id = ? AND status IN ('verified', 'onboarded')",
   )
     .bind(JSON.stringify(profile), s.id)
     .run();
   if (!upd.meta.changes) throw new Fail("You've already started this interview.");
+  funnel(s.id, "interview details saved", iv.kind);
+}
+
+/** The candidate accepted the consent notice (first time only; the timestamp is the record). */
+export async function saveConsent(slug: string, sessionId: string | undefined) {
+  const { iv, s } = await sessionFor(slug, sessionId);
+  await env.DB.prepare("UPDATE interview_sessions SET consented_at = COALESCE(consented_at, ?) WHERE id = ?")
+    .bind(Date.now(), s.id)
+    .run();
+  funnel(s.id, "interview consent accepted", iv.kind);
 }
 
 /** Checks the candidate may (re)join now and builds the agent's job metadata. */

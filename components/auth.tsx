@@ -39,7 +39,7 @@ const input =
 
 // White mark on dark, black mark on light
 // `faint` is the quiet watermark look of the auth screens; the app shell shows the mark at full strength
-export function Logo({ size = 48, faint = true }: { size?: number; faint?: boolean }) {
+export function Logo({ size = 36, faint = true }: { size?: number; faint?: boolean }) {
   const o = faint ? "opacity-25" : "";
   return (
     <>
@@ -89,7 +89,7 @@ export function Shell({
           className="art-in absolute inset-0 hidden size-full object-cover light:block"
         />
         <div className="relative">
-          <img src="/logo-dark.png" width={48} height={48} alt="" aria-hidden />
+          <img src="/logo-dark.png" width={36} height={36} alt="" aria-hidden />
         </div>
         <div className="relative">
           <p className="font-display text-[28px] leading-8 tracking-tight text-white md:text-4xl md:leading-10 lg:text-[44px] lg:leading-12">
@@ -375,7 +375,7 @@ export function SignUpForm() {
   return (
     <Shell
       title="Create your account"
-      subtitle="Join Hire Excellence to connect and grow"
+      subtitle="Join Hirely AI to connect and grow"
       footer={
         <>
           Already have an account?{" "}

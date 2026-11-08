@@ -9,6 +9,7 @@ import {
   cleanConfig,
   cleanPlan,
   type Bookkeeping,
+  type Topic,
   difficultyOf,
   hasCoding,
   LEVELS as IV_LEVELS,
@@ -24,8 +25,18 @@ import { cleanTranscript, type Line, type Profile } from "../screening/fields";
 import { LEVELS, WORKPLACES } from "../job-fields";
 import { sendTo } from "../realtime";
 import { cleanResume, fmtRange, type Resume } from "../resume-fields";
-import type { Language } from "./workspace";
+import { pickTracks, type Language, type Track } from "./workspace";
 import { enqueue } from "../tasks";
+
+/**
+ * What the coding round is about: the recruiter's pinned tracks, else what the job description asks for, weighted
+ * by what's on the candidate's resume.
+ */
+export const tracksFor = (
+  config: RoleConfig,
+  job: { title: string; description: string },
+  resume: Resume | null,
+): Track[] => (config.coding.tracks.length ? config.coding.tracks : pickTracks(job, resume ? resumeBrief(resume) : ""));
 
 /** Small, frequent jobs (claims, summaries) run on the cheapest capable model; grading keeps BEDROCK_MODEL. */
 export const FAST = "openai.gpt-oss-20b";
@@ -68,17 +79,16 @@ export async function buildPlan(resume: Resume, job: { title: string; level: str
 }
 
 /**
- * 'ai' screening: the session exists from the moment they apply, so the interview plan is built in the background
- * before they sign in (the invite adds their candidate ID and password to it). Idempotent.
+ * 'ai' screening: the session exists from the moment they apply (the invite adds their candidate ID and password to it).
+ * The plan is built when the invite goes out (sendInvite), not here, so applicants who never take it cost nothing. Idempotent.
  */
 export async function createAiSession(jobId: string, applicantId: string) {
   const id = crypto.randomUUID();
-  const ins = await env.DB.prepare(
+  await env.DB.prepare(
     "INSERT OR IGNORE INTO interview_sessions (id, job_id, applicant_id, created_at) VALUES (?, ?, ?, ?)",
   )
     .bind(id, jobId, applicantId, Date.now())
     .run();
-  if (ins.meta.changes) await enqueue({ t: "plan", sessionId: id });
 }
 
 /** Queue task: build and store the plan. Throws while Bedrock is busy (the queue retries); the last try stores an empty plan. */
@@ -111,6 +121,7 @@ export async function planSession(sessionId: string, final: boolean) {
           skills: resume?.skills ?? [],
           background: resume ? resumeBrief(resume).slice(0, 2500) : "",
           recruiter: config.coding.problems,
+          tracks: tracksFor(config, r, resume),
         })
       : Promise.resolve(undefined),
   ]);
@@ -171,7 +182,9 @@ export async function roomContext(sessionId: string) {
         (await buildPlan(resume, { title: r.title, level: LEVELS[r.level], description: r.description }))) || {
         claims: [],
       }),
-      ...(hasCoding(config) && { problems: fallbackProblems(difficultyOf(config), 2) }),
+      ...(hasCoding(config) && {
+        problems: fallbackProblems(difficultyOf(config), 3, tracksFor(config, r, resume)),
+      }),
     };
     await env.DB.prepare("UPDATE interview_sessions SET plan = ? WHERE id = ? AND plan IS NULL")
       .bind(JSON.stringify(plan), r.id)
@@ -224,11 +237,11 @@ export const checkpoint = (sessionId: string, state: HarnessState, transcript: L
     .run();
 
 /** End of the interview: keep the transcript and final state, then queue the evaluator. False if already ended. */
-export async function finishAi(sessionId: string, transcript: Line[], state: HarnessState) {
+export async function finishAi(sessionId: string, transcript: Line[], state: HarnessState, reason?: string) {
   const upd = await env.DB.prepare(
-    "UPDATE interview_sessions SET status = 'processing', transcript = ?, state = ?, ended_at = ? WHERE id = ? AND status = 'live'",
+    "UPDATE interview_sessions SET status = 'processing', transcript = ?, state = ?, ended_at = ?, end_reason = ? WHERE id = ? AND status = 'live'",
   )
-    .bind(JSON.stringify(cleanTranscript(transcript)), JSON.stringify(state), Date.now(), sessionId)
+    .bind(JSON.stringify(cleanTranscript(transcript)), JSON.stringify(state), Date.now(), reason ?? null, sessionId)
     .run();
   if (!upd.meta.changes) return false;
   await enqueue({ t: "evaluate", sessionId });
@@ -244,6 +257,7 @@ export async function bookkeep(o: {
   lines: Line[];
   claims: Plan["claims"];
   rubric: RoleConfig["rubric"];
+  topic?: Topic | null;
 }): Promise<Bookkeeping> {
   const empty: Bookkeeping = { summary: o.previous, notes: [], claims: [], hints: [], concerns: [] };
   if (!o.lines.length) return empty;
@@ -537,8 +551,10 @@ async function loadReport(where: string, binds: string[], access: ReportAccess) 
     const p = plan?.problems?.find((x) => x.id === id);
     if (!p) return [];
     const at = assigns.find((a) => a.what === "problem" && a.id === id)?.at ?? null;
-    const { title, difficulty, statement, input, output, constraints, visible } = p;
-    return [{ id, title, difficulty, statement, input, output, constraints, visible, at }];
+    const { title, difficulty, statement, input, output, constraints, visible, env } = p;
+    // Config checks are the grader's internals: the report lists them by name only
+    const shown = visible.map(({ name, input, output }) => ({ name, input, output }));
+    return [{ id, title, difficulty, statement, input, output, constraints, visible: shown, ...(env && { env }), at }];
   });
   const lastCode = of("code").at(-1);
   return {

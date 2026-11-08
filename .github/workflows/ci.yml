@@ -13,56 +13,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
+  # Static checks fan out to one runner each. They share the cached node_modules (.github/actions/setup),
+  # so each runner pays only for its own script, not a fresh npm ci.
+  check:
+    name: ${{ matrix.script }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
+    strategy:
+      fail-fast: false # report every failing check, not just the first
+      matrix:
+        script: [lint, "format:check", typecheck]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-
-  format:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run format:check
-
-  typecheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
+      - uses: ./.github/actions/setup
+      - run: npm run "$SCRIPT"
+        env:
+          SCRIPT: ${{ matrix.script }}
 
   # Vitest: unit tests (lib/, app/) and integration tests against a real local D1/R2 built from migrations/.
-  # Runs alongside build (it doesn't need it) and fails under the coverage floor in vitest.config.ts.
+  # Fails under the coverage floor in vitest.config.ts. Not sharded: the suite runs in ~25s, less than a second
+  # runner's setup, so shards would only add minutes. Shard with --shard + --merge-reports once it passes ~3 min.
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -72,11 +46,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
+      # The SQL coding environment's driver test runs the real sqlite3 CLI (as Judge0's Bash image does)
+      - run: command -v sqlite3 || (sudo apt-get update -qq && sudo apt-get install -y -qq sqlite3)
       # github-actions reporter: failures show as annotations on the PR's changed lines
       - run: npm run test:coverage -- --reporter=default --reporter=github-actions
       - name: Coverage summary
@@ -98,6 +70,8 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # Builds the Worker, then boots it in workerd with a local D1 (every migration applied) and hits it over HTTP.
+  # One job on purpose: a separate integration job re-installed and downloaded the build, which took longer than the smoke test.
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -107,45 +81,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       - run: npm run build
         env:
-          # Throwaway, well-formed test key so Clerk middleware boots in the integration job (prod key lives in the production environment)
+          # Throwaway, well-formed test key so Clerk middleware boots in the smoke test (prod key lives in the production environment)
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dist
-          # .wrangler/deploy/config.json points `vite preview` and `wrangler` at dist/server/wrangler.json
-          path: |
-            dist/
-            .wrangler/deploy/config.json
-          include-hidden-files: true
-          retention-days: 1
-          if-no-files-found: error
-
-  # Boots the built Worker in workerd with a local D1 (every migration applied) and hits it over HTTP
-  integration:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: dist
       - run: npx wrangler d1 migrations apply hire-excellence-db --local
       - name: Smoke test the built Worker
         run: |
@@ -205,12 +145,14 @@ jobs:
           comment-summary-in-pr: on-failure
 
   # AI review, PRs only (never on the push to main that deploys). Runs once every check above has passed, so a broken
-  # PR spends no model tokens. OpenCode (free Zen GLM 5.3) runs alibaba/open-code-review's delegate skill against
-  # .github/ai-review-rules.md. A BLOCK verdict fails CI OK; the ai-review-override label lets a false positive through.
-  # Fails open: a missing key, model error or rate limit posts a warning and never blocks.
+  # PR spends no model tokens. OpenCode (free Zen GLM 5.3) runs Matt Pocock's two-axis code-review skill
+  # (.opencode/skills/code-review, vendored byte for byte from mattpocock/skills@7739eae; refresh with
+  # `npx skills add https://github.com/mattpocock/skills --skill code-review` and copy it there). Standards are judged against
+  # .github/ai-review-rules.md, Spec against the PR description. A BLOCK verdict fails CI OK; the ai-review-override label
+  # lets a false positive through. Fails open: a missing key, model error or rate limit posts a warning and never blocks.
   # Same-repo, non-Dependabot PRs only: forks and Dependabot don't get OPENCODE_API_KEY.
   ai-review:
-    needs: [lint, format, typecheck, test, build, integration, agent, dependency-review]
+    needs: [check, test, build, agent, dependency-review]
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -220,23 +162,30 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # OCR needs the merge base with the target branch
+          fetch-depth: 0 # the three-dot diff needs the merge base with the target branch
           persist-credentials: false
       # Every file that steers the agent (rules, skills, agent instructions, OpenCode config) comes from the base branch,
-      # or is removed, so a PR can't talk its own review into a PASS. Only the rules file falls back to the PR's copy,
-      # once, for the PR that first adds it.
+      # or is removed, so a PR can't talk its own review into a PASS. Only the rules file and the review skill fall back
+      # to the PR's copy, once, for the PR that first adds them.
       - name: Use review config from the base branch
         run: |
-          for p in .github/ai-review-rules.md .opencode .claude AGENTS.md CLAUDE.md opencode.json opencode.jsonc; do
-            if git cat-file -e "origin/$BASE:$p" 2>/dev/null; then rm -rf "$p"; git checkout "origin/$BASE" -- "$p"
-            elif [ "$p" != .github/ai-review-rules.md ]; then rm -rf "$p"; fi
+          for p in .opencode .claude .agents AGENTS.md CLAUDE.md opencode.json opencode.jsonc .github/ai-review-rules.md .opencode/skills/code-review; do
+            rm -rf "$p"
+            if git cat-file -e "origin/$BASE:$p" 2>/dev/null; then git checkout "origin/$BASE" -- "$p"
+            elif [[ $p == .github/ai-review-rules.md || $p == .opencode/skills/code-review ]] && git cat-file -e "HEAD:$p" 2>/dev/null; then git checkout HEAD -- "$p"; fi
           done
         env:
           BASE: ${{ github.base_ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - run: npm i -g @opencode/cli@2.2.5 @alibaba-group/open-code-review@1.13.3
+      - run: npm i -g @opencode/cli@2.2.5
+      # The skill's Spec axis reads the PR title and description. Passed through env, never inlined into the script.
+      - name: Write the spec
+        run: printf '# %s\n\n%s\n' "$TITLE" "$BODY" > pr-spec.md
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
       # No GitHub token in this step: the agent runs shell commands on PR content, so it only gets the model key
       - name: Review
         run: |
@@ -244,7 +193,7 @@ jobs:
           [ -n "$OPENCODE_API_KEY" ] || skip "AI review skipped: OPENCODE_API_KEY is not configured."
           # The exit code is ignored on purpose: a review.md with a verdict counts even if the agent exits non-zero after writing it
           opencode run --auto -m 'opencode/glm-5.3-flash-free#high' \
-            "Review this pull request with the open-code-review-delegate skill in range mode (--from origin/$BASE --to HEAD), passing --background-file .github/ai-review-rules.md to ocr delegate preview. Enforce the project rules in .github/ai-review-rules.md on top of the OCR rules. Report only real findings. Write two files in the repo root and modify nothing else. (1) review.md, GitHub markdown: its first line must be exactly 'VERDICT: BLOCK' if there is any critical or high severity issue or any violation of a BLOCK rule, otherwise exactly 'VERDICT: PASS'. Then one plain sentence summing up the PR, then a line 'Reviewed X of Y files.', then a '### Blocking' and a '### Non-blocking' list, leaving out a heading that has no findings. Each finding is one bullet: the path:line in backticks, the severity in bold, then what is wrong and how to fix it in at most two short sentences. Nothing else: no list of rules checked, no praise, no recap. (2) findings.json: a JSON array with one object per finding, {\"path\": repo-relative path, \"line\": line number in the new file, \"severity\": \"critical\"|\"high\"|\"medium\"|\"low\", \"blocking\": true|false, \"body\": what is wrong and the fix in at most two short sentences}; write [] when there are none. Writing style for both files: short, simple, direct English; no emojis; no em dashes, en dashes or double hyphens (use a comma, colon or full stop instead)." \
+            "Review this pull request with the code-review skill. This is a non-interactive CI run: never ask a question and never stop to wait for an answer. The fixed point is origin/$BASE, so the diff is 'git diff origin/$BASE...HEAD' and the commits are 'git log origin/$BASE..HEAD --oneline'. There is no issue tracker: the spec is pr-spec.md (the PR title and description); if it describes no behaviour, skip the Spec axis and say so. The only standards source is .github/ai-review-rules.md: its BLOCK rules are hard violations, its FLAG rules and the skill's smell baseline are judgement calls, and its 'Don't report' list applies to both axes. Run the Standards and Spec sub-agents in parallel as the skill says. Report only real findings. Write two files in the repo root and modify nothing else. (1) review.md, GitHub markdown: its first line must be exactly 'VERDICT: BLOCK' if any finding breaks a BLOCK rule or is a critical or high severity bug or security hole, otherwise exactly 'VERDICT: PASS'. Then one plain sentence summing up the PR, then the skill's '## Standards' and '## Spec' sections, kept separate and not reranked, then the skill's one-line summary. Each finding is one bullet: the path:line in backticks, the severity in bold, then what is wrong and how to fix it in at most two short sentences. Nothing else: no list of rules checked, no praise. (2) findings.json: a JSON array with one object per finding from both axes, {\"path\": repo-relative path, \"line\": line number in the new file, \"severity\": \"critical\"|\"high\"|\"medium\"|\"low\", \"blocking\": true|false, \"body\": what is wrong and the fix in at most two short sentences}; write [] when there are none. Writing style for both files: short, simple, direct English; no emojis; no em dashes, en dashes or double hyphens (use a comma, colon or full stop instead)." \
             || echo "::warning::opencode exited non-zero"
           [ -f review.md ] || skip "AI review could not finish (model error or usage limit). Re-run the job to try again."
           head -1 review.md | tr -d '\r' | grep -qxE 'VERDICT: (PASS|BLOCK)' || skip "AI review returned no verdict."
@@ -300,7 +249,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [lint, format, typecheck, test, build, integration, agent, dependency-review, ai-review]
+    needs: [check, test, build, agent, dependency-review, ai-review]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
@@ -345,11 +294,7 @@ jobs:
           elif [[ $msg == *"[minor]"* ]]; then minor=$((minor+1)); patch=0
           else patch=$((patch+1)); fi
           echo "tag=v$major.$minor.$patch" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       # Build (bakes in NEXT_PUBLIC_* from GitHub environment variables), apply D1 migrations, deploy.
       # Runtime secrets are NOT here: they live on the Worker (`wrangler secret`) and survive every deploy.
       # --tag labels the Cloudflare Worker version with the release, so a rollback target is easy to find
@@ -379,15 +324,15 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
       # Signed SLSA provenance for exactly what was deployed; verify with `gh attestation verify <file> -R <repo>`
       - name: Package build
-        run: tar -czf "hire-excellence-$TAG.tar.gz" dist
+        run: tar -czf "hirely-ai-$TAG.tar.gz" dist
         env:
           TAG: ${{ steps.version.outputs.tag }}
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: hire-excellence-*.tar.gz
+          subject-path: hirely-ai-*.tar.gz
       # Only reached when the deploy succeeded. Notes list the PRs merged since the previous release.
       - name: Create GitHub Release
-        run: gh release create "$TAG" "hire-excellence-$TAG.tar.gz" --target "$GITHUB_SHA" --title "$TAG" --generate-notes --notes "Deployed to https://hire-excellence.n1m35h.in (Cloudflare Worker version tag \`$TAG\`)."
+        run: gh release create "$TAG" "hirely-ai-$TAG.tar.gz" --target "$GITHUB_SHA" --title "$TAG" --generate-notes --notes "Deployed to https://hire-excellence.n1m35h.in (Cloudflare Worker version tag \`$TAG\`)."
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}

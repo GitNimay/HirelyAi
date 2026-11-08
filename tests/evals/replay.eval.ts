@@ -210,4 +210,37 @@ describe("bookkeeper replays", () => {
     expect(b.claims.find((c) => c.id === "c1")?.status).toBe("verified");
     expect(b.claims.find((c) => c.id === "c2")).toBeUndefined();
   });
+
+  it("names the topic, counts its questions, and flags a wrong fact the interviewer let pass", async () => {
+    const b = await keep([
+      ["agent", "Tell me about the checkout latency work. What was the problem?"],
+      ["candidate", "Three Postgres reads per request for price rules, so I added a Redis read-through cache."],
+      ["agent", "Why Redis there?"],
+      [
+        "candidate",
+        "Redis is multi-threaded for commands, so it handles concurrent requests in parallel, unlike Postgres.",
+      ],
+      ["agent", "How did you size the cache?"],
+    ]);
+    console.log("topic →", JSON.stringify(b));
+    expect(b.topic?.label).toMatch(/redis|cache|latency|checkout/i);
+    expect(b.topic?.questions).toBeGreaterThanOrEqual(2);
+    expect(b.mistakes?.length).toBeGreaterThan(0);
+  });
+
+  it("a wrong fact the interviewer already set straight is not a mistake to steer on, nor a hint", async () => {
+    const b = await keep([
+      ["agent", "How does a hash map lookup perform on average?"],
+      ["candidate", "It's O(n), it has to scan the keys."],
+      [
+        "agent",
+        "Small clarification: it's O(1) on average, the hash points straight at the bucket. Let's switch gears.",
+      ],
+      ["candidate", "Ah right, okay."],
+    ]);
+    console.log("corrected →", JSON.stringify(b));
+    expect(b.mistakes).toEqual([]);
+    expect(b.hints).toEqual([]);
+    expect(b.notes.length).toBeGreaterThan(0); // the miss is still on record for the evaluator
+  });
 });

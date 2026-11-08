@@ -7,7 +7,7 @@ import { decideInterview, removeRecordings, retryInterview, reviewFlag, shareInt
 import type { AiReportData } from "@/lib/ai-interview/session";
 import { RECOMMENDATIONS, type Evidence } from "@/lib/ai-interview/evaluator";
 import { phaseLabel, type PhaseId } from "@/lib/ai-interview/harness";
-import { LANGUAGES, type Language, type RunResult } from "@/lib/ai-interview/workspace";
+import { ENVS, LANGUAGES, type Language, type RunResult } from "@/lib/ai-interview/workspace";
 import { ThemeToggle } from "../account-menu";
 import { Logo } from "../auth";
 import { ask, Modal, toast } from "../kit";
@@ -49,7 +49,9 @@ const SIGNALS: Record<string, string> = {
   camera_off: "Camera off",
   screen_share_stopped: "Screen share stopped",
   paste: "Large pastes",
+  editor_paste: "Pasted into the code editor",
 };
+const ENDED = { completed: "Completed", candidate: "Ended by candidate", abandoned: "Abandoned" };
 const CLAIM = {
   verified: { label: "Verified", tone: "text-success", d: icons.check },
   vague: { label: "Vague", tone: "text-foreground", d: glyph.minus },
@@ -203,6 +205,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
   const tests = finalHidden ?? finalVisible;
   const claims = ai?.claims ?? [];
   const verified = claims.filter((c) => c.status === "verified").length;
+  const facts = ai?.integrity.facts;
   const openSignals = ai?.integrity.signals.filter((s) => !data.dismissed.includes(s.signal)) ?? [];
   const integrity = !ai ? null : openSignals.length ? ai.integrity.level : "none";
   // The whiteboard sits under the round it was drawn in (Technical now; older interviews drew in Design or Experience)
@@ -242,8 +245,8 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
         {/* Print-only masthead: the top bar is hidden on paper */}
         <div className="hidden items-center justify-between border-b border-border pb-3 text-xs text-muted print:flex">
           <span className="flex items-center gap-2 font-medium text-foreground">
-            <img src="/logo-light.png" width={18} height={18} alt="" />
-            Hire Excellence
+            <img src="/logo-light.png" width={14} height={14} alt="" />
+            Hirely AI
           </span>
           <span>AI interview report</span>
         </div>
@@ -266,6 +269,8 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
             <p className="text-xs text-muted" suppressHydrationWarning>
               AI interview{date ? ` · ${date}` : ""}
               {end > start ? ` · ${minutes(end - start)}` : ""}
+              {facts && ` · ${ENDED[facts.ended]}${facts.fallback ? ", switched to text chat after voice failed" : ""}`}
+              {facts?.reconnects ? ` · ${facts.reconnects} reconnect${facts.reconnects > 1 ? "s" : ""}` : ""}
             </p>
           </div>
           {ai && (
@@ -280,6 +285,12 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
                     size={14}
                   />
                   {RECOMMENDATIONS[ai.recommendation]}
+                </p>
+              )}
+              <p className="text-xs text-muted">AI-generated: you decide</p>
+              {!!ai.incomplete?.length && (
+                <p className="max-w-[18rem] text-center text-xs text-danger">
+                  Incomplete assessment: {ai.incomplete.join(", ")} not assessed
                 </p>
               )}
             </div>
@@ -314,7 +325,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
                     ],
                     [
                       "Integrity",
-                      integrity === "none" ? "Clear" : integrity === "high" ? "High concern" : "Some flags",
+                      integrity === "none" ? "None flagged" : integrity === "high" ? "High concern" : "Some flags",
                       `${openSignals.reduce((n, s) => n + s.count, 0)} signals`,
                       integrity === "high" ? "text-danger" : integrity === "none" ? "text-success" : null,
                     ],
@@ -498,10 +509,10 @@ function TopBar({
       <Link
         href={data.access === "owner" ? `/dashboard/jobs/${data.jobId}/applicants/${data.applicantId}` : "/"}
         className="flex min-w-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={data.access === "owner" ? "Back to the application" : "Hire Excellence"}
+        aria-label={data.access === "owner" ? "Back to the application" : "Hirely AI"}
       >
-        <Logo size={24} faint={false} />
-        <span className="hidden text-sm font-medium sm:inline">Hire Excellence</span>
+        <Logo size={20} faint={false} />
+        <span className="hidden text-sm font-medium sm:inline">Hirely AI</span>
       </Link>
       <span className="hidden h-5 w-px bg-border sm:block" aria-hidden />
       <span className="min-w-0 truncate text-sm text-muted">Interview report</span>
@@ -863,6 +874,7 @@ function Coding({ data, start }: { data: AiReportData; start: number }) {
               </h4>
               <span className={`text-xs font-medium capitalize ${DIFFICULTY[p.difficulty] ?? "text-muted"}`}>
                 {p.difficulty}
+                {p.env && <span className="font-normal text-muted normal-case"> · {ENVS[p.env].label}</span>}
               </span>
               {i < last && p.at !== null && data.problems[i + 1].at !== null && (
                 <span className="text-xs text-muted">Switched after {mmss(data.problems[i + 1].at! - p.at)}</span>
@@ -896,7 +908,17 @@ function Coding({ data, start }: { data: AiReportData; start: number }) {
                       </div>
                     ))}
                 </dl>
-                {p.visible.length > 0 && (
+                {p.visible.length > 0 && p.env && ENVS[p.env].grade === "checks" && (
+                  <div>
+                    <p className="mb-1 text-xs text-muted">Requirements</p>
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      {p.visible.map((x) => (
+                        <li key={x.name}>{x.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {p.visible.length > 0 && !(p.env && ENVS[p.env].grade === "checks") && (
                   <div className="grid gap-3 sm:grid-cols-2 print:grid-cols-2">
                     {p.visible.slice(0, 2).map((x, j) => (
                       <div key={j} className="rounded-lg bg-surface p-3">
@@ -1074,7 +1096,7 @@ function Integrity({
       ) : (
         <p className="flex items-center gap-2 text-sm text-success">
           <Icon d={icons.check} size={16} />
-          No integrity issues detected.
+          No issues flagged by the automated checks.
         </p>
       )}
     </Section>

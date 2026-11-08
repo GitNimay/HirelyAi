@@ -4,7 +4,7 @@ import { PostJobForm } from "@/components/jobs";
 import { backBtn, btnPrimary, Icon, icons } from "@/components/ui";
 import { myCompanies } from "@/lib/companies";
 
-export const metadata = { title: "Post a job | Hire Excellence" };
+export const metadata = { title: "Post a job | Hirely AI" };
 
 /** Only members who verified a work email on a company page can post that company's jobs (LinkedIn's verified job posts). */
 export default async function PostJobPage({ searchParams }: { searchParams: Promise<{ company?: string }> }) {
