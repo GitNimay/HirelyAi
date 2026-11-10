@@ -9,10 +9,12 @@ import { Avatar, Icon, icons, menuItem, type IconDef } from "./ui";
 
 export const gear = icons.gear;
 
-type Theme = "light" | "dark" | "system";
-const themes: { value: Theme; label: string; icon: IconDef }[] = [
-  { value: "light", label: "Light mode", icon: icons.sun },
-  { value: "dark", label: "Dark mode", icon: icons.moon },
+export type Theme = "light" | "dark" | "system";
+/** Shared by every theme UI (account menu, landing picker), labels included, so the pickers can't drift.
+    `label` is the short form; the account menu spells light/dark out as "Light mode" / "Dark mode". */
+export const themeOptions: { value: Theme; label: string; icon: IconDef }[] = [
+  { value: "light", label: "Light", icon: icons.sun },
+  { value: "dark", label: "Dark", icon: icons.moon },
   { value: "system", label: "System", icon: icons.laptop },
 ];
 
@@ -98,7 +100,7 @@ export function AccountMenu({
           Account settings
         </Link>
         <div className="my-1 h-px bg-border" />
-        {themes.map(({ value, label, icon }) => (
+        {themeOptions.map(({ value, label, icon }) => (
           <button
             key={value}
             type="button"
@@ -108,7 +110,7 @@ export function AccountMenu({
             className={menuItem}
           >
             <Icon d={icon} size={16} className="text-muted" />
-            {label}
+            {value === "system" ? label : `${label} mode`}
             {theme === value && <Icon d={icons.check} size={14} className="ml-auto" />}
           </button>
         ))}

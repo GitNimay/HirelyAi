@@ -161,6 +161,26 @@ body {
   }
 }
 
+/* Accent texture: the tx-danger treatment in the theme's blue. The hexes mirror --ring's two theme values
+   (#3b82f6 dark, #2563eb light), pinned exactly as designed — color-mix derivations render lighter and flatter. */
+@utility tx-accent {
+  color: #fff;
+  background-image: linear-gradient(#3b82f6, #2563eb);
+  box-shadow:
+    0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a),
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    0 1px 2px rgb(0 0 0 / 0.25);
+  &:hover {
+    background-image: linear-gradient(#60a5fa, #3b82f6);
+  }
+  &:active {
+    background-image: linear-gradient(#2563eb, #1d4fd8);
+    box-shadow:
+      0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a),
+      inset 0 1px 2px rgb(0 0 0 / 0.3);
+  }
+}
+
 /* Processing state for any button: set aria-busy={busy}. The label keeps its width (text goes clear, children hide)
    and a spinner in the button's own text color turns over it. Unlayered, so it beats disabled:opacity-50. */
 button[aria-busy="true"] {
@@ -386,42 +406,6 @@ select option {
   background-image: repeating-linear-gradient(45deg, var(--border) 0 1px, transparent 1px 12px);
 }
 
-/* Landing page scales with the screen: rem grows past 1440px wide (16px → 20px at 1920 → 24px cap),
-   so text, spacing and the 75rem column all grow together. Dashboard keeps its fixed 16px. */
-html:has([data-landing]) {
-  font-size: clamp(16px, calc(100vw / 120 + 4px), 24px);
-}
-/* Icons take a px size prop; map the ones the landing uses onto rem so they keep pace with the text. */
-[data-landing] svg[width="12"] {
-  width: 0.75rem;
-  height: 0.75rem;
-}
-[data-landing] svg[width="14"] {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-[data-landing] svg[width="16"] {
-  width: 1rem;
-  height: 1rem;
-}
-[data-landing] svg[width="24"] {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-/* Scroll blur-in (components/reveal.tsx). Reduced motion pins the end state over Motion's inline styles. */
-.reveal {
-  will-change: transform, opacity, filter;
-}
-@media (prefers-reduced-motion: reduce) {
-  .reveal {
-    opacity: 1 !important;
-    filter: none !important;
-    transform: none !important;
-    will-change: auto;
-  }
-}
-
 /* Auth art panel: the sky drifts in on page load */
 .art-in {
   animation: art-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
@@ -464,5 +448,21 @@ html:has([data-landing]) {
     background: #fff;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+}
+
+/* Landing hero: the active pager dash fills while its screen is shown */
+@keyframes hero-fill {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes hero-fade {
+  from {
+    opacity: 0;
   }
 }
