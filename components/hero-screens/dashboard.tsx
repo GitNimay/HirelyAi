@@ -74,7 +74,7 @@ const POSTS: {
 ];
 
 const NOTIFICATIONS: { by: Who; text: string }[] = [
-  { by: "PN", text: "shortlisted you for Senior Frontend Engineer after your AI interview" },
+  { by: "PN", text: "scored your AI interview 87 and shortlisted you for Senior Frontend Engineer" },
   { by: "RM", text: "liked your post" },
   { by: "KI", text: "started following you" },
 ];

@@ -6,7 +6,7 @@ export function VoiceScreen() {
   return (
     <div className={s.screen}>
       <StepFrame title="Voice interview" steps={["Sign in", "Your details", "Mic check", "Overview", "Interview"]}>
-        <div className={cx(s.card, s.voiceCard)}>
+        <div className={cx(s.card, s.voiceCard)} data-anim="call">
           <div className={s.cardTop}>
             <span className={s.live}>Live</span>
             <span data-anim="timer">3:42 left</span>
