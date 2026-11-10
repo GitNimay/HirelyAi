@@ -406,6 +406,40 @@ select option {
   background-image: repeating-linear-gradient(45deg, var(--border) 0 1px, transparent 1px 12px);
 }
 
+/* Site background: two hard-edged halftone dot clusters, laid out like opensourceui.in's halftone-pop-background
+   (MIT). Orange and emerald. light-dark(): deeper shades on cream; dimmer 500 shades at lower alpha on dark. */
+.halftone > div {
+  position: absolute;
+  background-image: radial-gradient(circle, var(--dot) 1.2px, transparent 1.2px);
+}
+/* top right */
+.halftone > div:nth-child(1) {
+  --dot: light-dark(rgb(234 88 12 / 0.18), rgb(249 115 22 / 0.1));
+  top: -12%;
+  right: -10%;
+  width: 72%;
+  height: 72%;
+  background-size: 7px 7px;
+}
+/* bottom left */
+.halftone > div:nth-child(2) {
+  --dot: light-dark(rgb(5 150 105 / 0.16), rgb(16 185 129 / 0.09));
+  bottom: -14%;
+  left: -8%;
+  width: 68%;
+  height: 68%;
+  background-size: 9px 9px;
+}
+
+/* Text over the halftone: a halo in the page colour knocks the dots out around each glyph so copy stays legible */
+@utility text-halo {
+  text-shadow:
+    0 0 2px var(--background),
+    0 0 4px var(--background),
+    0 0 8px var(--background),
+    0 0 12px var(--background);
+}
+
 /* Auth art panel: the sky drifts in on page load */
 .art-in {
   animation: art-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
