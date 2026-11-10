@@ -12,8 +12,7 @@ const options: { value: Theme; label: string; icon: IconDef }[] = [
 ];
 
 /** The saved theme, read off <html data-theme> ("system" = no attribute, it follows the OS). */
-const currentTheme = () =>
-  (document.documentElement.dataset.theme as Theme | undefined) ?? "system";
+const currentTheme = () => (document.documentElement.dataset.theme as Theme | undefined) ?? "system";
 
 /** Light / Dark / System dropdown for the landing footer, remembered in the same theme cookie as the app. */
 export function ThemePicker() {
