@@ -31,7 +31,11 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
+<<<<<<< HEAD
           include: ["lib/**/*.test.ts", "app/**/*.test.ts", "components/**/*.test.ts"],
+=======
+          include: ["lib/**/*.test.ts", "app/**/*.test.ts"],
+>>>>>>> origin/main
           environment: "node",
         },
       },
