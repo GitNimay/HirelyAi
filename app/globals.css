@@ -509,7 +509,9 @@ select option {
   transform-origin: center;
 }
 .logo-morph.is-playing path {
-  animation: 1.6s both;
+  /* Longhands on purpose: the build minifier collapses the shorthand `animation: 1.6s both` (no name) to `none` */
+  animation-duration: 1.6s;
+  animation-fill-mode: both;
 }
 .logo-morph.is-playing path:nth-child(1) {
   animation-name: logo-bar-top;
