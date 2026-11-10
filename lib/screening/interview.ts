@@ -312,7 +312,7 @@ export async function sendInvite(jobId: string, to: string, applicantId?: string
       `${p("Candidate ID", 2, label)}${p(esc(login), 14, mono)}${p("Password", 2, label)}${p(esc(password), 0, mono)}</div>` +
       p(esc(tips)),
     to,
-    reason: "You're receiving it because you applied for a job on Hire Excellence.",
+    reason: "You're receiving it because you applied for a job on Hirely AI.",
   });
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

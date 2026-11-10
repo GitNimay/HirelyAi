@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PostJobForm } from "@/components/jobs";
 import { getJob, jobAiConfig, jobQuestions } from "@/lib/jobs";
 
-export const metadata = { title: "Edit job | Hire Excellence" };
+export const metadata = { title: "Edit job | Hirely AI" };
 
 /** The post form, filled in, for the job's poster only. */
 export default async function EditJobPage({ params }: PageProps<"/dashboard/jobs/[id]/edit">) {

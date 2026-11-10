@@ -324,15 +324,15 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
       # Signed SLSA provenance for exactly what was deployed; verify with `gh attestation verify <file> -R <repo>`
       - name: Package build
-        run: tar -czf "hire-excellence-$TAG.tar.gz" dist
+        run: tar -czf "hirely-ai-$TAG.tar.gz" dist
         env:
           TAG: ${{ steps.version.outputs.tag }}
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: hire-excellence-*.tar.gz
+          subject-path: hirely-ai-*.tar.gz
       # Only reached when the deploy succeeded. Notes list the PRs merged since the previous release.
       - name: Create GitHub Release
-        run: gh release create "$TAG" "hire-excellence-$TAG.tar.gz" --target "$GITHUB_SHA" --title "$TAG" --generate-notes --notes "Deployed to https://hire-excellence.n1m35h.in (Cloudflare Worker version tag \`$TAG\`)."
+        run: gh release create "$TAG" "hirely-ai-$TAG.tar.gz" --target "$GITHUB_SHA" --title "$TAG" --generate-notes --notes "Deployed to https://hire-excellence.n1m35h.in (Cloudflare Worker version tag \`$TAG\`)."
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}

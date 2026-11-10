@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Clause, LEGAL_EMAIL, LegalPage } from "@/components/public-shell";
 
 export const metadata = {
-  title: "Privacy Policy | Hire Excellence",
-  description: "What Hire Excellence collects, why, and the choices you have.",
+  title: "Privacy Policy | Hirely AI",
+  description: "What Hirely AI collects, why, and the choices you have.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -16,8 +16,8 @@ export default function PrivacyPage() {
       lead={
         <div className="space-y-3">
           <p>
-            This policy explains what Hire Excellence collects when you use it, how we use that information, and the
-            choices you have.
+            This policy explains what Hirely AI collects when you use it, how we use that information, and the choices
+            you have.
           </p>
           <p>
             We collect only what we need to run the service. <strong>We never sell your data</strong>, and you can see,

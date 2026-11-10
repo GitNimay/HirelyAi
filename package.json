@@ -1,5 +1,5 @@
 {
-  "name": "hire-excelence-app",
+  "name": "hirely-ai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -48,7 +48,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.66.0",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^25",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.2",

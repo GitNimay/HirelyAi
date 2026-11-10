@@ -138,7 +138,7 @@ export function CompanyHeader({ company: c }: { company: Company }) {
                 c.industry,
                 c.hq,
                 `${followers} ${followers === 1 ? "follower" : "followers"}`,
-                c.counts.people > 0 && `${c.counts.people} on Hire Excellence`,
+                c.counts.people > 0 && `${c.counts.people} on Hirely AI`,
               ]
                 .filter(Boolean)
                 .join(" · ")}

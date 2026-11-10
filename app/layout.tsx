@@ -31,23 +31,23 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "Hire Excellence: AI-first hiring network",
+  title: "Hirely AI: AI-first hiring network",
   description:
     "Free hiring network where an AI runs a five-minute voice interview for every applicant and gives recruiters a ranked shortlist scored against the job description.",
   alternates: { types: { "text/plain": "/llms.txt" } },
   metadataBase: new URL("https://hire-excellence.n1m35h.in"),
   // 1200x630 JPG under 300 KB: WhatsApp drops larger or webp previews
   openGraph: {
-    title: "Hire Excellence",
+    title: "Hirely AI",
     description: "Hire on signal, not on resumes. An AI runs the first interview for every applicant.",
     type: "website",
-    siteName: "Hire Excellence",
+    siteName: "Hirely AI",
     images: [
       {
         url: "/og.jpg",
         width: 1200,
         height: 630,
-        alt: "Hire Excellence: Apply. Interview. Get seen. Get hired. Repeat.",
+        alt: "Hirely AI: Apply. Interview. Get seen. Get hired. Repeat.",
       },
     ],
   },
@@ -68,7 +68,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, view
 const fapi = atob(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.split("_")[2] ?? "").replace(/\$$/, "");
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // Saved by the account menu / theme picker. No cookie = follow the OS ("system"), see globals.css
+  // Saved by the theme picker. No cookie = system (follow the OS); see globals.css
   if (fapi) {
     preconnect(`https://${fapi}`); // credentialed FAPI calls
     preconnect(`https://${fapi}`, { crossOrigin: "anonymous" }); // the clerk-js script

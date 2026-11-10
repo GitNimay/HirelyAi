@@ -121,7 +121,7 @@ export function toCsv(list: Completed[], origin: string) {
 
 /** One section per candidate: their resume, then the application and verdict. */
 export async function toPdf(list: Completed[], title: string) {
-  const w = await pdfWriter(title, "Hire Excellence");
+  const w = await pdfWriter(title, "Hirely AI");
   list.forEach((a, i) => {
     if (i) w.newPage();
     drawResume(w, { ...a.profile, email: a.email, phone: a.phone ?? "" });

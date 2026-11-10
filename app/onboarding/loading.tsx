@@ -10,7 +10,7 @@ export default function OnboardingLoading() {
       <header className="flex h-16 items-center justify-between px-4 sm:px-8">
         <span className="flex items-center gap-2.5">
           <Logo size={20} />
-          <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
+          <span className="text-sm font-medium tracking-tight">Hirely AI</span>
         </span>
         <Skeleton className="h-8 w-[72px]" />
       </header>

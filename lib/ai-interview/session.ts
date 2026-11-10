@@ -9,6 +9,7 @@ import {
   cleanConfig,
   cleanPlan,
   type Bookkeeping,
+  type Topic,
   difficultyOf,
   hasCoding,
   LEVELS as IV_LEVELS,
@@ -256,6 +257,7 @@ export async function bookkeep(o: {
   lines: Line[];
   claims: Plan["claims"];
   rubric: RoleConfig["rubric"];
+  topic?: Topic | null;
 }): Promise<Bookkeeping> {
   const empty: Bookkeeping = { summary: o.previous, notes: [], claims: [], hints: [], concerns: [] };
   if (!o.lines.length) return empty;

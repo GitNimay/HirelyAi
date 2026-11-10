@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ProfileForm } from "@/components/profile";
 import { getProfile } from "@/lib/profile";
 
-export const metadata = { title: "Edit profile | Hire Excellence" };
+export const metadata = { title: "Edit profile | Hirely AI" };
 
 export default async function EditProfilePage() {
   const { userId } = await auth.protect();

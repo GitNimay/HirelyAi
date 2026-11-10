@@ -7,7 +7,7 @@ import { profileFor, refOf } from "./data";
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }) {
   const { userId } = await auth();
   const p = userId ? await profileFor(userId, await refOf(params)) : null;
-  return { title: p ? `${p.name} | Hire Excellence` : "Hire Excellence" };
+  return { title: p ? `${p.name} | Hirely AI` : "Hirely AI" };
 }
 
 export default async function ProfileLayout({

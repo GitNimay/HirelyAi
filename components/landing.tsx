@@ -23,7 +23,7 @@ const jsonLd = JSON.stringify({
     {
       "@type": "Organization",
       "@id": `${site}/#org`,
-      name: "Hire Excellence",
+      name: "Hirely AI",
       url: site,
       logo: `${site}/logo-light.png`,
       sameAs: [
@@ -35,13 +35,13 @@ const jsonLd = JSON.stringify({
     {
       "@type": "WebSite",
       "@id": `${site}/#website`,
-      name: "Hire Excellence",
+      name: "Hirely AI",
       url: site,
       publisher: { "@id": `${site}/#org` },
     },
     {
       "@type": "WebApplication",
-      name: "Hire Excellence",
+      name: "Hirely AI",
       url: site,
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
@@ -98,7 +98,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <div className="flex flex-col gap-[0.5em] text-[clamp(28px,1.8vw+9px,40px)] leading-[1.2] font-[380] tracking-[-0.02em] text-balance">
             <div className="flex items-center gap-[0.32em]">
               {/* Inline so fill-current tracks the theme (as an <img> the SVG can't inherit the page colour) */}
-              <svg viewBox="0 0 328 329" fill="currentColor" fillRule="nonzero" aria-label="Hire Excellence" className="size-[0.8em] shrink-0" role="img">
+              <svg viewBox="0 0 328 329" fill="currentColor" fillRule="nonzero" aria-label="Hirely AI" className="size-[0.8em] shrink-0" role="img">
                 <path d="M58 0H328V15L270 73H88L51 110H0V59L58 0Z" />
                 <path d="M276 92H328V143L270 201H88L51 238H0V187L58 128H240L276 92Z" />
                 <path d="M276 220H328V271L270 329H0V315L58 256H240L276 220Z" />

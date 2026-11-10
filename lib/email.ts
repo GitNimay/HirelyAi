@@ -33,12 +33,12 @@ export function layout(o: { art: keyof typeof ART; heading: string; body: string
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f4"><tr><td align="center" style="padding:48px 16px 40px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
 <tr><td style="padding:0 0 28px"><a href="${url}" style="text-decoration:none;color:${INK}"><img src="${url}/logo-light.png" width="16" height="16" alt="" style="vertical-align:middle;border:0">
-<span style="vertical-align:middle;margin-left:10px;font-family:${SANS};font-size:16px;font-weight:600;letter-spacing:-0.01em">Hire Excellence</span></a></td></tr>
+<span style="vertical-align:middle;margin-left:10px;font-family:${SANS};font-size:16px;font-weight:600;letter-spacing:-0.01em">Hirely AI</span></a></td></tr>
 <tr><td class="card" style="background:#fff;border:1px solid #e4e4de;padding:52px 48px 48px">
 <img src="${url}/email/${o.art}.png" width="${w}" height="${h}" alt="" style="display:block;border:0;margin:0 0 28px -4px">
 <h1 style="margin:0 0 20px;font-family:${SERIF};font-size:34px;line-height:40px;font-weight:400;letter-spacing:-0.015em;color:${INK}">${o.heading}</h1>
 ${o.body}
-${p("— The Hire Excellence team", 0, `color:${MUTED}`)}
+${p("— The Hirely AI team", 0, `color:${MUTED}`)}
 </td></tr>
 <tr><td style="padding:24px 24px 0;text-align:center;font-family:${SANS};font-size:12px;line-height:18px;color:${MUTED}">This email was sent to ${esc(o.to)}.<br><br>${o.reason}</td></tr>
 </table></td></tr></table></body></html>`;

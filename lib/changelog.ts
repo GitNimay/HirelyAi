@@ -14,7 +14,7 @@ export async function publishedReleases(): Promise<Release[]> {
   }));
 }
 
-const SYSTEM = `You write the public changelog for Hire Excellence, a professional networking and hiring web app (feed, profiles, network, jobs, company pages, screening with voice interviews and tests).
+const SYSTEM = `You write the public changelog for Hirely AI, a professional networking and hiring web app (feed, profiles, network, jobs, company pages, screening with voice interviews and tests).
 Input: a merged pull request's title and description, written by developers.
 Write for members, not developers: what they can now do or will notice. Plain, short sentences.
 Never mention technologies, vendors, libraries, frameworks, hosting, databases, code, files, tests, CI, analytics or tracking tools, or internal processes.

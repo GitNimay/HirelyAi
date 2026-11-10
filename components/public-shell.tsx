@@ -12,7 +12,7 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
         <div className="mx-auto flex h-14 w-full max-w-[640px] items-center justify-between px-4">
           <Link href="/" className="flex min-w-0 items-center gap-2">
             <Logo size={20} faint={false} />
-            <span className="truncate text-sm font-medium tracking-tight">Hire Excellence</span>
+            <span className="truncate text-sm font-medium tracking-tight">Hirely AI</span>
           </Link>
           <div className="flex shrink-0 gap-2">
             {/* 40px tap targets on phones; the 32px desktop buttons are unchanged from sm up */}
@@ -29,7 +29,7 @@ export function PublicShell({ cta, children }: { cta: string; children: ReactNod
         {children}
         <section className="border-t border-border px-4 py-8 text-center">
           <p className="text-balance text-sm font-medium">{cta}</p>
-          <p className="mt-1 text-pretty text-sm text-muted">Hire Excellence is where people connect, hire and grow.</p>
+          <p className="mt-1 text-pretty text-sm text-muted">Hirely AI is where people connect, hire and grow.</p>
           <div className="mt-4 flex justify-center gap-2">
             <Link href="/sign-up" className={`${btnPrimary} ${btnLg}`}>
               Create an account
@@ -56,7 +56,7 @@ export function InfoHeader({ width = "max-w-[720px]" }: { width?: string }) {
     <header className={`mx-auto flex h-16 w-full ${width} items-center px-4`}>
       <Link href="/" className="mr-auto flex items-center gap-2">
         <Logo size={20} faint={false} />
-        <span className="text-sm font-medium tracking-tight">Hire Excellence</span>
+        <span className="text-sm font-medium tracking-tight">Hirely AI</span>
       </Link>
       <nav className="flex items-center gap-5 text-sm text-muted">
         <Link href="/changelog" className="transition-colors hover:text-foreground">
