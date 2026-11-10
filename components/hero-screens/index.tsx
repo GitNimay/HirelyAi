@@ -126,7 +126,7 @@ export function HeroScreens() {
               {[0, 1, 2].map((i) => (
                 <span key={i} className="size-2 shrink-0 rounded-full bg-border" />
               ))}
-              <span className="mx-auto min-w-0 truncate rounded-none bg-surface-hover px-3 text-[10px] leading-[14px] text-muted sm:px-10">
+              <span className="mx-auto min-w-0 truncate rounded-none bg-[light-dark(#F2F2EE,var(--surface-hover))] px-3 text-[10px] leading-[14px] text-muted sm:px-10">
                 hire-excellence.n1m35h.in/{SCREENS[at].path}
               </span>
             </div>
