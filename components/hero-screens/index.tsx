@@ -9,6 +9,7 @@ import { McqScreen } from "./mcq";
 import { Cursor } from "./shared";
 import s from "./screens.module.css";
 import { STORIES, type Ctx, createCtx } from "./stories";
+import { advance } from "./advance";
 import { VoiceScreen } from "./voice";
 import { WhiteboardScreen } from "./whiteboard";
 
@@ -101,7 +102,8 @@ export function HeroScreens() {
     if (pausedRef.current) c.pause();
     const { run, duration } = STORIES[SCREENS[at].id];
     void Promise.all([run(c), c.wait(duration)]).then(() => {
-      if (c.alive && !reduced) setAt((i) => (i + 1) % SCREENS.length);
+      const next = advance(at, SCREENS.length, { alive: c.alive, reduced: !!reduced });
+      if (next !== null) setAt(next);
     });
     return () => c.cancel();
   }, [at, replay, reduced]);

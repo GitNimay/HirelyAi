@@ -161,19 +161,23 @@ body {
   }
 }
 
-/* Accent texture: the tx-danger treatment in the theme's blue (--ring: #2563eb light, #3b82f6 dark) */
+/* Accent texture: the tx-danger treatment in the theme's blue. All blues derive from --ring (#2563eb light,
+   #3b82f6 dark), so a palette change here propagates. */
 @utility tx-accent {
   color: #fff;
-  background-image: linear-gradient(#3b82f6, #2563eb);
+  background-image: linear-gradient(color-mix(in oklab, var(--ring) 88%, white), var(--ring));
   box-shadow:
     0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a),
     inset 0 1px 0 rgb(255 255 255 / 0.28),
     0 1px 2px rgb(0 0 0 / 0.25);
   &:hover {
-    background-image: linear-gradient(#60a5fa, #3b82f6);
+    background-image: linear-gradient(
+      color-mix(in oklab, var(--ring) 70%, white),
+      color-mix(in oklab, var(--ring) 88%, white)
+    );
   }
   &:active {
-    background-image: linear-gradient(#2563eb, #1d4fd8);
+    background-image: linear-gradient(var(--ring), color-mix(in oklab, var(--ring) 82%, black));
     box-shadow:
       0 0 0 1px light-dark(rgb(0 0 0 / 0.14), #0a0a0a),
       inset 0 1px 2px rgb(0 0 0 / 0.3);

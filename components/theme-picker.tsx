@@ -41,7 +41,7 @@ export function ThemePicker() {
         </>
       }
     >
-      {themeOptions.map(({ value, icon }) => (
+      {themeOptions.map(({ value, label, icon }) => (
         <button
           key={value}
           type="button"
@@ -51,7 +51,7 @@ export function ThemePicker() {
           className={menuItem}
         >
           <Icon d={icon} size={16} className="text-muted" />
-          {value[0].toUpperCase() + value.slice(1)}
+          {label}
           {theme === value && <Icon d={icons.check} size={14} className="ml-auto" />}
         </button>
       ))}

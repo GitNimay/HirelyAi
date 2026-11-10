@@ -32,7 +32,7 @@ Stack: vinext (Next.js 16 on Cloudflare Workers via `@cloudflare/vite-plugin`), 
 - Slow work inside a request that belongs in `enqueue()` (`lib/tasks.ts`), or `broadcast`/`sendTo` awaited instead of passed to `waitUntil`.
 - Bindings read some other way than `import { env } from "cloudflare:workers"`.
 - A new `NEXT_PUBLIC_*` variable that isn't added to the `deploy` job env in `ci.yml`.
-- UI that ignores the theme tokens in `app/globals.css`: hard-coded colours, or sizes off the `h-10` controls / `text-sm` scale.
+- UI that ignores the theme tokens in `app/globals.css`: hard-coded colours, or sizes off the `h-10` controls / `text-sm` scale. Exemption: `components/hero-screens/screens.module.css` pins light-mode colours on purpose — it depicts the light-mode app as a product mockup, identical in both page themes.
 - New logic without a vitest test.
 - Over-engineering: a new dependency for something a few lines can do, or abstractions with only one use.
 

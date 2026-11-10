@@ -15,12 +15,12 @@ export function DemoButton({ className }: { className: string }) {
         Demo
       </button>
       {open && (
-        <Modal title="Hire Excellence demo" onClose={() => setOpen(false)} wide>
+        <Modal title="Hirely AI demo" onClose={() => setOpen(false)} wide>
           {/* 16:9 on every screen; the iframe only mounts while open, so closing it stops playback */}
           <div className="aspect-video w-full">
             <iframe
               src={DEMO_URL}
-              title="Hire Excellence product demo"
+              title="Hirely AI product demo"
               className="size-full rounded-b-xl"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               referrerPolicy="strict-origin-when-cross-origin"

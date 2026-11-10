@@ -30,9 +30,10 @@ describe("applyTheme", () => {
 });
 
 describe("themeOptions", () => {
-  // Shared by the account menu and the landing picker: both must offer every theme
-  it("covers every theme with an icon", () => {
+  // Shared by the account menu and the landing picker: both must offer every theme, labelled the same way
+  it("covers every theme with a label and an icon", () => {
     expect(themeOptions.map((o) => o.value)).toEqual(["light", "dark", "system"]);
+    expect(themeOptions.map((o) => o.label)).toEqual(["Light mode", "Dark mode", "System"]);
     expect(themeOptions.every((o) => o.icon.startsWith("M"))).toBe(true); // SVG path data
   });
 });

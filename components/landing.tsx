@@ -78,6 +78,9 @@ const social = [
 ];
 
 const link = "relative transition-colors hover:text-foreground";
+/* Shared hero-CTA frame: both the Get started link and the Demo button size and move the same way */
+const btn =
+  "inline-flex h-[clamp(40px,1vw+16px,46px)] select-none items-center rounded-lg px-[1.4em] text-[clamp(14px,0.15vw+12px,15px)] font-medium transition-[background-color,color,box-shadow,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:duration-75 motion-safe:active:scale-[0.97]";
 const dot = (
   <span aria-hidden className="select-none">
     ·
@@ -120,13 +123,10 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             ))}
           </ul>
           <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={cta.href}
-              className="tx-accent inline-flex h-[clamp(40px,1vw+16px,46px)] select-none items-center self-start rounded-lg px-[1.4em] text-[clamp(14px,0.15vw+12px,15px)] font-medium transition-[background-color,color,box-shadow,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:duration-75 motion-safe:active:scale-[0.97]"
-            >
+            <Link href={cta.href} className={`tx-accent self-start ${btn}`}>
               {cta.label}
             </Link>
-            <DemoButton className="tx-secondary inline-flex h-[clamp(40px,1vw+16px,46px)] select-none items-center rounded-lg px-[1.4em] text-[clamp(14px,0.15vw+12px,15px)] font-medium transition-[background-color,color,box-shadow,transform,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:duration-75 motion-safe:active:scale-[0.97]" />
+            <DemoButton className={`tx-secondary ${btn}`} />
           </div>
         </div>
 
