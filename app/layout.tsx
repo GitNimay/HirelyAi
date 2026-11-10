@@ -81,14 +81,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} ${caveat.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {/* Site background: halftone dot clusters (after opensourceui.in halftone-pop-background, MIT). See .halftone */}
-        <div
-          aria-hidden="true"
-          className="halftone pointer-events-none fixed inset-0 -z-10 overflow-hidden print:hidden"
-        >
-          <div />
-          <div />
-        </div>
         <ClerkProvider>
           {children}
           <Feedback />
