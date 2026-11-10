@@ -48,6 +48,7 @@ export function CodingScreen({ active }: ScreenProps) {
         <Dock
           ai="Speaking"
           aiDot="#059669"
+          speaking
           cam={<CamVideo name="coding" position="75% 40%" active={active} />}
           interviewer="Sorting first makes sense. Before you run it, what's the time complexity of that loop?"
           you="The sort is n log n, and the sweep is linear, so overall n log n."

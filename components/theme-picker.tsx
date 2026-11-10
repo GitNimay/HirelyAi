@@ -1,15 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { applyTheme, type Theme } from "./account-menu";
+import { applyTheme, themeOptions, type Theme } from "./account-menu";
 import { Menu } from "./kit";
-import { Icon, icons, menuItem, type IconDef } from "./ui";
-
-const options: { value: Theme; label: string; icon: IconDef }[] = [
-  { value: "light", label: "Light", icon: icons.sun },
-  { value: "dark", label: "Dark", icon: icons.moon },
-  { value: "system", label: "System", icon: icons.laptop },
-];
+import { Icon, icons, menuItem } from "./ui";
 
 /** The saved theme, read off <html data-theme> ("system" = no attribute, it follows the OS). */
 const currentTheme = () => (document.documentElement.dataset.theme as Theme | undefined) ?? "system";
@@ -47,7 +41,7 @@ export function ThemePicker() {
         </>
       }
     >
-      {options.map(({ value, label, icon }) => (
+      {themeOptions.map(({ value, icon }) => (
         <button
           key={value}
           type="button"
@@ -57,7 +51,7 @@ export function ThemePicker() {
           className={menuItem}
         >
           <Icon d={icon} size={16} className="text-muted" />
-          {label}
+          {value[0].toUpperCase() + value.slice(1)}
           {theme === value && <Icon d={icons.check} size={14} className="ml-auto" />}
         </button>
       ))}

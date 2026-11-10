@@ -8,7 +8,7 @@ export function IntroScreen({ active }: ScreenProps) {
       <RoomHeader round={0} timer="1:42" total="24:42" />
       <div className={s.stage}>
         <div className={s.introTiles}>
-          <AiTile big label="Interviewer · Speaking" dot="#059669" />
+          <AiTile big label="Interviewer · Speaking" dot="#059669" speaking />
           <div className={s.roundName}>
             <h2 className={s.serif}>Intro</h2>
             <p className={s.mute} style={{ fontSize: 13, marginTop: 8 }}>

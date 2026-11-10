@@ -37,7 +37,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     // jsdelivr + storage.googleapis.com: the AI interview's editor and in-browser face detector (MediaPipe model)
     "connect-src 'self' https://clerk.n1m35h.in https://challenges.cloudflare.com https://*.livekit.cloud wss://*.livekit.cloud https://cdn.jsdelivr.net https://storage.googleapis.com",
     // cloudflare: Turnstile. youtube-nocookie: the landing page's demo video modal
-    "frame-src https://challenges.cloudflare.com https://www.youtube-nocookie.com https://www.youtube.com",
+    "frame-src https://challenges.cloudflare.com https://www.youtube-nocookie.com",
     "worker-src 'self' blob: https://cdn.jsdelivr.net",
     "media-src 'self' blob:",
     "form-action 'self'",

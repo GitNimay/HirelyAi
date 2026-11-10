@@ -1,6 +1,9 @@
 /* The six hero screens, ported from the Doop frames (canvas P3ODZaq3jh). Each is laid out at its 1440x900 design
    size and scaled to the slide's width: by container units where the browser can divide lengths, else by --s,
-   which the slideshow sets from a ResizeObserver. */
+   which the slideshow sets from a ResizeObserver.
+
+   Colours here are deliberately hard-coded, not theme tokens: the screens depict the light-mode app (a product
+   mockup, like a screenshot), so they look identical in dark and light page themes. */
 
 .fit {
   position: relative;

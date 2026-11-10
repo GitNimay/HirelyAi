@@ -10,10 +10,11 @@ import { Avatar, Icon, icons, menuItem, type IconDef } from "./ui";
 export const gear = icons.gear;
 
 export type Theme = "light" | "dark" | "system";
-const themes: { value: Theme; label: string; icon: IconDef }[] = [
-  { value: "light", label: "Light mode", icon: icons.sun },
-  { value: "dark", label: "Dark mode", icon: icons.moon },
-  { value: "system", label: "System", icon: icons.laptop },
+/** Shared by every theme UI (account menu, landing picker); labels are presentation, so each maps its own. */
+export const themeOptions: { value: Theme; icon: IconDef }[] = [
+  { value: "light", icon: icons.sun },
+  { value: "dark", icon: icons.moon },
+  { value: "system", icon: icons.laptop },
 ];
 
 // Remembered in a cookie so the server renders <html data-theme> right away, with no flash of the other theme
@@ -98,7 +99,7 @@ export function AccountMenu({
           Account settings
         </Link>
         <div className="my-1 h-px bg-border" />
-        {themes.map(({ value, label, icon }) => (
+        {themeOptions.map(({ value, icon }) => (
           <button
             key={value}
             type="button"
@@ -108,7 +109,7 @@ export function AccountMenu({
             className={menuItem}
           >
             <Icon d={icon} size={16} className="text-muted" />
-            {label}
+            {value === "system" ? "System" : `${value === "light" ? "Light" : "Dark"} mode`}
             {theme === value && <Icon d={icons.check} size={14} className="ml-auto" />}
           </button>
         ))}

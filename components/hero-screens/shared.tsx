@@ -149,14 +149,24 @@ export function CamVideo({ name, position, active }: { name: string; position: s
   );
 }
 
-type Tiles = { ai: string; aiDot: string; cam: ReactNode };
+type Tiles = { ai: string; aiDot: string; speaking?: boolean; cam: ReactNode };
 
 /** The interviewer tile and the candidate's camera tile; `big` for the intro stage, small in the side dock */
-export function AiTile({ big, label, dot }: { big?: boolean; label: string; dot: string }) {
+export function AiTile({
+  big,
+  label,
+  dot,
+  speaking,
+}: {
+  big?: boolean;
+  label: string;
+  dot: string;
+  speaking?: boolean;
+}) {
   return (
     <div className={cx(s.tile, s.aiTile, big ? s.bigTile : s.smallTile)}>
       <Orb
-        state={dot === "#059669" ? "composing" : "listening"}
+        state={speaking ? "composing" : "listening"}
         className="absolute inset-0 flex items-center justify-center pb-[12%]"
         scale={big ? "scale-[1.75]" : "scale-[0.62]"}
       />
@@ -184,6 +194,7 @@ export function CamTile({ big, children }: { big?: boolean; children: ReactNode 
 export function Dock({
   ai,
   aiDot,
+  speaking,
   cam,
   interviewer,
   you,
@@ -192,7 +203,7 @@ export function Dock({
   return (
     <aside className={s.dock}>
       <div className={s.dockTiles}>
-        <AiTile label={ai} dot={aiDot} />
+        <AiTile label={ai} dot={aiDot} speaking={speaking} />
         <CamTile>{cam}</CamTile>
       </div>
       <div className={s.dockCaps}>
