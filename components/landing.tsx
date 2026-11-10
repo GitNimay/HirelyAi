@@ -68,11 +68,14 @@ const social = [
   {
     label: "X (Twitter)",
     href: X_URL,
+    // Brand colours: X is plain black/white (follows the theme), LinkedIn is its blue tile with a white "in"
+    color: "text-foreground",
     d: "M18.9 2H22l-7.6 8.7L23 22h-6.8l-5.3-6.9L4.8 22H1.7l8.1-9.3L1.5 2h6.9l4.8 6.3L18.9 2Zm-1.2 18h1.7L7.4 3.9H5.6L17.7 20Z",
   },
   {
     label: "LinkedIn",
     href: LINKEDIN_URL,
+    color: "text-[#0A66C2]",
     d: "M20.4 2H3.6C2.7 2 2 2.7 2 3.6v16.8c0 .9.7 1.6 1.6 1.6h16.8c.9 0 1.6-.7 1.6-1.6V3.6c0-.9-.7-1.6-1.6-1.6ZM8 19H5V9.5h3V19ZM6.5 8.2a1.7 1.7 0 1 1 0-3.5 1.7 1.7 0 0 1 0 3.5ZM19 19h-3v-4.6c0-1.1 0-2.5-1.5-2.5S12.7 13 12.7 14.3V19h-3V9.5h2.8v1.3c.4-.8 1.4-1.6 2.9-1.6 3.1 0 3.6 2 3.6 4.6V19Z",
   },
 ];
@@ -148,9 +151,11 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               target="_blank"
               rel="noopener noreferrer"
               aria-label={s.label}
-              className={`${link} -m-1.5 p-1.5`}
+              className={`${s.color} -m-1.5 p-1.5 transition-opacity hover:opacity-80`}
             >
               <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor" aria-hidden>
+                {/* White behind LinkedIn's cut-out "in" */}
+                {s.label === "LinkedIn" && <rect x="4" y="4" width="16" height="16" fill="#fff" />}
                 <path d={s.d} />
               </svg>
             </a>

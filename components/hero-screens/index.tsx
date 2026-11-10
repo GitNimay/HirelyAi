@@ -146,8 +146,10 @@ export function HeroScreens() {
                     inert
                     className={`${s.fit} w-full shrink-0 ${i === at ? "motion-reduce:animate-[hero-fade_.4s_ease-out]" : ""}`}
                   >
-                    <Screen active={i === at} />
-                    <Cursor />
+                    <div data-camera className="absolute inset-0 origin-top-left will-change-transform">
+                      <Screen active={i === at} />
+                      <Cursor />
+                    </div>
                   </div>
                 ))}
               </div>

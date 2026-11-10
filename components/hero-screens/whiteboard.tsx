@@ -119,6 +119,7 @@ export function WhiteboardScreen({ active }: ScreenProps) {
         <div className={s.board}>
           <svg
             className={s.sketch}
+            data-anim="sketch"
             width="1080"
             height="840"
             viewBox="0 0 1080 840"

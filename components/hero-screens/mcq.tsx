@@ -12,7 +12,7 @@ export function McqScreen() {
     <div className={s.screen}>
       <StepFrame title="MCQ test" steps={["Sign in", "Your details", "Instructions", "Test"]}>
         <div className={s.card}>
-          <div className={s.status}>
+          <div data-anim="status-bar" className={s.status}>
             <div className={s.between}>
               <span>
                 Question{" "}
@@ -40,7 +40,7 @@ export function McqScreen() {
               <div data-anim="progress" className={s.barFill} />
             </div>
           </div>
-          <div className={s.mcqBody}>
+          <div data-anim="question" className={s.mcqBody}>
             <p>
               Which HTTP status code should an API return when a request is well-formed but the user isn&apos;t allowed
               to access the resource?
@@ -73,7 +73,7 @@ export function McqScreen() {
               </svg>
             </span>
           </div>
-          <div className={s.qnav}>
+          <div data-anim="grid" className={s.qnav}>
             <div className={s.between} style={{ fontSize: 12, lineHeight: "16px" }}>
               <span data-anim="answered" className={s.mute}>
                 {CURRENT} of 15 answered

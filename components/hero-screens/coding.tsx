@@ -53,12 +53,12 @@ export function CodingScreen({ active }: ScreenProps) {
           interviewer="Sorting first makes sense. Before you run it, what's the time complexity of that loop?"
           you="The sort is n log n, and the sweep is linear, so overall n log n."
         >
-          <section className={s.dockSection}>
+          <section className={s.dockSection} data-anim="question-box">
             <p className={s.mute} style={{ fontSize: 13 }}>
               Latest question
             </p>
             <p data-anim="question" className={s.medium} style={{ fontSize: 16, lineHeight: "22px" }}>
-              What&apos;s the time complexity of your solution, and can you do better on already-sorted input?
+              Example 2 missed a touching pair. Why, and what&apos;s the time complexity?
             </p>
           </section>
         </Dock>
