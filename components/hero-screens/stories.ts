@@ -228,7 +228,6 @@ export const STORIES: Record<string, Story> = {
       const say = status(c);
       const captions = c.q("caption");
       const [ai, you] = captions.map(cap);
-      const [aiBox, youBox] = captions; // the caption blocks, as camera targets
       const rounds = c.q("round");
       const [timer] = c.q("timer");
       const roundAt = (n: number) =>
@@ -248,7 +247,6 @@ export const STORIES: Record<string, Story> = {
       // The room, wide: the interviewer opens the round
       await c.wait(0.6);
       // Push in on the interviewer's tile and caption as it speaks
-      void c.camera(aiBox, { zoom: 1.5, pos: [0.5, 0.2], duration: 0.9 });
       await c.type(
         ai,
         "Hi Aarav, thanks for joining. We'll go through five short rounds today. To start, tell me a little about yourself.",
@@ -257,18 +255,15 @@ export const STORIES: Record<string, Story> = {
       await c.wait(0.5);
       say(false, "Interviewer · Listening");
       // Glide across to the candidate answering
-      void c.camera(youBox, { zoom: 1.5, pos: [0.5, 0.2], duration: 0.9 });
       await c.type(you, "Sure. I'm a frontend engineer with four years…", 0.12);
       await c.to(you, { color: [MUTE, INK] }, { duration: 0.3 });
       await c.wait(0.5);
       // Zoom onto the header rounds: Deep dive takes over
-      void c.camera(rounds[1], { zoom: 1.8, duration: 0.9 });
       await c.wait(0.3);
       roundAt(1);
       c.text(timer, "Deep dive 0:01");
       await c.wait(1.6);
       // Back to the full room
-      await c.camera();
       await c.wait(0.8);
     },
   },
