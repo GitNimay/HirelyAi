@@ -60,8 +60,8 @@ function Mic({ size }: { size: number }) {
   );
 }
 
-/** The real brand mark, morph-on-hover included */
-export const Logo = ({ size = 20 }: { size?: number }) => <LogoMark size={size} padded={false} />;
+/** The brand mark, still: the landing illustrations don't animate it */
+export const Logo = ({ size = 20 }: { size?: number }) => <LogoMark size={size} padded={false} still />;
 
 /** The app's interviewer orb. Paused until its slide's story starts; stories set its state with an "orb" event
     (see stories.ts), so only the orb re-renders. Follows the page theme, like the real interview room */
