@@ -21,6 +21,7 @@ const geistMono = Geist_Mono({
 const newsreader = Newsreader({
   variable: "--font-newsreader",
   subsets: ["latin"],
+  style: ["normal", "italic"], // italic: the landing hero's "AI-native" pill
 });
 
 // Handwritten notes in the product tour (`font-hand`). Only the tour uses it, so it isn't preloaded

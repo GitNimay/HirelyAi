@@ -429,6 +429,9 @@ select option {
   width: 68%;
   height: 68%;
   background-size: 9px 9px;
+  /* Notch out the top-right corner where it would overlap the orange square (x 38–60%, y 46–60% of the viewport), so
+     only the orange dots show there; two dot grids on top of each other moiré. Keep in step with both squares' sizes */
+  clip-path: polygon(0 0, 67.65% 0, 67.65% 20.59%, 100% 20.59%, 100% 100%, 0 100%);
 }
 
 /* Text over the halftone: a halo in the page colour knocks the dots out around each glyph so copy stays legible */
