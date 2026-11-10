@@ -142,25 +142,30 @@ function drawWipe(t) {
 }
 ticks.push(drawWipe);
 
-/* ---------- Logo sting: a full blue frame folds down into the mark, the wordmark follows ---------- */
+/* ---------- Logo sting: a full blue frame folds down onto the logo, the wordmark follows.
+   The lockup is the app's own hero lockup: the bare mark at 0.8em, 0.32em from the name. ---------- */
 function logoSting(t0, tOut, extra) {
   const s = scene(t0, tOut, 0, tOut < DUR ? 0.35 : 0);
   s.style.zIndex = 40;
-  const word = E("div", "abs", s, "font-size:132px;font-weight:600;letter-spacing:-0.045em;white-space:nowrap;top:0;left:0", "");
+  const FS = 132, TILE = Math.round(FS * 0.8), GAP = Math.round(FS * 0.32);
+  const word = E("div", "abs", s, `font-size:${FS}px;font-weight:600;letter-spacing:-0.045em;white-space:nowrap;top:0;left:0;line-height:1.2`, "");
   [..."Hirely AI"].forEach((ch, i) => {
     const sp = E("span", "", word, "display:inline-block;opacity:0;white-space:pre", ch);
     A(sp, [{ opacity: 0, transform: "translateX(-22px)" }, { opacity: 1, transform: "none" }], t0 + 1.12 + i * 0.045, 0.3);
   });
-  const TILE = 132, GAP = 34, ww = word.getBoundingClientRect().width / scaleNow();
+  const ww = word.getBoundingClientRect().width / scaleNow();
   const left = (W - (TILE + GAP + ww)) / 2, top = extra ? 400 : 430;
-  word.style.left = left + TILE + GAP + "px"; word.style.top = top + (TILE - 132 * 1.2) / 2 + "px"; word.style.lineHeight = 1.2;
+  word.style.left = left + TILE + GAP + "px"; word.style.top = top + (TILE - FS * 1.2) / 2 + "px";
+  const FOLD = "cubic-bezier(.7,0,.2,1)";
   const blk = E("div", "abs", s, `left:0;top:0;width:${W}px;height:${H}px;background:${BLUE}`);
-  A(blk, [{ left: "0px", top: "0px", width: W + "px", height: H + "px", borderRadius: "0px", background: BLUE },
-          { left: left + "px", top: top + "px", width: TILE + "px", height: TILE + "px", borderRadius: "30px", background: INK }], t0 + 0.7, 0.55, "cubic-bezier(.7,0,.2,1)");
-  const mk = E("div", "abs", s, `left:${W / 2 - 110}px;top:${H / 2 - 110}px;width:220px;height:220px;transform-origin:0 0`, MARK(220, "#fff"));
+  A(blk, [{ left: "0px", top: "0px", width: W + "px", height: H + "px", opacity: 1 },
+          { left: left + "px", top: top + "px", width: TILE + "px", height: TILE + "px", opacity: 1, offset: 0.8 },
+          { left: left + "px", top: top + "px", width: TILE + "px", height: TILE + "px", opacity: 0 }], t0 + 0.7, 0.7, FOLD);
+  const BIG = 240;
+  const mk = E("div", "abs", s, `left:${W / 2 - BIG / 2}px;top:${H / 2 - BIG / 2}px;width:${BIG}px;height:${BIG}px;transform-origin:0 0`, MARK(BIG, "#fff"));
   [...mk.querySelectorAll("path")].forEach((p, i) => { p.style.opacity = 0; A(p, [{ opacity: 0, transform: "translateX(-90px)" }, { opacity: 1, transform: "none" }], t0 + 0.08 + i * 0.09, 0.4); });
-  const ms = 72 / 220;
-  A(mk, [{ transform: "none" }, { transform: `translate(${left + (TILE - 72) / 2 - (W / 2 - 110)}px, ${top + (TILE - 72) / 2 - (H / 2 - 110)}px) scale(${ms})` }], t0 + 0.7, 0.55, "cubic-bezier(.7,0,.2,1)");
+  A(mk, [{ transform: "none" }, { transform: `translate(${left - (W / 2 - BIG / 2)}px, ${top - (H / 2 - BIG / 2)}px) scale(${TILE / BIG})` }], t0 + 0.7, 0.55, FOLD);
+  A(mk.firstChild, [{ fill: "#fff" }, { fill: INK }], t0 + 1.2, 0.2, "linear");
   sfx.push(["impact", t0], ["whoosh", t0 + 0.6]);
   return { s, top, TILE };
 }
@@ -219,6 +224,13 @@ function build() {
     caption(s, 960, 640, ["Hire on *signal,* not on resumes."], 9.9, { center: true, size: 54, step: 0.24 });
   }
 
+  /* The logo stays on screen through the product scenes, top left */
+  {
+    const bug = E("div", "abs", stage, "left:72px;top:60px;display:flex;align-items:center;gap:14px;font-size:34px;font-weight:600;letter-spacing:-0.03em;opacity:0;z-index:30", MARK(30, INK) + "<span>Hirely AI</span>");
+    fadeIn(bug, 12.3, 0.4, -10);
+    A(bug, [{ opacity: 1 }, { opacity: 0 }], 53.3, 0.4);
+  }
+
   /* ===== 3. Voice interview (12 – 20) ===== */
   {
     const s = scene(12, 20, 0.3);
@@ -238,6 +250,7 @@ function build() {
     };
     const ai = mk(36, "Hirely AI", "Interviewer"), me = mk(498, "Priya S.", "Candidate");
     const orb = E("div", "abs", ai, `left:153px;top:60px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #93c5fd, ${BLUE} 55%, #1e3a8a)`);
+    E("div", "abs", ai, "left:187px;top:94px;z-index:2", MARK(52, "#fff"));
     const halo = E("div", "abs", ai, `left:133px;top:40px;width:160px;height:160px;border-radius:50%;border:2px solid ${BLUE};opacity:.5`);
     E("div", "abs", me, `left:163px;top:36px;width:100px;height:100px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:500;color:#ededed`, "PS");
     const bars = []; for (let i = 0; i < 27; i++) bars.push(E("i", "abs", me, `left:${88 + i * 9.4}px;top:176px;width:5px;height:40px;border-radius:3px;background:#34d399;transform-origin:50% 50%`));
@@ -270,7 +283,7 @@ function build() {
     const s = scene(20, 28, 0, 0.35);
     const cd = E("div", "card", s, "left:130px;top:150px;width:900px;height:780px");
     cornerDots(cd, 20.5);
-    E("div", "abs", cd, `left:44px;top:36px;font-size:22px;color:${MUTE}`, "Interview report");
+    E("div", "abs", cd, `left:44px;top:36px;font-size:22px;color:${MUTE};display:flex;align-items:center;gap:10px`, MARK(20, MUTE) + "Interview report");
     E("div", "abs", cd, "left:44px;top:70px;font-size:36px;font-weight:600;letter-spacing:-0.02em", "Priya S.");
     E("div", "abs", cd, `left:44px;top:120px;font-size:22px;color:${MUTE}`, "Senior Backend Engineer · 5 min voice interview");
     // Score ring
