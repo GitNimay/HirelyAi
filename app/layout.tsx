@@ -68,12 +68,12 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, view
 const fapi = atob(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.split("_")[2] ?? "").replace(/\$$/, "");
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // Saved by the account menu / theme toggle. No cookie = light; "system" = follow the OS, see globals.css
+  // Saved by the account menu / theme picker. No cookie = follow the OS ("system"), see globals.css
   if (fapi) {
     preconnect(`https://${fapi}`); // credentialed FAPI calls
     preconnect(`https://${fapi}`, { crossOrigin: "anonymous" }); // the clerk-js script
   }
-  const theme = (await cookies()).get("theme")?.value ?? "light";
+  const theme = (await cookies()).get("theme")?.value;
   return (
     <html
       lang="en"

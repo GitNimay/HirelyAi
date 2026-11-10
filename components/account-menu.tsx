@@ -9,7 +9,7 @@ import { Avatar, Icon, icons, menuItem, type IconDef } from "./ui";
 
 export const gear = icons.gear;
 
-type Theme = "light" | "dark" | "system";
+export type Theme = "light" | "dark" | "system";
 const themes: { value: Theme; label: string; icon: IconDef }[] = [
   { value: "light", label: "Light mode", icon: icons.sun },
   { value: "dark", label: "Dark mode", icon: icons.moon },
