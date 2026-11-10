@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DemoButton } from "./demo-button";
+import { HeroLogo } from "./hero-logo";
 import { HeroScreens } from "./hero-screens";
 import { LEGAL_EMAIL } from "./public-shell";
 import { ThemePicker } from "./theme-picker";
@@ -91,6 +92,11 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
   return (
     <div className="flex min-h-dvh flex-1 flex-col justify-between px-[clamp(16px,6vw,120px)] pb-[clamp(20px,2.5vw,40px)] font-sans text-foreground">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
+      {/* Landing-only background: halftone dot clusters (after opensourceui.in halftone-pop-background, MIT). See .halftone */}
+      <div aria-hidden="true" className="halftone pointer-events-none fixed inset-0 -z-10 overflow-hidden print:hidden">
+        <div />
+        <div />
+      </div>
       <main
         id="main"
         className="flex flex-1 flex-col gap-12 pt-12 pb-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:pt-6"
@@ -98,22 +104,9 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         {/* Fluid type: phone 30px → 1440px wide 41px → capped at 48px on big screens; the rest scales with it */}
         <div className="flex flex-col gap-[clamp(32px,3vw,48px)] lg:w-[46%] lg:max-w-[640px] lg:shrink-0">
           <div className="text-halo flex flex-col gap-[0.5em] text-[clamp(28px,1.8vw+9px,40px)] leading-[1.2] font-[380] tracking-[-0.02em] text-balance">
-            <div className="flex items-center gap-[0.32em]">
-              {/* Inline so fill-current tracks the theme (as an <img> the SVG can't inherit the page colour) */}
-              <svg
-                viewBox="0 0 328 329"
-                fill="currentColor"
-                fillRule="nonzero"
-                aria-label="Hirely AI"
-                className="size-[0.8em] shrink-0"
-                role="img"
-              >
-                <path d="M58 0H328V15L270 73H88L51 110H0V59L58 0Z" />
-                <path d="M276 92H328V143L270 201H88L51 238H0V187L58 128H240L276 92Z" />
-                <path d="M276 220H328V271L270 329H0V315L58 256H240L276 220Z" />
-              </svg>
+            <HeroLogo>
               <h1>Hire on signal.</h1>
-            </div>
+            </HeroLogo>
             <p>Meet the right people, faster.</p>
           </div>
           <ul className="text-halo flex flex-col gap-[0.75em] text-[clamp(16px,0.35vw+13px,19px)] leading-[1.45] text-muted">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useReducedMotion } from "motion/react";
+import { LogoMark } from "../hero-logo";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
 import s from "./screens.module.css";
@@ -59,14 +60,8 @@ function Mic({ size }: { size: number }) {
   );
 }
 
-/** Inline so fill="currentColor" tracks the theme (an <img> SVG can't inherit the page colour) */
-export const Logo = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 328 329" fill="currentColor" aria-hidden>
-    <path d="M58 0H328V15L270 73H88L51 110H0V59L58 0Z" />
-    <path d="M276 92H328V143L270 201H88L51 238H0V187L58 128H240L276 92Z" />
-    <path d="M276 220H328V271L270 329H0V315L58 256H240L276 220Z" />
-  </svg>
-);
+/** The real brand mark, morph-on-hover included */
+export const Logo = ({ size = 20 }: { size?: number }) => <LogoMark size={size} padded={false} />;
 
 /** The app's interviewer orb. Paused until its slide's story starts; stories set its state with an "orb" event
     (see stories.ts), so only the orb re-renders. Follows the page theme, like the real interview room */

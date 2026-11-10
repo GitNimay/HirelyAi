@@ -4,6 +4,7 @@ import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
 import type { OAuthStrategy, SetActiveNavigate } from "@clerk/nextjs/types";
 import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { LogoMark } from "./hero-logo";
 import { CodeField } from "./input-otp";
 import { useClientValue } from "./kit";
 import { Loading, Skeleton, times } from "./skeleton";
@@ -37,16 +38,10 @@ const btnPrimary = `${btn} tx-primary`;
 const input =
   "h-10 w-full rounded-lg border border-border bg-surface px-3 text-base text-foreground placeholder:text-muted outline-none transition-shadow focus:border-ring focus:ring-1 focus:ring-ring sm:text-sm";
 
-// White mark on dark, black mark on light
+// The brand mark in the page colour, morphing on hover (see LogoMark)
 // `faint` is the quiet watermark look of the auth screens; the app shell shows the mark at full strength
 export function Logo({ size = 36, faint = true }: { size?: number; faint?: boolean }) {
-  const o = faint ? "opacity-25" : "";
-  return (
-    <>
-      <img src="/logo-dark.png" width={size} height={size} alt="" aria-hidden className={`${o} light:hidden`} />
-      <img src="/logo-light.png" width={size} height={size} alt="" aria-hidden className={`hidden ${o} light:block`} />
-    </>
-  );
+  return <LogoMark size={size} className={faint ? "opacity-25" : ""} />;
 }
 
 /** Under the sign-in / sign-up footers: back to the landing page. */
@@ -89,7 +84,7 @@ export function Shell({
           className="art-in absolute inset-0 hidden size-full object-cover light:block"
         />
         <div className="relative">
-          <img src="/logo-dark.png" width={36} height={36} alt="" aria-hidden />
+          <LogoMark size={36} className="text-white" />
         </div>
         <div className="relative">
           <p className="font-display text-[28px] leading-8 tracking-tight text-white md:text-4xl md:leading-10 lg:text-[44px] lg:leading-12">
