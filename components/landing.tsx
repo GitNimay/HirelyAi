@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { DemoButton } from "./demo-button";
-import { FooterNav } from "./footer-nav";
 import { HeroScreens } from "./hero-screens";
 import { LEGAL_EMAIL } from "./public-shell";
 import { ThemePicker } from "./theme-picker";
 
-/* Landing page: a single hero (Doop canvas P3ODZaq3jh, frame "Landing — Hero"). Page chrome follows the app theme
-   (see ThemePicker in the footer); the product window inside the hero stays light, like a screenshot of the light app. */
+/* Landing page: a single hero (Doop canvas P3ODZaq3jh, frame "Landing — Hero"). Everything follows the app theme
+   (see ThemePicker in the footer), the product window in the hero included. */
 
 const points = [
   "Structured interviews for every applicant",
@@ -134,7 +133,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
       </main>
 
       <footer className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 text-[clamp(13px,0.2vw+11px,14px)] leading-[20px] text-muted">
-        <FooterNav label="Product" className="flex items-center gap-2 px-1.5">
+        <nav aria-label="Product" className="flex items-center gap-2 px-1.5">
           <Link href="/changelog" className={link}>
             Changelog
           </Link>
@@ -144,8 +143,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           </Link>
           {dot}
           <ThemePicker />
-        </FooterNav>
-        <FooterNav label="Contact and legal" className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5">
+        </nav>
+        <nav aria-label="Contact and legal" className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5">
           <a href={`mailto:${LEGAL_EMAIL}`} className={link}>
             {LEGAL_EMAIL}
           </a>
@@ -171,7 +170,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <Link href="/terms" className={link}>
             Terms
           </Link>
-        </FooterNav>
+        </nav>
       </footer>
     </div>
   );

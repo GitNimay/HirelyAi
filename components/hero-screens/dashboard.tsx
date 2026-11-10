@@ -83,7 +83,7 @@ function Me({ size, ring }: { size: number; ring?: boolean }) {
   return (
     <div
       className={s.av}
-      style={{ width: size, height: size, ...(ring && { marginTop: -36, border: "4px solid #F7F7F4" }) }}
+      style={{ width: size, height: size, ...(ring && { marginTop: -36, border: "4px solid var(--background)" }) }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- 3 KB pre-cropped webp */}
       <img src="/landing/hero-avatar.webp" alt="" />
@@ -142,7 +142,7 @@ export function DashboardScreen() {
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#65655F"
+              stroke="var(--muted)"
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -195,8 +195,8 @@ export function DashboardScreen() {
               </div>
             </div>
             <div className={s.postActs}>
-              <span data-anim="like" style={p.liked ? { color: "#D93036" } : undefined}>
-                <Icon d={I.like} fill={p.liked ? "#D93036" : undefined} />
+              <span data-anim="like" style={p.liked ? { color: "var(--danger)" } : undefined}>
+                <Icon d={I.like} fill={p.liked ? "var(--danger)" : undefined} />
                 <span>Like {p.likes}</span>
               </span>
               <span>
@@ -217,18 +217,25 @@ export function DashboardScreen() {
 
       <aside className={s.right}>
         <section className={s.box}>
-          <div className={s.cover} />
+          <div
+            className={cx(
+              s.cover,
+              "bg-[url(/landing/hero-clouds-dark.webp)] bg-cover bg-center light:bg-[url(/landing/hero-clouds.webp)]",
+            )}
+          />
           <div style={{ padding: "0 16px 16px" }}>
             <Me size={64} ring />
             <p className={s.medium} style={{ lineHeight: "18px", paddingTop: 8 }}>
               Aarav Shah
             </p>
-            <p style={{ color: "#2E2E2A", paddingTop: 4 }}>Frontend engineer building fast, accessible web apps</p>
+            <p style={{ color: "var(--foreground)", paddingTop: 4 }}>
+              Frontend engineer building fast, accessible web apps
+            </p>
             <p className={s.mute} style={{ fontSize: 12, lineHeight: "16px", paddingTop: 4 }}>
               Pune, India
             </p>
           </div>
-          <div style={{ borderTop: "1px solid #E4E4DE", padding: "8px 0" }}>
+          <div style={{ borderTop: "1px solid var(--border)", padding: "8px 0" }}>
             <div className={s.stat}>
               <span className={s.mute}>Connections</span>
               <span className={s.link}>214</span>
@@ -242,7 +249,7 @@ export function DashboardScreen() {
         <section className={s.box}>
           <div className={s.boxHead}>
             <span className={s.medium}>Notifications</span>
-            <span style={{ fontSize: 12, color: "#0068D6" }}>See all</span>
+            <span style={{ fontSize: 12, color: "var(--link)" }}>See all</span>
           </div>
           {NOTIFICATIONS.map((n) => (
             <div key={n.by} data-anim="notification" className={s.notif}>

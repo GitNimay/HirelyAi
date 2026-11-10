@@ -18,7 +18,7 @@ export function Check({ size = 12, width = 2.5 }: { size?: number; width?: numbe
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#059669"
+      stroke="var(--success)"
       strokeWidth={width}
       strokeLinecap="round"
     >
@@ -34,7 +34,7 @@ export function Cross({ size = 12 }: { size?: number }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#D93036"
+      stroke="var(--danger)"
       strokeWidth={2.5}
       strokeLinecap="round"
     >
@@ -50,7 +50,7 @@ function Mic({ size }: { size: number }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#1C1C19"
+      stroke="var(--foreground)"
       strokeWidth={2}
       strokeLinecap="round"
     >
@@ -59,13 +59,17 @@ function Mic({ size }: { size: number }) {
   );
 }
 
+/** Inline so fill="currentColor" tracks the theme (an <img> SVG can't inherit the page colour) */
 export const Logo = ({ size = 20 }: { size?: number }) => (
-  // eslint-disable-next-line @next/next/no-img-element -- tiny static svg
-  <img src="/brand/logo-mark.svg" width={size} height={size} alt="" />
+  <svg width={size} height={size} viewBox="0 0 328 329" fill="currentColor" aria-hidden>
+    <path d="M58 0H328V15L270 73H88L51 110H0V59L58 0Z" />
+    <path d="M276 92H328V143L270 201H88L51 238H0V187L58 128H240L276 92Z" />
+    <path d="M276 220H328V271L270 329H0V315L58 256H240L276 220Z" />
+  </svg>
 );
 
 /** The app's interviewer orb. Paused until its slide's story starts; stories set its state with an "orb" event
-    (see stories.ts), so only the orb re-renders. Pinned light: the landing is light-only whatever data-theme says */
+    (see stories.ts), so only the orb re-renders. Follows the page theme, like the real interview room */
 export function Orb({ state, className, scale }: { state: OrbState; className: string; scale: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [orb, setOrb] = useState({ state, paused: true });
@@ -77,7 +81,7 @@ export function Orb({ state, className, scale }: { state: OrbState; className: s
   }, []);
   return (
     <div ref={ref} data-anim="orb" className={className} aria-hidden>
-      <ThinkingOrb state={orb.state} paused={orb.paused} theme="light" size={64} className={scale} />
+      <ThinkingOrb state={orb.state} paused={orb.paused} size={64} className={scale} />
     </div>
   );
 }
@@ -238,7 +242,7 @@ export function StepFrame({ title, steps, children }: { title: string; steps: st
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#65655F"
+              stroke="var(--muted)"
               strokeWidth="2"
               strokeLinecap="round"
             >

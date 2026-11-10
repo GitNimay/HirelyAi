@@ -58,9 +58,8 @@ export function HeroScreens() {
   const [said, setSaid] = useState("");
   // Reduced motion: each slide jumps to its story's end state, and the slideshow waits for the pager
   const reduced = useReducedMotion();
-  const [hover, setHover] = useState(false);
   const [away, setAway] = useState(false);
-  const paused = hover || away;
+  const paused = away;
   const pausedRef = useRef(paused);
   const story = STORIES[SCREENS[at].id];
 
@@ -120,17 +119,14 @@ export function HeroScreens() {
     >
       {/* Dark clouds by default; the light image returns under the same conditions as the light: variant in globals.css */}
       <div className="flex aspect-[660/480] w-full items-center justify-center overflow-hidden bg-[url(/landing/hero-clouds-dark.webp)] bg-cover bg-center light:bg-[url(/landing/hero-clouds.webp)]">
-        <div
-          onPointerEnter={(e) => e.pointerType === "mouse" && setHover(true)}
-          onPointerLeave={() => setHover(false)}
-          className="w-[89.7%] border border-white/65 bg-white/28 p-[7px] shadow-[0_24px_60px_rgba(20,60,80,.28),inset_0_1px_0_rgba(255,255,255,.7)] backdrop-blur-[14px]"
-        >
-          <div className="overflow-hidden bg-[#F7F7F4] shadow-[0_1px_2px_rgba(0,0,0,.08)]">
-            <div className="flex h-[26px] items-center gap-1.5 border-b border-[#E4E4DE] bg-white px-2.5">
+        {/* Glass frame: a faint smoked pane on the dark clouds, the frosted white one on the light clouds */}
+        <div className="w-[89.7%] border border-white/15 bg-white/[0.06] p-[7px] shadow-[0_24px_60px_rgba(0,0,0,.45),inset_0_1px_0_rgba(255,255,255,.18)] backdrop-blur-[14px] light:border-white/65 light:bg-white/28 light:shadow-[0_24px_60px_rgba(20,60,80,.28),inset_0_1px_0_rgba(255,255,255,.7)]">
+          <div className="overflow-hidden bg-background shadow-[0_1px_2px_rgba(0,0,0,.08)]">
+            <div className="flex h-[26px] items-center gap-1.5 border-b border-border bg-surface px-2.5">
               {[0, 1, 2].map((i) => (
-                <span key={i} className="size-2 shrink-0 rounded-full bg-[#E4E4DE]" />
+                <span key={i} className="size-2 shrink-0 rounded-full bg-border" />
               ))}
-              <span className="mx-auto min-w-0 truncate rounded-none bg-[#F2F2EE] px-3 text-[10px] leading-[14px] text-[#65655F] sm:px-10">
+              <span className="mx-auto min-w-0 truncate rounded-none bg-[light-dark(#F2F2EE,var(--surface-hover))] px-3 text-[10px] leading-[14px] text-muted sm:px-10">
                 hire-excellence.n1m35h.in/{SCREENS[at].path}
               </span>
             </div>
