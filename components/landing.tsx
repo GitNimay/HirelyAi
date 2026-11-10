@@ -89,7 +89,7 @@ const dot = (
 export function Landing({ signedIn }: { signedIn: boolean }) {
   const cta = signedIn ? { href: "/dashboard", label: "Dashboard" } : { href: "/sign-up", label: "Get started" };
   return (
-    <div className="flex min-h-dvh flex-1 flex-col justify-between bg-background px-[clamp(16px,6vw,120px)] pb-[clamp(20px,2.5vw,40px)] font-sans text-foreground">
+    <div className="flex min-h-dvh flex-1 flex-col justify-between px-[clamp(16px,6vw,120px)] pb-[clamp(20px,2.5vw,40px)] font-sans text-foreground">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       <main
         id="main"
@@ -97,7 +97,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
       >
         {/* Fluid type: phone 30px → 1440px wide 41px → capped at 48px on big screens; the rest scales with it */}
         <div className="flex flex-col gap-[clamp(32px,3vw,48px)] lg:w-[46%] lg:max-w-[640px] lg:shrink-0">
-          <div className="flex flex-col gap-[0.5em] text-[clamp(28px,1.8vw+9px,40px)] leading-[1.2] font-[380] tracking-[-0.02em] text-balance">
+          <div className="text-halo flex flex-col gap-[0.5em] text-[clamp(28px,1.8vw+9px,40px)] leading-[1.2] font-[380] tracking-[-0.02em] text-balance">
             <div className="flex items-center gap-[0.32em]">
               {/* Inline so fill-current tracks the theme (as an <img> the SVG can't inherit the page colour) */}
               <svg
@@ -116,7 +116,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             </div>
             <p>Meet the right people, faster.</p>
           </div>
-          <ul className="flex flex-col gap-[0.75em] text-[clamp(16px,0.35vw+13px,19px)] leading-[1.45] text-muted">
+          <ul className="text-halo flex flex-col gap-[0.75em] text-[clamp(16px,0.35vw+13px,19px)] leading-[1.45] text-muted">
             {points.map((p) => (
               <li key={p}>{p}</li>
             ))}
@@ -132,7 +132,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         <HeroScreens />
       </main>
 
-      <footer className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 text-[clamp(13px,0.2vw+11px,14px)] leading-[20px] text-muted">
+      <footer className="text-halo flex flex-wrap items-center justify-between gap-x-5 gap-y-3 text-[clamp(13px,0.2vw+11px,14px)] leading-[20px] text-muted">
         <nav aria-label="Product" className="flex items-center gap-2 px-1.5">
           <Link href="/changelog" className={link}>
             Changelog
