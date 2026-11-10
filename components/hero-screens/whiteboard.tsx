@@ -29,7 +29,7 @@ const SKETCH: { d: string; stroke?: string; fill?: string; dash?: string }[] = [
   },
   {
     d: "M672 602 C720 600 790 601 842 603 C843 630 842 655 841 681 C790 683 720 682 671 680 C670 655 671 630 672 602Z",
-    fill: "light-dark(#FFF3BF, #4A4224)",
+    fill: "var(--wb-note)",
   },
   { d: "M300 342 C330 340 370 343 398 341 M386 333 L399 341 L386 350" },
   { d: "M564 330 C600 300 630 240 668 224 M655 218 L669 223 L661 236" },
@@ -123,7 +123,7 @@ export function WhiteboardScreen({ active }: ScreenProps) {
             height="840"
             viewBox="0 0 1080 840"
             fill="none"
-            stroke="light-dark(#1E1E1E, #E3E3E8)"
+            stroke="var(--wb-ink)"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -163,7 +163,7 @@ export function WhiteboardScreen({ active }: ScreenProps) {
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="light-dark(#1B1B1F, #E3E3E8)"
+              stroke="var(--wb-ink)"
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -197,7 +197,7 @@ export function WhiteboardScreen({ active }: ScreenProps) {
               height="15"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="light-dark(#1B1B1F, #E3E3E8)"
+              stroke="var(--wb-ink)"
               strokeWidth="2"
               strokeLinecap="round"
             >

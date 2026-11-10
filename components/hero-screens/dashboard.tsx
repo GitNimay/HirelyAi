@@ -217,7 +217,12 @@ export function DashboardScreen() {
 
       <aside className={s.right}>
         <section className={s.box}>
-          <div className={s.cover} />
+          <div
+            className={cx(
+              s.cover,
+              "bg-[url(/landing/hero-clouds-dark.webp)] bg-cover bg-center light:bg-[url(/landing/hero-clouds.webp)]",
+            )}
+          />
           <div style={{ padding: "0 16px 16px" }}>
             <Me size={64} ring />
             <p className={s.medium} style={{ lineHeight: "18px", paddingTop: 8 }}>

@@ -364,6 +364,9 @@
   gap: 8px;
 }
 .board {
+  /* Excalidraw's ink and sticky-note fill (light, then its dark theme); whiteboard.tsx's SVGs use these too */
+  --wb-ink: light-dark(#1b1b1f, #e3e3e8);
+  --wb-note: light-dark(#fff3bf, #4a4224);
   flex: 1;
   position: relative;
   overflow: hidden;
@@ -379,7 +382,7 @@
   font-size: 26px;
   line-height: 32px;
   text-align: center;
-  color: light-dark(#1e1e1e, #e3e3e8);
+  color: var(--wb-ink);
 }
 .ib {
   position: absolute;
@@ -418,7 +421,7 @@
   width: 16px;
   height: 16px;
   fill: none;
-  stroke: light-dark(#1b1b1f, #e3e3e8);
+  stroke: var(--wb-ink);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -944,9 +947,10 @@
   justify-content: center;
   border-radius: 999px;
   font-weight: 500;
-  background: var(--surface);
+  /* light keeps the original white-to-grey face and darker ring */
+  background: linear-gradient(light-dark(#fff, var(--surface)), light-dark(#f7f7f7, var(--surface)));
   box-shadow:
-    0 0 0 1px var(--border),
+    0 0 0 1px light-dark(rgba(0, 0, 0, 0.14), var(--border)),
     0 1px 2px rgba(0, 0, 0, 0.15);
 }
 .me {
@@ -1022,8 +1026,8 @@
   display: flex;
   align-items: center;
   border-radius: 6px;
-  background: var(--foreground);
-  color: var(--background);
+  background: linear-gradient(light-dark(#2a2a2a, var(--foreground)), light-dark(#000, var(--foreground)));
+  color: light-dark(#fff, var(--background));
   font-weight: 500;
   opacity: 0.5;
 }
@@ -1060,15 +1064,7 @@
 .cover {
   height: 70px;
   border-bottom: 1px solid var(--border);
-  background: url(/landing/hero-clouds-dark.webp) center / cover;
-}
-:global(:root[data-theme="light"]) .cover {
-  background-image: url(/landing/hero-clouds.webp);
-}
-@media (prefers-color-scheme: light) {
-  :global(:root:not([data-theme="dark"])) .cover {
-    background-image: url(/landing/hero-clouds.webp);
-  }
+  /* the clouds image is swapped per theme in dashboard.tsx, with the same light: classes as the hero */
 }
 .stat {
   display: flex;
