@@ -13,11 +13,11 @@ type Opts = { duration?: number; delay?: number; ease?: string | number[] };
 type Live = { pause(): void; play(): void; stop(): void };
 
 const MOVE: number[] = [0.65, 0, 0.35, 1];
-const GREEN = "#059669";
+const GREEN = "var(--success)";
 const GREY = "#8E8E87";
-const INK = "#1C1C19";
-const MUTE = "#65655F";
-const RED = "#D93036";
+const INK = "var(--foreground)";
+const MUTE = "var(--muted)";
+const RED = "var(--danger)";
 const CURSOR_HOME = { x: 1240, y: 820 };
 
 const never = () => new Promise<void>(() => {});
@@ -392,8 +392,8 @@ export const STORIES: Record<string, Story> = {
       const [answered] = c.q("answered");
       const [next] = c.q("next");
       const timer = c.q("timer")[0]?.lastElementChild ?? undefined;
-      const hover = "rgba(28, 28, 25, 0.04)";
-      const clear = "rgba(28, 28, 25, 0)";
+      const hover = "color-mix(in srgb, var(--foreground) 4%, transparent)";
+      const clear = "color-mix(in srgb, var(--foreground) 0%, transparent)";
 
       options.forEach((o) => o.classList.remove(s.optionOn));
       c.set(options, { backgroundColor: "" });

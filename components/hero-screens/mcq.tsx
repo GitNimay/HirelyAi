@@ -16,7 +16,7 @@ export function McqScreen() {
             <div className={s.between}>
               <span>
                 Question{" "}
-                <span className={s.medium} style={{ color: "#1C1C19" }}>
+                <span className={s.medium} style={{ color: "var(--foreground)" }}>
                   {CURRENT}
                 </span>{" "}
                 of 15
@@ -27,7 +27,7 @@ export function McqScreen() {
                   height="14"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#65655F"
+                  stroke="var(--muted)"
                   strokeWidth="2"
                   strokeLinecap="round"
                 >
@@ -65,7 +65,7 @@ export function McqScreen() {
                 height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#F7F7F4"
+                stroke="var(--background)"
                 strokeWidth="2"
                 strokeLinecap="round"
               >
