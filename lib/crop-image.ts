@@ -10,7 +10,7 @@ export async function cropImage(file: File, w: number, h: number): Promise<Blob>
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#161616"; // transparent PNGs flatten onto the app background instead of black
+  ctx.fillStyle = "#000000"; // transparent PNGs flatten onto the app background
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(bmp, (w - bmp.width * scale) / 2, (h - bmp.height * scale) / 2, bmp.width * scale, bmp.height * scale);
   bmp.close();
