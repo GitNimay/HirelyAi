@@ -41,7 +41,7 @@ export const metadata: Metadata = {
         url: "/og.jpg",
         width: 1200,
         height: 630,
-        alt: "Hirely AI: Apply. Interview. Get seen. Get hired. Repeat.",
+        alt: "Hirely AI",
       },
     ],
   },
