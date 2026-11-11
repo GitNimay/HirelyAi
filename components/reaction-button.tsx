@@ -286,7 +286,7 @@ export function ReactionButton({ reaction, onReact, className }: Props) {
                     draggable={false}
                     className="max-w-none select-none"
                   />
-                  <span className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-full bg-foreground px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-background opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <span className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-full bg-foreground px-2 py-0.5 text-xs font-medium whitespace-nowrap text-background opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                     {r.label}
                   </span>
                 </motion.button>

@@ -1755,7 +1755,7 @@ export function ApplicantInterview({
             {rep ? (
               <div className="space-y-5 text-sm">
                 <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-3xl font-medium tabular-nums">
+                  <p className="text-xl font-medium tabular-nums">
                     {rep.score}
                     <span className="text-sm font-normal text-muted">/100</span>
                   </p>
@@ -1858,7 +1858,7 @@ function AiSummary({ r, jobId, applicantId }: { r: InterviewResult; jobId: strin
       <div className="space-y-4 text-sm">
         {ai ? (
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-3xl font-medium tabular-nums">
+            <p className="text-xl font-medium tabular-nums">
               {ai.overall?.toFixed(1) ?? "–"}
               <span className="text-sm font-normal text-muted">/5</span>
             </p>
@@ -1919,7 +1919,7 @@ function McqResult({ r }: { r: InterviewResult }) {
       <FormSection title="Test result" hint={r.startedAt ? `Taken ${dateTime(r.startedAt)}` : undefined}>
         {rep ? (
           <div className="flex flex-wrap items-center gap-4 text-sm">
-            <p className="text-3xl font-medium tabular-nums">
+            <p className="text-xl font-medium tabular-nums">
               {rep.score}
               <span className="text-sm font-normal text-muted">/100</span>
             </p>
