@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Dark theme, matched to the auth reference; Geist + Vercel-style sizing.
+/* Dark theme, matched to the auth reference; Geist + Vercel-style sizing: three sizes (text-xs 12 / text-sm 14 / text-xl 20), two weights (400 / 500).
    Light applies when <html data-theme="light">, or with no data-theme ("System") when the OS is light. */
 :root {
   --background: #000000;
@@ -78,7 +78,7 @@
   --color-primary-hover: var(--primary-hover);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-newsreader);
+  --font-display: var(--font-geist-sans); /* one family everywhere; kept as an alias for existing classes */
   --font-hand: var(--font-caveat);
 }
 

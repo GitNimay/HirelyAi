@@ -34,7 +34,7 @@ export default async function ChangelogPage({ searchParams }: PageProps<"/change
     <div className="flex min-h-dvh flex-1 flex-col">
       <InfoHeader />
       <main id="main" className="mx-auto w-full max-w-[720px] flex-1 px-4 pt-10 pb-24 sm:pt-16">
-        <h1 className="font-display text-3xl font-normal">Changelog</h1>
+        <h1 className="font-display text-xl font-normal">Changelog</h1>
         <p className="mt-2 text-sm text-muted">New features, improvements and fixes in Hirely AI.</p>
 
         <nav aria-label="Filter changes" className="mt-8 flex gap-5 text-sm">

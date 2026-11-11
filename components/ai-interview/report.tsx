@@ -90,7 +90,7 @@ function Section({
   return (
     <section id={id} className={`scroll-mt-20 ${className}`}>
       <div className="mb-4 flex min-h-8 items-center justify-between gap-3 border-b border-border pb-2">
-        <h2 className="text-base font-medium">
+        <h2 className="text-sm font-medium">
           {title}
           {meta && <span className="ml-2 text-sm font-normal text-muted">{meta}</span>}
         </h2>
@@ -122,7 +122,7 @@ function ScoreRing({ score }: { score: number | null }) {
         />
       </svg>
       <p className="absolute inset-0 flex flex-col items-center justify-center leading-none">
-        <span className="text-2xl font-medium tabular-nums">{score?.toFixed(1) ?? "–"}</span>
+        <span className="text-xl font-medium tabular-nums">{score?.toFixed(1) ?? "–"}</span>
         <span className="mt-1 text-xs text-muted">of 5</span>
       </p>
     </div>
@@ -257,15 +257,13 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
             <div className="flex items-center gap-4">
               <Avatar name={data.candidate.name} src={data.candidate.imageUrl ?? undefined} size={56} />
               <div className="min-w-0">
-                <h1 className="truncate font-display text-3xl font-normal tracking-tight">{data.candidate.name}</h1>
+                <h1 className="truncate font-display text-xl font-normal tracking-tight">{data.candidate.name}</h1>
                 <p className="truncate text-sm text-muted">
                   {data.job.title} · {data.job.company}
                 </p>
               </div>
             </div>
-            {rep?.summary && (
-              <p className="max-w-[62ch] text-[15px] leading-relaxed text-foreground/90">{rep.summary}</p>
-            )}
+            {rep?.summary && <p className="max-w-[62ch] text-sm leading-relaxed text-foreground/90">{rep.summary}</p>}
             <p className="text-xs text-muted" suppressHydrationWarning>
               AI interview{date ? ` · ${date}` : ""}
               {end > start ? ` · ${minutes(end - start)}` : ""}
@@ -365,7 +363,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
                   ] as const
                 ).map(([title, list, d, cls]) => (
                   <div key={title}>
-                    <h2 className="mb-3 border-b border-border pb-2 text-base font-medium">{title}</h2>
+                    <h2 className="mb-3 border-b border-border pb-2 text-sm font-medium">{title}</h2>
                     {list.length ? (
                       <ul className="space-y-2.5 text-sm leading-relaxed">
                         {list.map((x) => (

@@ -99,7 +99,7 @@ export function Shell({
             <span className="hidden lg:block">
               <LogoMark size={36} still className="opacity-25" />
             </span>
-            <h1 className="mt-0 lg:mt-6 font-display text-2xl font-normal text-balance">{title}</h1>
+            <h1 className="mt-0 lg:mt-6 font-display text-xl font-normal text-balance">{title}</h1>
             <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
           </div>
           {isLoaded && !busy ? (

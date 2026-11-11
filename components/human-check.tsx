@@ -130,7 +130,7 @@ export function HumanCheck({ sitekey, action, next }: { sitekey: string; action:
       />
       <div className="flex w-full max-w-[360px] flex-col items-center text-center">
         <Logo />
-        <h1 className="mt-6 font-display text-2xl font-normal text-balance">Verify you are human</h1>
+        <h1 className="mt-6 font-display text-xl font-normal text-balance">Verify you are human</h1>
         <p className="mt-1.5 text-sm text-muted">
           A quick check before you continue. This keeps bots away from Hirely AI.
         </p>

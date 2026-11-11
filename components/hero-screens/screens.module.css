@@ -47,7 +47,7 @@
   font-weight: 500;
 }
 .serif {
-  font-family: var(--font-newsreader), Georgia, serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
   font-weight: 400;
 }
 .mono {

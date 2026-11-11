@@ -133,7 +133,7 @@ export function AiInterview({
       <div className="space-y-7 text-sm leading-relaxed">
         <Head title="Before you start" sub={`${view.title} at ${view.company}`} />
         <section className="space-y-2.5">
-          <h3 className="text-[13px] font-medium text-muted">The role</h3>
+          <h3 className="text-xs font-medium text-muted">The role</h3>
           <ul className="list-disc space-y-1.5 pl-5 marker:text-muted">
             <li>
               <strong className="font-medium">{view.title}</strong> at{" "}
@@ -146,20 +146,20 @@ export function AiInterview({
           </ul>
         </section>
         <section className="space-y-2.5">
-          <h3 className="text-[13px] font-medium text-muted">
+          <h3 className="text-xs font-medium text-muted">
             The interview · {view.flexible ? `flexible, up to ${LIMITS.flexibleMinutes} min` : `${minutes} min`}
           </h3>
           <ol className="divide-y divide-border border-y border-border">
             {view.phases.map((p, i) => (
               <li key={p.id} className="flex items-start gap-3.5 py-3.5">
-                <span className="mt-px w-4 shrink-0 text-[13px] text-muted tabular-nums">{i + 1}</span>
+                <span className="mt-px w-4 shrink-0 text-xs text-muted tabular-nums">{i + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{phaseLabel(p.id)}</span>
-                  <span className="mt-0.5 block text-[13px] leading-snug text-pretty text-muted">
+                  <span className="mt-0.5 block text-xs leading-snug text-pretty text-muted">
                     {(PHASES as Record<string, { goal: string }>)[p.id]?.goal}
                   </span>
                 </span>
-                <span className="mt-px shrink-0 text-[13px] text-muted tabular-nums">
+                <span className="mt-px shrink-0 text-xs text-muted tabular-nums">
                   {view.flexible ? "~" : ""}
                   {p.minutes} min
                 </span>
@@ -168,7 +168,7 @@ export function AiInterview({
           </ol>
         </section>
         <section className="space-y-2.5">
-          <h3 className="text-[13px] font-medium text-muted">Rules</h3>
+          <h3 className="text-xs font-medium text-muted">Rules</h3>
           <ul className="list-disc space-y-2 pl-5 text-pretty marker:text-muted">
             <li>Talk out loud, like a real interview. You can interrupt the interviewer at any time.</li>
             <li>
@@ -564,7 +564,7 @@ function Consent({ company, onDone, onBack }: { company: string; onDone: () => v
         ].map(([t, d]) => (
           <li key={t} className="py-3.5">
             <span className="block font-medium">{t}</span>
-            <span className="mt-0.5 block text-[13px] leading-snug text-pretty text-muted">{d}</span>
+            <span className="mt-0.5 block text-xs leading-snug text-pretty text-muted">{d}</span>
           </li>
         ))}
       </ul>
@@ -995,7 +995,7 @@ function Room({
             <Logo size={20} />
             <span className="truncate text-sm font-medium">{view.company}</span>
           </span>
-          <ol className="flex items-center gap-2.5 text-[13px]" aria-label="Interview rounds">
+          <ol className="flex items-center gap-2.5 text-xs" aria-label="Interview rounds">
             {clock?.phases.map((p, i) => (
               <li
                 key={p.id}
@@ -1012,7 +1012,7 @@ function Room({
               </li>
             ))}
           </ol>
-          <div className="flex items-center justify-end gap-4 text-[13px]">
+          <div className="flex items-center justify-end gap-4 text-xs">
             <span
               className="flex items-center gap-1.5 text-xs font-medium text-danger"
               title="This session is recorded"
@@ -1093,11 +1093,11 @@ function Room({
                     animate={{ opacity: 1, transition: { delay: 0.2 } }}
                     className="w-48 shrink-0 text-center"
                   >
-                    <p className="font-display text-3xl leading-tight font-normal">
+                    <p className="font-display text-xl leading-tight font-normal">
                       {phase ? phaseLabel(phase) : "Getting ready"}
                     </p>
                     {clock && (
-                      <p className="mt-2 text-[13px] text-muted">
+                      <p className="mt-2 text-xs text-muted">
                         Round {index + 1} of {clock.phases.length}
                         {phase === "coding" && " · the editor opens in a moment"}
                       </p>
@@ -1153,11 +1153,11 @@ function Room({
                     <section className="flex-1 space-y-2.5 border-t border-border p-5">
                       {workspace === "board" && board ? (
                         <>
-                          <h2 className="text-base leading-snug font-medium text-balance">{board.design.title}</h2>
+                          <h2 className="text-sm leading-snug font-medium text-balance">{board.design.title}</h2>
                           {board.design.prompt && (
                             <p className="text-sm leading-relaxed text-muted">{board.design.prompt}</p>
                           )}
-                          <ul className="space-y-2 pt-1.5 text-[13px]">
+                          <ul className="space-y-2 pt-1.5 text-xs">
                             {board.design.requirements.map((r) => (
                               <li key={r} className="flex items-start gap-2">
                                 <Icon d={icons.check} size={13} className="mt-0.5 shrink-0 text-success" />
@@ -1168,8 +1168,8 @@ function Room({
                         </>
                       ) : (
                         <>
-                          <h2 className="text-[13px] text-muted">Latest question</h2>
-                          <p className="text-base leading-snug font-medium text-pretty">
+                          <h2 className="text-xs text-muted">Latest question</h2>
+                          <p className="text-sm leading-snug font-medium text-pretty">
                             {question || "Your interviewer's latest question stays pinned here."}
                           </p>
                         </>
@@ -1265,7 +1265,7 @@ function Line({
     <div className={center ? "text-center" : ""} aria-live={live ? "polite" : undefined}>
       <p className="text-xs font-medium text-muted">{who}</p>
       <p
-        className={`mt-1 line-clamp-3 min-h-[4.5em] leading-normal break-words transition-colors ${quiet ? "text-muted" : "text-foreground"} ${center ? "text-[15px]" : "text-sm"}`}
+        className={`mt-1 line-clamp-3 min-h-[4.5em] leading-normal break-words transition-colors ${quiet ? "text-muted" : "text-foreground"} ${center ? "text-sm" : "text-sm"}`}
       >
         {text}
       </p>

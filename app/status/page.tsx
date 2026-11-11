@@ -84,7 +84,7 @@ export default async function StatusPage() {
           <span className={`size-2 rounded-full ${down.length ? "bg-amber-500" : "bg-success"}`} />
           Status
         </div>
-        <h1 className="mt-3 font-display text-3xl font-normal text-balance">
+        <h1 className="mt-3 font-display text-xl font-normal text-balance">
           {down.length ? "Some systems are having issues" : "All systems operational"}
         </h1>
         <p className="mt-2 text-sm text-muted">
