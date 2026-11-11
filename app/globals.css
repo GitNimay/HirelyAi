@@ -3,7 +3,7 @@
 /* Dark theme, matched to the auth reference; Geist + Vercel-style sizing.
    Light applies when <html data-theme="light">, or with no data-theme ("System") when the OS is light. */
 :root {
-  --background: #161616;
+  --background: #000000;
   --foreground: #ededed;
   --muted: #a1a1a1;
   --surface: #1c1c1c;
