@@ -128,7 +128,7 @@ export function McqTest({
       </div>
 
       <fieldset key={at} className="space-y-4">
-        <legend className="mb-4 text-base leading-relaxed font-medium whitespace-pre-wrap break-words">{q.q}</legend>
+        <legend className="mb-4 text-sm leading-relaxed font-medium whitespace-pre-wrap break-words">{q.q}</legend>
         <div className="space-y-2.5" role="radiogroup" aria-label={`Question ${at + 1} options`}>
           {q.options.map((o, i) => {
             const on = answers[at] === i;

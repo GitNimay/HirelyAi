@@ -130,8 +130,8 @@ export function LegalPage({
         )}
         <main id="main" className="max-w-[688px]">
           <p className="text-sm text-muted">Last updated {updated}</p>
-          <h1 className="mt-3 font-display text-4xl font-normal">{title}</h1>
-          <div className="mt-5 text-[15px] leading-7 text-pretty text-muted [&_strong]:font-medium [&_strong]:text-foreground">
+          <h1 className="mt-3 font-display text-xl font-normal">{title}</h1>
+          <div className="mt-5 text-sm leading-7 text-pretty text-muted [&_strong]:font-medium [&_strong]:text-foreground">
             {lead}
           </div>
           <div className="mt-12 space-y-10 border-t border-border pt-12">{children}</div>
@@ -152,8 +152,8 @@ export function LegalPage({
 export function Clause({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section id={slug(title)} className="scroll-mt-8">
-      <h2 className="text-lg font-medium tracking-tight text-balance">{title}</h2>
-      <div className="mt-3 space-y-3 text-[15px] leading-7 text-pretty text-muted [&_a]:text-link [&_a:hover]:underline [&_a]:underline-offset-2 [&_li]:relative [&_li]:pl-4 [&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:text-muted/60 [&_li]:before:content-['–'] [&_strong]:font-medium [&_strong]:text-foreground [&_ul]:space-y-2">
+      <h2 className="text-xl font-medium tracking-tight text-balance">{title}</h2>
+      <div className="mt-3 space-y-3 text-sm leading-7 text-pretty text-muted [&_a]:text-link [&_a:hover]:underline [&_a]:underline-offset-2 [&_li]:relative [&_li]:pl-4 [&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:text-muted/60 [&_li]:before:content-['–'] [&_strong]:font-medium [&_strong]:text-foreground [&_ul]:space-y-2">
         {children}
       </div>
     </section>

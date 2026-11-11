@@ -1,6 +1,7 @@
 "use client";
 
 import { useReducedMotion } from "motion/react";
+import { LogoMark } from "../hero-logo";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
 import s from "./screens.module.css";
@@ -18,7 +19,7 @@ export function Check({ size = 12, width = 2.5 }: { size?: number; width?: numbe
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#059669"
+      stroke="var(--success)"
       strokeWidth={width}
       strokeLinecap="round"
     >
@@ -34,7 +35,7 @@ export function Cross({ size = 12 }: { size?: number }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#D93036"
+      stroke="var(--danger)"
       strokeWidth={2.5}
       strokeLinecap="round"
     >
@@ -50,7 +51,7 @@ function Mic({ size }: { size: number }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#1C1C19"
+      stroke="var(--foreground)"
       strokeWidth={2}
       strokeLinecap="round"
     >
@@ -59,13 +60,11 @@ function Mic({ size }: { size: number }) {
   );
 }
 
-export const Logo = ({ size = 20 }: { size?: number }) => (
-  // eslint-disable-next-line @next/next/no-img-element -- tiny static svg
-  <img src="/brand/logo-mark.svg" width={size} height={size} alt="" />
-);
+/** The brand mark, still: the landing illustrations don't animate it */
+export const Logo = ({ size = 20 }: { size?: number }) => <LogoMark size={size} padded={false} still />;
 
 /** The app's interviewer orb. Paused until its slide's story starts; stories set its state with an "orb" event
-    (see stories.ts), so only the orb re-renders. Pinned light: the landing is light-only whatever data-theme says */
+    (see stories.ts), so only the orb re-renders. Follows the page theme, like the real interview room */
 export function Orb({ state, className, scale }: { state: OrbState; className: string; scale: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [orb, setOrb] = useState({ state, paused: true });
@@ -77,7 +76,7 @@ export function Orb({ state, className, scale }: { state: OrbState; className: s
   }, []);
   return (
     <div ref={ref} data-anim="orb" className={className} aria-hidden>
-      <ThinkingOrb state={orb.state} paused={orb.paused} theme="light" size={64} className={scale} />
+      <ThinkingOrb state={orb.state} paused={orb.paused} size={64} className={scale} />
     </div>
   );
 }
@@ -238,7 +237,7 @@ export function StepFrame({ title, steps, children }: { title: string; steps: st
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#65655F"
+              stroke="var(--muted)"
               strokeWidth="2"
               strokeLinecap="round"
             >

@@ -62,3 +62,7 @@ CLAUDE.md
 /videos/
 
 opencode.json
+
+# local scratch and design source files (not served, not referenced)
+/.tmp/
+/brand/

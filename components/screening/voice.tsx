@@ -213,7 +213,7 @@ export function Live({
 
       <div className="min-h-24 w-full space-y-3" aria-live="polite">
         <p className="text-sm font-medium">{STATE_LABEL[agent]}</p>
-        {caption.agent && <p className="break-words text-base leading-relaxed text-balance">{caption.agent}</p>}
+        {caption.agent && <p className="break-words text-sm leading-relaxed text-balance">{caption.agent}</p>}
         {caption.you && <p className="break-words text-sm text-muted">You: {caption.you}</p>}
       </div>
 

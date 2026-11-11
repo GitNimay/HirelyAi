@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Dark theme, matched to the auth reference; Geist + Vercel-style sizing.
+/* Dark theme, matched to the auth reference; Geist + Vercel-style sizing: three sizes (text-xs 12 / text-sm 14 / text-xl 20), two weights (400 / 500).
    Light applies when <html data-theme="light">, or with no data-theme ("System") when the OS is light. */
 :root {
   --background: #161616;
@@ -78,7 +78,7 @@
   --color-primary-hover: var(--primary-hover);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-newsreader);
+  --font-display: var(--font-geist-sans); /* one family everywhere; kept as an alias for existing classes */
   --font-hand: var(--font-caveat);
 }
 
@@ -406,6 +406,43 @@ select option {
   background-image: repeating-linear-gradient(45deg, var(--border) 0 1px, transparent 1px 12px);
 }
 
+/* Landing background: two hard-edged halftone dot clusters, laid out like opensourceui.in's halftone-pop-background
+   (MIT). Orange and emerald. light-dark(): deeper shades on cream; dimmer 500 shades at lower alpha on dark. */
+.halftone > div {
+  position: absolute;
+  background-image: radial-gradient(circle, var(--dot) 1.2px, transparent 1.2px);
+}
+/* top right */
+.halftone > div:nth-child(1) {
+  --dot: light-dark(rgb(234 88 12 / 0.18), rgb(249 115 22 / 0.1));
+  top: -12%;
+  right: -10%;
+  width: 72%;
+  height: 72%;
+  background-size: 7px 7px;
+}
+/* bottom left */
+.halftone > div:nth-child(2) {
+  --dot: light-dark(rgb(5 150 105 / 0.16), rgb(16 185 129 / 0.09));
+  bottom: -14%;
+  left: -8%;
+  width: 68%;
+  height: 68%;
+  background-size: 9px 9px;
+  /* Notch out the top-right corner where it would overlap the orange square (x 38–60%, y 46–60% of the viewport), so
+     only the orange dots show there; two dot grids on top of each other moiré. Keep in step with both squares' sizes */
+  clip-path: polygon(0 0, 67.65% 0, 67.65% 20.59%, 100% 20.59%, 100% 100%, 0 100%);
+}
+
+/* Text over the halftone: a halo in the page colour knocks the dots out around each glyph so copy stays legible */
+@utility text-halo {
+  text-shadow:
+    0 0 2px var(--background),
+    0 0 4px var(--background),
+    0 0 8px var(--background),
+    0 0 12px var(--background);
+}
+
 /* Auth art panel: the sky drifts in on page load */
 .art-in {
   animation: art-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
@@ -464,5 +501,100 @@ select option {
 @keyframes hero-fade {
   from {
     opacity: 0;
+  }
+}
+
+/* Hero logo morph (played once by HeroLogo on hover): the bars swing out into an "H", fold into a six-arm star that
+   spins, then each bar completes its full turn and lands back in the logo with a slight overshoot. Every keyframe keeps
+   the same translate/rotate/scale list so the browser interpolates each part smoothly; bars are staggered 60ms. */
+.logo-morph path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.logo-morph.is-playing path {
+  /* Longhands on purpose: the build minifier collapses the shorthand `animation: 1.6s both` (no name) to `none` */
+  animation-duration: 1.6s;
+  animation-fill-mode: both;
+}
+.logo-morph.is-playing path:nth-child(1) {
+  animation-name: logo-bar-top;
+}
+.logo-morph.is-playing path:nth-child(2) {
+  animation-name: logo-bar-mid;
+  animation-delay: 60ms;
+}
+.logo-morph.is-playing path:nth-child(3) {
+  animation-name: logo-bar-bottom;
+  animation-delay: 120ms;
+}
+@keyframes logo-bar-top {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  }
+  24%,
+  34% {
+    transform: translate(-109px, 109.5px) rotate(90deg) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  }
+  56% {
+    transform: translate(0, 109.5px) rotate(240deg) scale(0.85, 0.55);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  70% {
+    transform: translate(0, 109.5px) rotate(300deg) scale(0.85, 0.55);
+    animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  100% {
+    transform: translate(0, 0) rotate(360deg) scale(1, 1);
+  }
+}
+@keyframes logo-bar-mid {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  }
+  24%,
+  34% {
+    transform: translate(0, 0) rotate(0deg) scale(0.55, 0.8);
+    animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  }
+  56% {
+    transform: translate(0, 0) rotate(180deg) scale(0.85, 0.55);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  70% {
+    transform: translate(0, 0) rotate(240deg) scale(0.85, 0.55);
+    animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  100% {
+    transform: translate(0, 0) rotate(360deg) scale(1, 1);
+  }
+}
+@keyframes logo-bar-bottom {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  }
+  24%,
+  34% {
+    transform: translate(109px, -109.5px) rotate(-90deg) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  }
+  56% {
+    transform: translate(0, -109.5px) rotate(120deg) scale(0.85, 0.55);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  70% {
+    transform: translate(0, -109.5px) rotate(180deg) scale(0.85, 0.55);
+    animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  100% {
+    transform: translate(0, 0) rotate(360deg) scale(1, 1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-morph.is-playing path {
+    animation: none;
   }
 }

@@ -47,18 +47,18 @@ export function CodingScreen({ active }: ScreenProps) {
       <div className={s.room}>
         <Dock
           ai="Speaking"
-          aiDot="#059669"
+          aiDot="var(--success)"
           speaking
           cam={<CamVideo name="coding" position="75% 40%" active={active} />}
           interviewer="Sorting first makes sense. Before you run it, what's the time complexity of that loop?"
           you="The sort is n log n, and the sweep is linear, so overall n log n."
         >
-          <section className={s.dockSection}>
+          <section className={s.dockSection} data-anim="question-box">
             <p className={s.mute} style={{ fontSize: 13 }}>
               Latest question
             </p>
             <p data-anim="question" className={s.medium} style={{ fontSize: 16, lineHeight: "22px" }}>
-              What&apos;s the time complexity of your solution, and can you do better on already-sorted input?
+              Example 2 missed a touching pair. Why, and what&apos;s the time complexity?
             </p>
           </section>
         </Dock>
@@ -95,7 +95,7 @@ export function CodingScreen({ active }: ScreenProps) {
                 height="12"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#65655F"
+                stroke="var(--muted)"
                 strokeWidth="2"
                 strokeLinecap="round"
               >
@@ -103,7 +103,7 @@ export function CodingScreen({ active }: ScreenProps) {
               </svg>
             </span>
             <span data-anim="run" className={s.run}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="#F7F7F4">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--background)">
                 <path d="M6 4l14 8-14 8z" />
               </svg>
               <span className={s.spinner} style={{ display: "none" }} />
@@ -129,24 +129,24 @@ export function CodingScreen({ active }: ScreenProps) {
             ))}
           </div>
           <div data-anim="results" className={s.results}>
-            <p className={s.medium} style={{ fontSize: 14, lineHeight: "20px", color: "#D93036" }}>
+            <p className={s.medium} style={{ fontSize: 14, lineHeight: "20px", color: "var(--danger)" }}>
               Wrong Answer · 1/2 passed
               <span className={s.mute} style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
                 0.02s · 9 MB
               </span>
             </p>
-            <p data-anim="test" className={s.resRow} style={{ color: "#059669" }}>
+            <p data-anim="test" className={s.resRow} style={{ color: "var(--success)" }}>
               <Check />
               Example 1
             </p>
             <p data-anim="test" className={s.resRow}>
-              <span className={s.resRow} style={{ color: "#D93036" }}>
+              <span className={s.resRow} style={{ color: "var(--danger)" }}>
                 <Cross />
                 Example 2
               </span>
               <span className={cx(s.mute, s.mono)} style={{ marginLeft: 12 }}>
-                expected <span style={{ color: "#1C1C19" }}>[[1,3]]</span> · got{" "}
-                <span style={{ color: "#1C1C19" }}>[[1,2],[2,3]]</span>
+                expected <span style={{ color: "var(--foreground)" }}>[[1,3]]</span> · got{" "}
+                <span style={{ color: "var(--foreground)" }}>[[1,2],[2,3]]</span>
               </span>
             </p>
           </div>
