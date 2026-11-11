@@ -263,9 +263,7 @@ export function AiReportView({ data, shareKey }: { data: AiReportData; shareKey?
                 </p>
               </div>
             </div>
-            {rep?.summary && (
-              <p className="max-w-[62ch] text-sm leading-relaxed text-foreground/90">{rep.summary}</p>
-            )}
+            {rep?.summary && <p className="max-w-[62ch] text-sm leading-relaxed text-foreground/90">{rep.summary}</p>}
             <p className="text-xs text-muted" suppressHydrationWarning>
               AI interview{date ? ` · ${date}` : ""}
               {end > start ? ` · ${minutes(end - start)}` : ""}
