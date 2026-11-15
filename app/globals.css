@@ -443,6 +443,43 @@ select option {
     0 0 12px var(--background);
 }
 
+/* Landing text reveal (DiaReveal): a colour band sweeps left → right across each text element, then it settles on its
+   own colour. No background-attachment: fixed (with background-clip: text it can render blank in Safari). Each element's own
+   currentColor is the settled colour, and the fill stays transparent until the band has passed. Two background layers
+   (text, border-box) keep background colours such as the highlighter marks and the pill. Buttons keep their gradients;
+   the labels inside them get the sweep. */
+@property --dia {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 117%;
+}
+@keyframes dia-sweep {
+  from {
+    --dia: -17%;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dia :not(svg, svg *, .tx-accent, .tx-secondary) {
+    background-image:
+      linear-gradient(
+        90deg,
+        currentColor calc(var(--dia) - 17%),
+        #c679c4 calc(var(--dia) - 17%),
+        #fa3d1d calc(var(--dia) - 8.5%),
+        #ffb005 var(--dia),
+        #e1e1fe calc(var(--dia) + 8.5%),
+        #0358f7 calc(var(--dia) + 17%),
+        transparent calc(var(--dia) + 17%)
+      ),
+      none;
+    -webkit-background-clip: text, border-box;
+    background-clip: text, border-box;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    animation: dia-sweep 1.6s cubic-bezier(0.65, 0, 0.35, 1) 150ms both;
+  }
+}
+
 /* Auth art panel: the sky drifts in on page load */
 .art-in {
   animation: art-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
