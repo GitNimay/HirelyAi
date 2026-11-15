@@ -443,8 +443,8 @@ select option {
     0 0 12px var(--background);
 }
 
-/* Landing text reveal (DiaReveal): a colour band sweeps left → right across the viewport, then text settles on its own
-   colour. The gradient is viewport-fixed, so every element (nested ones too) shares one band. Each element's own
+/* Landing text reveal (DiaReveal): a colour band sweeps left → right across each text element, then it settles on its
+   own colour. No background-attachment: fixed (with background-clip: text it can render blank in Safari). Each element's own
    currentColor is the settled colour, and the fill stays transparent until the band has passed. Two background layers
    (text, border-box) keep background colours such as the highlighter marks and the pill. Buttons keep their gradients;
    the labels inside them get the sweep. */
@@ -472,7 +472,6 @@ select option {
         transparent calc(var(--dia) + 17%)
       ),
       none;
-    background-attachment: fixed;
     -webkit-background-clip: text, border-box;
     background-clip: text, border-box;
     -webkit-text-fill-color: transparent;
