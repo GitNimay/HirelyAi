@@ -78,7 +78,37 @@ The app mints a LiveKit token whose room config dispatches [the voice agent](voi
 
 ## AI interview
 
-The longer AI interview (intro, deep dive, technical with whiteboard, coding, wrap-up) runs on Phonic speech-to-speech inside the `InterviewRoom` Durable Object. See [docs/ai-interview-flow.md](docs/ai-interview-flow.md) for the full flow, tool calls and harness, and [docs/](docs/README.md) for all docs.
+```mermaid
+flowchart TD
+    subgraph before["1 · Before the call"]
+        direction LR
+        A["Candidate applies"] --> P["AI prepares a plan<br/>resume claims to check<br/>+ coding problems, proven in Judge0"]
+        A --> E["Invite email<br/>link, ID, password"]
+        E --> S["Sign in, device check,<br/>consent, overview"]
+    end
+
+    subgraph live["2 · The live interview (about 25 min, voice)"]
+        direction LR
+        I["👋 Intro · 2 min<br/>greet, confirm name,<br/>self-introduction"]
+        D["🔍 Deep dive · 6 min<br/>2-3 projects from the resume:<br/>what they did, trade-offs, outcome"]
+        T["🧠 Technical · 5 min<br/>role questions<br/>+ system design on a whiteboard"]
+        C["💻 Coding · 9 min<br/>problem in the editor,<br/>runs hidden tests"]
+        W["🙋 Wrap-up · 3 min<br/>recruiter's questions,<br/>candidate's questions"]
+        I --> D --> T --> C --> W
+    end
+
+    subgraph after["3 · After the call"]
+        direction LR
+        R["Transcript, code, whiteboard,<br/>recordings saved"] --> G["AI grades each skill,<br/>citing evidence"]
+        G --> O["Recruiter gets the report<br/>score, recommendation, integrity"]
+    end
+
+    P -.-> live
+    S --> live
+    live --> after
+```
+
+The candidate talks to a voice interviewer (Phonic speech-to-speech) while the `InterviewRoom` Durable Object runs a harness that decides everything else: which round it is, which tools exist (editor, tests, whiteboard), when to move on, and when the clock forces a round to end. The clock pauses on reconnects and proctoring pauses, skips need the candidate's "yes", and a flexible mode lets the call run up to 60 minutes. Scores come from a separate grader and the final numbers are computed in code, never written by the model. See [docs/ai-interview-flow.md](docs/ai-interview-flow.md) for the full flow, tool calls and harness, and [docs/](docs/README.md) for all docs.
 
 ## Getting started
 
