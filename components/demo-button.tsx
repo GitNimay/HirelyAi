@@ -12,7 +12,7 @@ export function DemoButton({ className }: { className: string }) {
   return (
     <>
       <button type="button" className={className} onClick={() => setOpen(true)}>
-        Demo
+        <span>Demo</span>
       </button>
       {open && (
         <Modal title="Hirely AI demo" onClose={() => setOpen(false)} wide>

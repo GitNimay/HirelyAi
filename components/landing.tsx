@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DemoButton } from "./demo-button";
+import { DiaReveal } from "./dia-reveal";
 import { HeroLogo } from "./hero-logo";
 import { HeroScreens } from "./hero-screens";
 import { LEGAL_EMAIL } from "./public-shell";
@@ -167,7 +168,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
       >
         {/* Fluid type: phone 30px → 1440px wide 41px → capped at 48px on big screens; the rest scales with it */}
         {/* Fluid type: title 30px on phones → 40px at 1440 → capped at 44px; lede 18px → 21px → 22px */}
-        <div className="flex flex-col gap-[clamp(24px,2.2vw,32px)] lg:w-[43%] lg:max-w-[600px] lg:shrink-0">
+        <DiaReveal className="flex flex-col gap-[clamp(24px,2.2vw,32px)] lg:w-[43%] lg:max-w-[600px] lg:shrink-0">
           <div className="text-halo text-[clamp(30px,1.8vw+14px,44px)] leading-[1.1] font-medium tracking-[-0.035em]">
             <HeroLogo>
               <h1>Hire on signal.</h1>
@@ -222,16 +223,19 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <Link href={cta.href} className={`tx-accent self-start ${btn}`}>
-              {cta.label}
+              <span>{cta.label}</span>
             </Link>
             <DemoButton className={`tx-secondary ${btn}`} />
           </div>
-        </div>
+        </DiaReveal>
 
         <HeroScreens />
       </main>
 
-      <footer className="text-halo flex flex-wrap items-center justify-between gap-x-5 gap-y-3 text-[clamp(13px,0.2vw+11px,14px)] leading-[20px] text-muted">
+      <DiaReveal
+        as="footer"
+        className="text-halo flex flex-wrap items-center justify-between gap-x-5 gap-y-3 text-[clamp(13px,0.2vw+11px,14px)] leading-[20px] text-muted"
+      >
         <nav aria-label="Product" className="flex items-center gap-2 px-1.5">
           <Link href="/changelog" className={link}>
             Changelog
@@ -272,7 +276,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
             Terms
           </Link>
         </nav>
-      </footer>
+      </DiaReveal>
     </div>
   );
 }
