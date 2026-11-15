@@ -89,11 +89,11 @@ flowchart TD
 
     subgraph live["2 · The live interview (about 25 min, voice)"]
         direction LR
-        I["👋 Intro · 2 min<br/>greet, confirm name,<br/>self-introduction"]
-        D["🔍 Deep dive · 6 min<br/>2-3 projects from the resume:<br/>what they did, trade-offs, outcome"]
-        T["🧠 Technical · 5 min<br/>role questions<br/>+ system design on a whiteboard"]
-        C["💻 Coding · 9 min<br/>problem in the editor,<br/>runs hidden tests"]
-        W["🙋 Wrap-up · 3 min<br/>recruiter's questions,<br/>candidate's questions"]
+        I["Intro · 2 min<br/>greet, confirm name,<br/>self-introduction"]
+        D["Deep dive · 6 min<br/>2-3 projects from the resume:<br/>what they did, trade-offs, outcome"]
+        T["Technical · 5 min<br/>role questions<br/>+ system design on a whiteboard"]
+        C["Coding · 9 min<br/>problem in the editor,<br/>runs hidden tests"]
+        W["Wrap-up · 3 min<br/>recruiter's questions,<br/>candidate's questions"]
         I --> D --> T --> C --> W
     end
 
@@ -109,6 +109,115 @@ flowchart TD
 ```
 
 The candidate talks to a voice interviewer (Phonic speech-to-speech) while the `InterviewRoom` Durable Object runs a harness that decides everything else: which round it is, which tools exist (editor, tests, whiteboard), when to move on, and when the clock forces a round to end. The clock pauses on reconnects and proctoring pauses, skips need the candidate's "yes", and a flexible mode lets the call run up to 60 minutes. Scores come from a separate grader and the final numbers are computed in code, never written by the model. See [docs/ai-interview-flow.md](docs/ai-interview-flow.md) for the full flow, tool calls and harness, and [docs/](docs/README.md) for all docs.
+
+### The harness
+
+**Class diagram: who does what.** The room owns the state; the harness is pure functions that read it and return a new one. Phonic only talks and asks for tools; it never decides.
+
+```mermaid
+classDiagram
+    direction LR
+    class Browser {
+        mic audio
+        code and whiteboard
+        Run and End buttons
+    }
+    class InterviewRoom {
+        <<Durable Object>>
+        onAudio()
+        onToolCall()
+        onTick() every 1 s
+        finish()
+    }
+    class HarnessState {
+        phase and clock
+        answers heard
+        claims checked
+        test runs
+        current topic
+    }
+    class Harness {
+        <<pure functions>>
+        toolsFor(phase)
+        validateCall(tool)
+        requestTransition()
+        applyTool()
+        tick()
+        steer()
+    }
+    class Phonic {
+        <<voice model>>
+        speech to speech
+        tool calls
+    }
+    class Bookkeeper {
+        <<gpt-oss-20b>>
+        notes per skill
+        claim results
+        topic tracking
+    }
+    class Judge0 {
+        <<sandbox>>
+        runs code
+        hidden tests
+    }
+    class Evaluator {
+        <<gpt-oss-120b + code>>
+        scores with evidence
+        recommendation
+    }
+
+    Browser "1" <--> "1" InterviewRoom : WebSocket
+    InterviewRoom *-- HarnessState : owns
+    InterviewRoom --> Harness : asks every decision
+    Harness ..> HarnessState : reads, returns new
+    InterviewRoom <--> Phonic : audio, briefs, tool results
+    InterviewRoom --> Bookkeeper : every 6 lines
+    InterviewRoom --> Judge0 : run_tests
+    InterviewRoom ..> Evaluator : on finish, via queue
+```
+
+**State machine: how the interview moves.** Arrows read `event [guard] / action`. The agent can only _ask_ to move on (`request_phase_transition`); the harness approves it when the guard holds and otherwise tells the agent what to do instead.
+
+```mermaid
+stateDiagram-v2
+    state "Joining" as Joining
+    state "Live (clock running)" as Live {
+        state "Intro · 2 min" as Intro
+        state "Deep dive · 6 min" as DeepDive
+        state "Technical · 5 min" as Technical
+        state "Coding · 9 min" as Coding
+        state "Wrap-up · 3 min" as WrapUp
+
+        [*] --> Intro
+        Intro --> DeepDive : goal_met [2 answers and 40 s]
+        DeepDive --> Technical : goal_met [half its time used]
+        Technical --> Coding : goal_met [whiteboard used or 70% of time]
+        Coding --> WrapUp : goal_met [final code tested, or enough time spent]
+        WrapUp --> [*] : end_interview [after goodbye]
+    }
+    state "Ended" as Ended
+
+    [*] --> Joining : candidate presses Start
+    Joining --> Live : Phonic ready / start clock
+    Live --> Ended : done, End pressed, or no rejoin in 5 min / finish()
+    Ended --> [*] : queue grades the report
+
+    note right of Live
+        Any round also moves on when
+        - its time runs out (forced move)
+        - the candidate asks to skip and says "yes"
+        The clock stops while the candidate is
+        disconnected or proctoring pauses the call.
+    end note
+```
+
+| Round     | Tools the agent gets                                                    |
+| --------- | ----------------------------------------------------------------------- |
+| Every one | `request_phase_transition`                                              |
+| Technical | `open_whiteboard`, `read_whiteboard`, `close_whiteboard` (if design on) |
+| Coding    | `run_tests`, `switch_problem`                                           |
+| Wrap-up   | `end_interview`                                                         |
 
 ## Getting started
 
